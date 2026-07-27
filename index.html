@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CAN SLIM Market Pulse Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <style>
+        :root { --primary-bg: #f8f9fa; --card-bg: #ffffff; --text-main: #333333; --text-muted: #6c757d; --accent-green: #2ecc71; --accent-yellow: #f1c40f; --accent-red: #e74c3c; --border-color: #e9ecef; --accent-blue: #3498db; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--primary-bg); color: var(--text-main); margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .container { max-width: 1100px; width: 100%; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .header h1 { margin: 0; color: #2c3e50; }
+        .header p { color: var(--text-muted); }
+        .stale-banner { display: none; background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; text-align: center; font-weight: bold; }
+        .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 20px; }
+        .card { background-color: var(--card-bg); border-radius: 10px; padding: 25px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); border: 1px solid var(--border-color); }
+        .status-card { text-align: center; grid-column: 1 / -1; }
+        .status-title { font-size: 1.2rem; color: var(--text-muted); margin-bottom: 10px; }
+        .status-value { font-size: 2.5rem; font-weight: bold; margin: 10px 0; }
+        .status-sub { color: var(--text-muted); font-size: 0.95rem; }
+        .exposure-badge { display: inline-block; padding: 8px 16px; border-radius: 20px; font-size: 1.2rem; font-weight: bold; background-color: #f1f3f5; margin-top: 10px; }
+        .index-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 20px; }
+        .index-card h3 { margin-top: 0; border-bottom: 2px solid var(--accent-blue); padding-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .index-badge { font-size: 0.85rem; padding: 4px 10px; border-radius: 12px; color: #fff; font-weight: normal; }
+        .metric-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border-color); font-size: 0.95rem; }
+        .metric-row:last-child { border-bottom: none; }
+        .chart-mini { height: 260px; margin-top: 15px; }
+        .chart-container { background-color: var(--card-bg); border-radius: 10px; padding: 20px; height: 260px; margin-bottom: 20px; }
+        .section-title { font-size: 1rem; color: var(--text-muted); margin: 30px 0 10px 4px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>Market Pulse Dashboard</h1>
+        <p>最終更新 (JST): <span id="update-time">--</span></p>
+    </div>
+
+    <div class="stale-banner" id="stale-banner">
+        ⚠ データが3日以上更新されていません。自動更新が失敗している可能性があります（GitHub Actionsのログを確認してください）。
+    </div>
+
+    <div class="dashboard-grid">
+        <div class="card status-card">
+            <div class="status-title">現在の市場ステータス（総合判定）</div>
+            <div class="status-value" id="market-status">--</div>
+            <div class="status-sub" id="market-status-jp">--</div>
+            <div class="exposure-badge">推奨 Exposure: <span id="exposure-val">--</span></div>
+            <div class="status-sub" style="margin-top:10px;">判定根拠: <span id="driven-by">--</span></div>
+        </div>
+    </div>
+
+    <div class="index-grid">
+        <div class="card index-card" id="card-sp500">
+            <h3>S&P 500 <span class="index-badge" id="badge-sp500">--</span></h3>
+            <div class="metric-row"><span>終値</span><strong id="close-sp500">--</strong></div>
+            <div class="metric-row"><span>50日移動平均線</span><strong id="sma-sp500">--</strong></div>
+            <div class="metric-row"><span>トレンド状態</span><strong id="trend-sp500">--</strong></div>
+            <div class="metric-row"><span>売り抜け日（有効カウント）</span><strong id="dist-sp500">--</strong></div>
+            <div class="metric-row"><span>直近フォロースルーデー</span><strong id="ftd-sp500">--</strong></div>
+            <div class="chart-mini"><canvas id="chart-sp500"></canvas></div>
+        </div>
+        <div class="card index-card" id="card-nasdaq">
+            <h3>Nasdaq Composite <span class="index-badge" id="badge-nasdaq">--</span></h3>
+            <div class="metric-row"><span>終値</span><strong id="close-nasdaq">--</strong></div>
+            <div class="metric-row"><span>50日移動平均線</span><strong id="sma-nasdaq">--</strong></div>
+            <div class="metric-row"><span>トレンド状態</span><strong id="trend-nasdaq">--</strong></div>
+            <div class="metric-row"><span>売り抜け日（有効カウント）</span><strong id="dist-nasdaq">--</strong></div>
+            <div class="metric-row"><span>直近フォロースルーデー</span><strong id="ftd-nasdaq">--</strong></div>
+            <div class="chart-mini"><canvas id="chart-nasdaq"></canvas></div>
+        </div>
+    </div>
+
+    <div class="section-title">Exposure 推移（過去180日）</div>
+    <div class="chart-container"><canvas id="historyChart"></canvas></div>
+</div>
+
+<script>
+    const statusMeta = {
+        'Correction': { en: 'Market in Correction', jp: '調整局面', exp: '0% - 20%', expMid: 10, color: 'var(--accent-red)', hex: '#e74c3c' },
+        'Pressure':   { en: 'Uptrend Under Pressure', jp: '警戒感のある上昇', exp: '20% - 60%', expMid: 40, color: 'var(--accent-yellow)', hex: '#f1c40f' },
+        'Uptrend':    { en: 'Confirmed Uptrend', jp: '上昇トレンド確実', exp: '80% - 100%', expMid: 90, color: 'var(--accent-green)', hex: '#2ecc71' }
+    };
+    const trendJp = { 'Correction': '調整/未確認', 'RallyAttempt': 'ラリー・アテンプト中', 'ConfirmedUptrend': '上昇トレンド確認済み' };
+
+    function renderIndexCard(key, data) {
+        const s = statusMeta[data.statusId];
+        document.getElementById(`badge-${key}`).innerText = s.en;
+        document.getElementById(`badge-${key}`).style.backgroundColor = s.hex;
+        document.getElementById(`close-${key}`).innerText = Number(data.latestClose).toFixed(2);
+        const smaEl = document.getElementById(`sma-${key}`);
+        smaEl.innerText = data.sma50 ? Number(data.sma50).toFixed(2) : '--';
+        smaEl.style.color = data.isAboveSma50 ? 'var(--accent-green)' : 'var(--accent-red)';
+
+        const trendEl = document.getElementById(`trend-${key}`);
+        trendEl.innerText = trendJp[data.trendState] || data.trendState;
+        trendEl.style.color = data.trendState === 'ConfirmedUptrend' ? 'var(--accent-green)' : 'var(--text-main)';
+
+        const distEl = document.getElementById(`dist-${key}`);
+        distEl.innerText = `${data.distributionDaysActive} 日`;
+        distEl.style.color = data.distributionDaysActive >= 6 ? 'var(--accent-red)' : (data.distributionDaysActive >= 3 ? 'var(--accent-yellow)' : 'var(--accent-green)');
+
+        document.getElementById(`ftd-${key}`).innerText = data.lastFollowThroughDate || '未発生';
+
+        new Chart(document.getElementById(`chart-${key}`).getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: data.chart.labels,
+                datasets: [
+                    { label: '終値', data: data.chart.closes, borderColor: '#2980b9', backgroundColor: 'rgba(41, 128, 185, 0.08)', borderWidth: 2, fill: true, tension: 0.1, pointRadius: 0 },
+                    { label: '50日移動平均線', data: data.chart.sma50, borderColor: '#e67e22', borderWidth: 2, borderDash: [5, 5], fill: false, pointRadius: 0 },
+                    { label: '売り抜け日', data: data.chart.distMarks, backgroundColor: '#e74c3c', borderColor: '#e74c3c', pointStyle: 'triangle', pointRadius: 6, pointHoverRadius: 8, showLine: false }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+    }
+
+    fetch('data.json')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('update-time').innerText = data.lastUpdated;
+
+            // データ鮮度チェック（3日以上前なら警告）
+            const updated = new Date(data.lastUpdated.replace(' ', 'T') + '+09:00');
+            const ageDays = (Date.now() - updated.getTime()) / (1000 * 60 * 60 * 24);
+            if (ageDays > 3) {
+                document.getElementById('stale-banner').style.display = 'block';
+            }
+
+            const cs = statusMeta[data.combinedStatus];
+            document.getElementById('market-status').innerText = cs.en;
+            document.getElementById('market-status').style.color = cs.color;
+            document.getElementById('market-status-jp').innerText = cs.jp;
+            document.getElementById('exposure-val').innerText = cs.exp;
+            document.getElementById('exposure-val').style.color = cs.color;
+            document.getElementById('driven-by').innerText = data.combinedDrivenBy;
+
+            renderIndexCard('sp500', data.sp500);
+            renderIndexCard('nasdaq', data.nasdaq);
+        })
+        .catch(err => {
+            console.error(err);
+            document.getElementById('market-status').innerText = 'データ読込エラー';
+        });
+
+    fetch('history.json')
+        .then(r => r.ok ? r.json() : [])
+        .then(history => {
+            if (!Array.isArray(history) || history.length === 0) return;
+            new Chart(document.getElementById('historyChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: history.map(h => h.date),
+                    datasets: [{
+                        label: 'Exposure目安 (%)',
+                        data: history.map(h => statusMeta[h.combinedStatus]?.expMid ?? null),
+                        borderColor: '#8e44ad',
+                        backgroundColor: 'rgba(142, 68, 173, 0.1)',
+                        stepped: true,
+                        fill: true,
+                        pointRadius: 2
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { y: { min: 0, max: 100, title: { display: true, text: 'Exposure (%)' } } }
+                }
+            });
+        })
+        .catch(() => { /* history.json未生成（初回実行前）は無視 */ });
+</script>
+</body>
+</html>
