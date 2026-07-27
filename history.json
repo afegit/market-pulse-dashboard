@@ -1,0 +1,10 @@
+[
+  {
+    "date": "2026-07-27",
+    "combinedStatus": "Correction",
+    "sp500Status": "Correction",
+    "sp500DistDays": 6,
+    "nasdaqStatus": "Correction",
+    "nasdaqDistDays": 10
+  }
+]
