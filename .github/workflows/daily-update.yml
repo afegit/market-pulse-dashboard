@@ -1,0 +1,31 @@
+name: Daily .NET Market Pulse Update
+
+on:
+  schedule:
+    # 米国市場クローズ後、日次データが確定してから取得するため少し余裕を持たせて実行
+    # UTC 22:30 = JST 翌7:30
+    - cron: '30 22 * * 1-5'
+  workflow_dispatch: # 手動実行ボタン
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Run .NET App (Generate data.json / history.json)
+        run: dotnet run
+
+      - name: Commit and Push data.json / history.json
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Automated daily update of Market Pulse data"
+          file_pattern: 'data.json history.json'
