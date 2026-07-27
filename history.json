@@ -1,10 +1,18 @@
 [
   {
+    "date": "",
+    "combinedStatus": "",
+    "sp500Status": "",
+    "sp500DistDays": 0,
+    "nasdaqStatus": "",
+    "nasdaqDistDays": 0
+  },
+  {
     "date": "2026-07-27",
     "combinedStatus": "Correction",
     "sp500Status": "Correction",
     "sp500DistDays": 6,
     "nasdaqStatus": "Correction",
-    "nasdaqDistDays": 10
+    "nasdaqDistDays": 9
   }
 ]
