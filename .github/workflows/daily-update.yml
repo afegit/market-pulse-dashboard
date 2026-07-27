@@ -14,10 +14,10 @@ jobs:
   build-and-update:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '8.0.x'
 
@@ -25,7 +25,7 @@ jobs:
         run: dotnet run
 
       - name: Commit and Push data.json / history.json
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "Automated daily update of Market Pulse data"
           file_pattern: 'data.json history.json'
