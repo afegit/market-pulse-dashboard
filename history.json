@@ -5,14 +5,25 @@
     "sp500Status": "",
     "sp500DistDays": 0,
     "nasdaqStatus": "",
-    "nasdaqDistDays": 0
+    "nasdaqDistDays": 0,
+    "putCallRatio": null
   },
   {
-    "date": "2026-07-27",
+    "date": "",
+    "combinedStatus": "",
+    "sp500Status": "",
+    "sp500DistDays": 0,
+    "nasdaqStatus": "",
+    "nasdaqDistDays": 0,
+    "putCallRatio": null
+  },
+  {
+    "date": "2026-07-28",
     "combinedStatus": "Correction",
     "sp500Status": "Correction",
-    "sp500DistDays": 6,
+    "sp500DistDays": 5,
     "nasdaqStatus": "Correction",
-    "nasdaqDistDays": 9
+    "nasdaqDistDays": 8,
+    "putCallRatio": null
   }
 ]
