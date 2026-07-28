@@ -74,6 +74,29 @@
 
     <div class="section-title">Exposure 推移（過去180日）</div>
     <div class="chart-container"><canvas id="historyChart"></canvas></div>
+
+    <div class="section-title">Put/Call Ratio（自前算出・参考指標）</div>
+    <div class="dashboard-grid">
+        <div class="card" id="card-putcall">
+            <div id="putcall-ok" style="display:none;">
+                <div class="metric-row"><span>算出対象</span><strong id="pc-underlying">--</strong></div>
+                <div class="metric-row"><span>Put/Call Ratio（当日・出来高ベース）</span><strong id="pc-ratio" style="font-size:1.3rem;">--</strong></div>
+                <div class="metric-row"><span>10日移動平均</span><strong id="pc-sma10">--</strong></div>
+                <div class="metric-row"><span>コール出来高</span><strong id="pc-call-vol">--</strong></div>
+                <div class="metric-row"><span>プット出来高</span><strong id="pc-put-vol">--</strong></div>
+                <div class="metric-row"><span>自己の過去分布での位置</span><strong id="pc-percentile">--</strong></div>
+            </div>
+            <div id="putcall-unavailable" style="display:none; text-align:center; color: var(--text-muted); padding: 12px 0;">
+                <p style="font-size: 1.05rem; margin-bottom: 6px;">⚠ 本日はPut/Call Ratioを取得できませんでした</p>
+                <p style="font-size: 0.85rem;" id="pc-unavailable-note">--</p>
+            </div>
+            <p style="color: var(--text-muted); font-size: 0.82rem; margin: 12px 0 0 0;">
+                値が高いほどプット優勢（弱気/ヘッジ需要が強い）、低いほどコール優勢（強気）の目安です。
+                「過去分布での位置」はこのサイト自身が蓄積した履歴内での相対位置で、IBD/CBOEの一般的なしきい値（0.6〜1.2）とは基準が異なります。
+            </p>
+            <div class="chart-mini" style="height: 220px; margin-top: 15px;"><canvas id="chart-putcall"></canvas></div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -83,6 +106,45 @@
         'Uptrend':    { en: 'Confirmed Uptrend', jp: '上昇トレンド確実', exp: '80% - 100%', expMid: 90, color: 'var(--accent-green)', hex: '#2ecc71' }
     };
     const trendJp = { 'Correction': '調整/未確認', 'RallyAttempt': 'ラリー・アテンプト中', 'ConfirmedUptrend': '上昇トレンド確認済み' };
+    const PUT_CALL_MIN_HISTORY = 10; // Program.cs側のPUT_CALL_MIN_HISTORY_FOR_PERCENTILEと合わせる
+
+    // Chart.jsは同じcanvasに対して2回目のnew Chart()を呼ぶとエラーになるため、
+    // 既存のグラフがあれば破棄してから作り直す（再取得のたびに呼ばれても安全にするため）
+    function createOrUpdateChart(canvasId, config) {
+        const canvas = document.getElementById(canvasId);
+        const existing = Chart.getChart(canvas);
+        if (existing) existing.destroy();
+        return new Chart(canvas.getContext('2d'), config);
+    }
+
+    function renderPutCallCard(pc) {
+        // 再取得時に状態が切り替わっても古い表示が残らないよう、まず両方を隠してから必要な方だけ出す
+        document.getElementById('putcall-ok').style.display = 'none';
+        document.getElementById('putcall-unavailable').style.display = 'none';
+
+        if (!pc || pc.status !== 'ok') {
+            document.getElementById('putcall-unavailable').style.display = 'block';
+            document.getElementById('pc-unavailable-note').innerText = (pc && pc.note) || '取得結果がありません。';
+            return;
+        }
+        document.getElementById('putcall-ok').style.display = 'block';
+        document.getElementById('pc-underlying').innerText = pc.underlying;
+        document.getElementById('pc-ratio').innerText = Number(pc.ratio).toFixed(3);
+        document.getElementById('pc-sma10').innerText = pc.sma10 != null ? Number(pc.sma10).toFixed(3) : '--';
+        document.getElementById('pc-call-vol').innerText = Number(pc.callVolume).toLocaleString();
+        document.getElementById('pc-put-vol').innerText = Number(pc.putVolume).toLocaleString();
+
+        const percentileEl = document.getElementById('pc-percentile');
+        if (pc.percentileRank != null) {
+            percentileEl.innerText = `${pc.percentileRank}パーセンタイル（直近${pc.historyDays}日中）`;
+            // 自己の履歴内での相対位置のみで色分け（絶対しきい値は未検証のため使わない）
+            percentileEl.style.color = pc.percentileRank >= 80 ? 'var(--accent-red)' : (pc.percentileRank <= 20 ? 'var(--accent-green)' : 'var(--text-main)');
+        } else {
+            const days = pc.historyDays || 0;
+            percentileEl.innerText = `統計を蓄積中（${days}/${PUT_CALL_MIN_HISTORY}日）`;
+            percentileEl.style.color = 'var(--text-muted)';
+        }
+    }
 
     function renderIndexCard(key, data) {
         const s = statusMeta[data.statusId];
@@ -103,7 +165,7 @@
 
         document.getElementById(`ftd-${key}`).innerText = data.lastFollowThroughDate || '未発生';
 
-        new Chart(document.getElementById(`chart-${key}`).getContext('2d'), {
+        createOrUpdateChart(`chart-${key}`, {
             type: 'line',
             data: {
                 labels: data.chart.labels,
@@ -117,59 +179,107 @@
         });
     }
 
-    fetch('data.json')
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('update-time').innerText = data.lastUpdated;
+    let lastFetchTime = 0;
 
-            // データ鮮度チェック（3日以上前なら警告）
-            const updated = new Date(data.lastUpdated.replace(' ', 'T') + '+09:00');
-            const ageDays = (Date.now() - updated.getTime()) / (1000 * 60 * 60 * 24);
-            if (ageDays > 3) {
-                document.getElementById('stale-banner').style.display = 'block';
-            }
+    function loadData() {
+        // キャッシュバスター(?t=)とcache:no-storeの二重の対策で、
+        // ブラウザ/CDNが古いdata.jsonを返し続けて「更新されていないように見える」事故を防ぐ
+        fetch('data.json?t=' + Date.now(), { cache: 'no-store' })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('update-time').innerText = data.lastUpdated;
 
-            const cs = statusMeta[data.combinedStatus];
-            document.getElementById('market-status').innerText = cs.en;
-            document.getElementById('market-status').style.color = cs.color;
-            document.getElementById('market-status-jp').innerText = cs.jp;
-            document.getElementById('exposure-val').innerText = cs.exp;
-            document.getElementById('exposure-val').style.color = cs.color;
-            document.getElementById('driven-by').innerText = data.combinedDrivenBy;
+                // データ鮮度チェック（3日以上前なら警告）
+                const updated = new Date(data.lastUpdated.replace(' ', 'T') + '+09:00');
+                const ageDays = (Date.now() - updated.getTime()) / (1000 * 60 * 60 * 24);
+                document.getElementById('stale-banner').style.display = ageDays > 3 ? 'block' : 'none';
 
-            renderIndexCard('sp500', data.sp500);
-            renderIndexCard('nasdaq', data.nasdaq);
-        })
-        .catch(err => {
-            console.error(err);
-            document.getElementById('market-status').innerText = 'データ読込エラー';
-        });
+                const cs = statusMeta[data.combinedStatus];
+                document.getElementById('market-status').innerText = cs.en;
+                document.getElementById('market-status').style.color = cs.color;
+                document.getElementById('market-status-jp').innerText = cs.jp;
+                document.getElementById('exposure-val').innerText = cs.exp;
+                document.getElementById('exposure-val').style.color = cs.color;
+                document.getElementById('driven-by').innerText = data.combinedDrivenBy;
 
-    fetch('history.json')
-        .then(r => r.ok ? r.json() : [])
-        .then(history => {
-            if (!Array.isArray(history) || history.length === 0) return;
-            new Chart(document.getElementById('historyChart').getContext('2d'), {
-                type: 'line',
-                data: {
-                    labels: history.map(h => h.date),
-                    datasets: [{
-                        label: 'Exposure目安 (%)',
-                        data: history.map(h => statusMeta[h.combinedStatus]?.expMid ?? null),
-                        borderColor: '#8e44ad',
-                        backgroundColor: 'rgba(142, 68, 173, 0.1)',
-                        stepped: true,
-                        fill: true,
-                        pointRadius: 2
-                    }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    scales: { y: { min: 0, max: 100, title: { display: true, text: 'Exposure (%)' } } }
-                }
+                // 各カードの描画は独立したtry/catchにし、1箇所の想定外エラーで
+                // ページ全体が「データ読込エラー」に巻き込まれないようにする
+                try { renderIndexCard('sp500', data.sp500); } catch (e) { console.error('sp500 card failed:', e); }
+                try { renderIndexCard('nasdaq', data.nasdaq); } catch (e) { console.error('nasdaq card failed:', e); }
+                try { renderPutCallCard(data.putCallRatio); } catch (e) { console.error('putcall card failed:', e); }
+            })
+            .catch(err => {
+                console.error(err);
+                document.getElementById('market-status').innerText = 'データ読込エラー';
             });
-        })
-        .catch(() => { /* history.json未生成（初回実行前）は無視 */ });
+    }
+
+    function loadHistory() {
+        fetch('history.json?t=' + Date.now(), { cache: 'no-store' })
+            .then(r => r.ok ? r.json() : [])
+            .then(history => {
+                if (!Array.isArray(history) || history.length === 0) return;
+                createOrUpdateChart('historyChart', {
+                    type: 'line',
+                    data: {
+                        labels: history.map(h => h.date),
+                        datasets: [{
+                            label: 'Exposure目安 (%)',
+                            data: history.map(h => statusMeta[h.combinedStatus]?.expMid ?? null),
+                            borderColor: '#8e44ad',
+                            backgroundColor: 'rgba(142, 68, 173, 0.1)',
+                            stepped: true,
+                            fill: true,
+                            pointRadius: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        scales: { y: { min: 0, max: 100, title: { display: true, text: 'Exposure (%)' } } }
+                    }
+                });
+
+                // Put/Call Ratio推移（値がある日だけプロット。当日分の取得成否とは独立して描画できるようにcanvasは常時表示にしてある）
+                const pcHistory = history.filter(h => h.putCallRatio != null);
+                if (pcHistory.length > 0) {
+                    createOrUpdateChart('chart-putcall', {
+                        type: 'line',
+                        data: {
+                            labels: pcHistory.map(h => h.date),
+                            datasets: [{
+                                label: 'Put/Call Ratio (SPY)',
+                                data: pcHistory.map(h => h.putCallRatio),
+                                borderColor: '#8e44ad',
+                                backgroundColor: 'rgba(142, 68, 173, 0.08)',
+                                borderWidth: 2,
+                                fill: true,
+                                tension: 0.1,
+                                pointRadius: 0
+                            }]
+                        },
+                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                    });
+                }
+            })
+            .catch(() => { /* history.json未生成（初回実行前）は無視 */ });
+    }
+
+    function loadAll() {
+        lastFetchTime = Date.now();
+        loadData();
+        loadHistory();
+    }
+
+    loadAll();
+
+    // タブを開きっぱなしにしていると、ページ読み込み時の1回きりのfetchでは
+    // 翌日以降の更新が反映されない（これが「自動更新されない」ように見える主因のひとつ）。
+    // タブに戻ってきたタイミングで、前回取得から5分以上経っていれば再取得する。
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && Date.now() - lastFetchTime > 5 * 60 * 1000) {
+            loadAll();
+        }
+    });
 </script>
 </body>
 </html>
