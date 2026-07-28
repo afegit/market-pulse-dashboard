@@ -29,6 +29,14 @@ class Program
     // Day1（ラリー起点）判定に使う直近安値の参照期間
     const int DAY1_LOOKBACK = 10;
 
+    // ===== Put/Call Ratio（自前算出）のパラメータ =====
+    // IBD/CBOEの公式値とは母集団が異なる代替指標。SPYオプションの出来高から独自算出する。
+    const string PUT_CALL_UNDERLYING = "SPY";
+    // トレンド把握用の移動平均日数
+    const int PUT_CALL_SMA_WINDOW = 10;
+    // パーセンタイル順位を意味のある値として表示し始める最低履歴日数
+    const int PUT_CALL_MIN_HISTORY_FOR_PERCENTILE = 10;
+
     // HttpClientは使い回す（毎回newすると接続のオーバーヘッドやソケット枯渇のリスクが積み重なるため、プロセス内で1つを共有する）
     static readonly HttpClient httpClient = CreateHttpClient();
 
@@ -77,13 +85,41 @@ class Program
                 combinedDrivenBy = $"{nasdaq.Name}の状態がより弱いため採用";
             }
 
+            // Put/Call Ratio（自前算出）。失敗しても既存のExposure機能全体を止めないよう内部で例外を握りつぶす設計
+            var putCall = await FetchPutCallRatio();
+
+            // 履歴を先に更新し、そこから移動平均・パーセンタイル順位を算出する
+            var putCallStats = AppendHistory(combinedStatus, sp500, nasdaq, putCall?.Ratio);
+            Console.WriteLine("history.json has been updated.");
+
+            var putCallOutput = putCall == null
+                ? new PutCallOutput
+                {
+                    Status = "unavailable",
+                    Underlying = PUT_CALL_UNDERLYING,
+                    Note = "SPYオプションデータの取得に失敗しました。詳細はActionsのログ（PutCallRatioの行）を確認してください。"
+                }
+                : new PutCallOutput
+                {
+                    Status = "ok",
+                    Underlying = putCall.Underlying,
+                    CallVolume = putCall.CallVolume,
+                    PutVolume = putCall.PutVolume,
+                    Ratio = putCall.Ratio,
+                    Sma10 = putCallStats.Sma10,
+                    PercentileRank = putCallStats.PercentileRank,
+                    HistoryDays = putCallStats.HistoryDays,
+                    Note = "SPYオプション出来高から自前算出した代替指標です。IBD/CBOEの公式値とは母集団が異なるため直接比較できません。"
+                };
+
             var output = new
             {
                 lastUpdated = DateTime.UtcNow.AddHours(9).ToString("yyyy-MM-dd HH:mm:ss"),
                 combinedStatus,
                 combinedDrivenBy,
                 sp500,
-                nasdaq
+                nasdaq,
+                putCallRatio = putCallOutput
             };
 
             var options = new JsonSerializerOptions
@@ -95,9 +131,6 @@ class Program
             var json = JsonSerializer.Serialize(output, options);
             File.WriteAllText("data.json", json);
             Console.WriteLine("data.json has been generated successfully.");
-
-            AppendHistory(combinedStatus, sp500, nasdaq);
-            Console.WriteLine("history.json has been updated.");
         }
         catch (Exception ex)
         {
@@ -163,6 +196,58 @@ class Program
             throw new Exception($"計算に必要な100日分のデータが不足しています ({symbol})。");
         }
         return ordered;
+    }
+
+    // ================= Put/Call Ratio（自前算出） =================
+
+    static async Task<PutCallResult?> FetchPutCallRatio()
+    {
+        // 設計方針：
+        // ・呼び出し回数を1回に絞る（複数限月を合算する方式より壊れにくさを優先）
+        // ・SPYは週次/デイリー(0DTE)オプションの出来高が非常に大きいため、
+        //   直近限月だけでもその日の出来高のかなりの部分を捉えられる実用上の近似として採用
+        // ・失敗しても例外を外に投げず null を返す＝Stock Market Exposure機能を道連れにしない
+        for (int attempt = 1; attempt <= 3; attempt++)
+        {
+            try
+            {
+                var url = $"https://query1.finance.yahoo.com/v7/finance/options/{PUT_CALL_UNDERLYING}";
+                var responseString = await httpClient.GetStringAsync(url);
+                var parsed = JsonSerializer.Deserialize<YahooOptionsResult>(responseString);
+                var result = parsed?.OptionChain?.Result?.FirstOrDefault();
+                var group = result?.Options?.FirstOrDefault();
+
+                if (group == null)
+                {
+                    Console.WriteLine("[PutCallRatio] オプションチェーンのデータ構造が無効です。");
+                    return null;
+                }
+
+                long callVolume = (group.Calls ?? Array.Empty<OptionContract>()).Sum(c => c.Volume ?? 0);
+                long putVolume = (group.Puts ?? Array.Empty<OptionContract>()).Sum(p => p.Volume ?? 0);
+
+                if (callVolume <= 0)
+                {
+                    Console.WriteLine("[PutCallRatio] コール出来高が0のため算出をスキップします。");
+                    return null;
+                }
+
+                return new PutCallResult
+                {
+                    Underlying = PUT_CALL_UNDERLYING,
+                    CallVolume = callVolume,
+                    PutVolume = putVolume,
+                    Ratio = Math.Round((decimal)putVolume / callVolume, 3)
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[PutCallRatio] attempt {attempt}/3 failed (non-fatal): {ex.Message}");
+                if (attempt < 3) await Task.Delay(TimeSpan.FromSeconds(3 * attempt));
+            }
+        }
+        Console.WriteLine("[PutCallRatio] 3回試行しましたが取得できませんでした。putCallRatioは省略されます。");
+        return null;
     }
 
     // ================= 指数ごとの分析 =================
@@ -333,7 +418,7 @@ class Program
 
     // ================= 履歴保存 =================
 
-    static void AppendHistory(string combinedStatus, IndexAnalysis sp500, IndexAnalysis nasdaq)
+    static PutCallStats AppendHistory(string combinedStatus, IndexAnalysis sp500, IndexAnalysis nasdaq, decimal? putCallRatio)
     {
         const string historyPath = "history.json";
         var options = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
@@ -363,12 +448,30 @@ class Program
             Sp500Status = sp500.StatusId,
             Sp500DistDays = sp500.DistributionDaysActive,
             NasdaqStatus = nasdaq.StatusId,
-            NasdaqDistDays = nasdaq.DistributionDaysActive
+            NasdaqDistDays = nasdaq.DistributionDaysActive,
+            PutCallRatio = putCallRatio
         });
 
         // 直近180日分のみ保持
         var trimmed = history.OrderBy(h => h.Date).TakeLast(180).ToList();
         File.WriteAllText(historyPath, JsonSerializer.Serialize(trimmed, options));
+
+        // --- Put/Call Ratioのトレンド統計（保存後の履歴から算出。今日の値自身も含めて計算する） ---
+        var validRatios = trimmed.Where(h => h.PutCallRatio.HasValue).Select(h => h.PutCallRatio!.Value).ToList();
+
+        decimal? sma = validRatios.Count > 0
+            ? Math.Round(validRatios.TakeLast(PUT_CALL_SMA_WINDOW).Average(), 3)
+            : null;
+
+        double? percentile = null;
+        if (putCallRatio.HasValue && validRatios.Count >= PUT_CALL_MIN_HISTORY_FOR_PERCENTILE)
+        {
+            // 「自分以下の値が全体の何%を占めるか」＝高いほどプット優勢（弱気/ヘッジ需要が強い）な極値に近い
+            int countAtOrBelow = validRatios.Count(v => v <= putCallRatio.Value);
+            percentile = Math.Round((double)countAtOrBelow / validRatios.Count * 100.0, 1);
+        }
+
+        return new PutCallStats { Sma10 = sma, PercentileRank = percentile, HistoryDays = validRatios.Count };
     }
 
     // ================= モデル =================
@@ -404,6 +507,35 @@ class Program
         public int Sp500DistDays { get; set; }
         public string NasdaqStatus { get; set; } = "";
         public int NasdaqDistDays { get; set; }
+        public decimal? PutCallRatio { get; set; }
+    }
+
+    class PutCallResult
+    {
+        public string Underlying { get; set; } = "";
+        public long CallVolume { get; set; }
+        public long PutVolume { get; set; }
+        public decimal Ratio { get; set; }
+    }
+
+    class PutCallStats
+    {
+        public decimal? Sma10 { get; set; }
+        public double? PercentileRank { get; set; }
+        public int HistoryDays { get; set; }
+    }
+
+    class PutCallOutput
+    {
+        public string Status { get; set; } = ""; // ok / unavailable
+        public string Underlying { get; set; } = "";
+        public long? CallVolume { get; set; }
+        public long? PutVolume { get; set; }
+        public decimal? Ratio { get; set; }
+        public decimal? Sma10 { get; set; }
+        public double? PercentileRank { get; set; }
+        public int? HistoryDays { get; set; }
+        public string Note { get; set; } = "";
     }
 
     class YahooResult { [JsonPropertyName("chart")] public Chart? Chart { get; set; } }
@@ -419,4 +551,19 @@ class Program
         [JsonPropertyName("close")] public decimal?[]? Close { get; set; }
         [JsonPropertyName("volume")] public long?[]? Volume { get; set; }
     }
+
+    // ---- Yahoo Finance オプションチェーンAPI（Put/Call Ratio用） ----
+    class YahooOptionsResult { [JsonPropertyName("optionChain")] public OptionChainRoot? OptionChain { get; set; } }
+    class OptionChainRoot { [JsonPropertyName("result")] public OptionChainResult[]? Result { get; set; } }
+    class OptionChainResult { [JsonPropertyName("options")] public OptionsGroup[]? Options { get; set; } }
+    class OptionsGroup
+    {
+        [JsonPropertyName("calls")] public OptionContract[]? Calls { get; set; }
+        [JsonPropertyName("puts")] public OptionContract[]? Puts { get; set; }
+    }
+    class OptionContract
+    {
+        [JsonPropertyName("volume")] public long? Volume { get; set; }
+    }
 }
+
