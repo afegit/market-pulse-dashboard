@@ -43,8 +43,8 @@ class Program
     static HttpClient CreateHttpClient()
     {
         var c = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
-        // User-Agentを設定しないとYahoo側から拒否される場合があるため追加
-        c.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0");
+        // 単純な"Mozilla/5.0"だけだと逆に不自然でYahoo側にブロックされやすいため、実際のブラウザに近い文字列に強化
+        c.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
         return c;
     }
 
@@ -200,19 +200,71 @@ class Program
 
     // ================= Put/Call Ratio（自前算出） =================
 
+    static string? _yahooCrumb = null;
+
+    static async Task<string?> GetYahooCrumb()
+    {
+        if (_yahooCrumb != null) return _yahooCrumb;
+        try
+        {
+            // 1. まずCookieを発行してもらう（同じhttpClientを使い続けることで、.NETのHttpClientHandlerが
+            //    標準で持つCookieContainerにより、以降のリクエストにこのCookieが自動的に付与される）
+            using (var cookieResponse = await httpClient.GetAsync("https://fc.yahoo.com"))
+            {
+                Console.WriteLine($"[PutCallRatio] Cookie取得ステータス: {(int)cookieResponse.StatusCode}");
+            }
+
+            // 2. 発行されたCookieを使ってcrumb（認証トークン）を取得
+            using var crumbResponse = await httpClient.GetAsync("https://query2.finance.yahoo.com/v1/test/getcrumb");
+            var crumb = await crumbResponse.Content.ReadAsStringAsync();
+
+            if (!crumbResponse.IsSuccessStatusCode || string.IsNullOrWhiteSpace(crumb) || crumb.Contains("<html", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine($"[PutCallRatio] crumb取得に失敗しました（status={(int)crumbResponse.StatusCode}）。");
+                return null;
+            }
+
+            _yahooCrumb = crumb.Trim();
+            Console.WriteLine("[PutCallRatio] crumbの取得に成功しました。");
+            return _yahooCrumb;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[PutCallRatio] crumb取得中に例外: {ex.Message}");
+            return null;
+        }
+    }
+
     static async Task<PutCallResult?> FetchPutCallRatio()
     {
         // 設計方針：
-        // ・呼び出し回数を1回に絞る（複数限月を合算する方式より壊れにくさを優先）
+        // ・呼び出し回数を絞る（複数限月を合算する方式より壊れにくさを優先）
         // ・SPYは週次/デイリー(0DTE)オプションの出来高が非常に大きいため、
         //   直近限月だけでもその日の出来高のかなりの部分を捉えられる実用上の近似として採用
         // ・失敗しても例外を外に投げず null を返す＝Stock Market Exposure機能を道連れにしない
+        // ・Yahoo Finance側が近年Cookie/crumb認証を要求するようになっているため、先にcrumbを取得してから使う
         for (int attempt = 1; attempt <= 3; attempt++)
         {
             try
             {
-                var url = $"https://query1.finance.yahoo.com/v7/finance/options/{PUT_CALL_UNDERLYING}";
-                var responseString = await httpClient.GetStringAsync(url);
+                var crumb = await GetYahooCrumb();
+                if (crumb == null)
+                {
+                    Console.WriteLine($"[PutCallRatio] attempt {attempt}/3: crumbが取得できませんでした。");
+                    if (attempt < 3) { await Task.Delay(TimeSpan.FromSeconds(3 * attempt)); continue; }
+                    return null;
+                }
+
+                var url = $"https://query1.finance.yahoo.com/v7/finance/options/{PUT_CALL_UNDERLYING}?crumb={Uri.EscapeDataString(crumb)}";
+                using var response = await httpClient.GetAsync(url);
+                if (!response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"[PutCallRatio] attempt {attempt}/3: HTTPステータス {(int)response.StatusCode} が返されました。");
+                    if (attempt < 3) { await Task.Delay(TimeSpan.FromSeconds(3 * attempt)); continue; }
+                    return null;
+                }
+
+                var responseString = await response.Content.ReadAsStringAsync();
                 var parsed = JsonSerializer.Deserialize<YahooOptionsResult>(responseString);
                 var result = parsed?.OptionChain?.Result?.FirstOrDefault();
                 var group = result?.Options?.FirstOrDefault();
@@ -566,4 +618,3 @@ class Program
         [JsonPropertyName("volume")] public long? Volume { get; set; }
     }
 }
-
