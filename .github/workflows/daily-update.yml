@@ -3,8 +3,12 @@ name: Daily .NET Market Pulse Update
 on:
   schedule:
     # 米国市場クローズ後、日次データが確定してから取得するため少し余裕を持たせて実行
-    # UTC 22:30 = JST 翌7:30
+    # UTC 22:30 = JST 翌7:30（メイン）
     - cron: '30 22 * * 1-5'
+    # 保険用：GitHub Actions側のスケジュール実行が数時間規模で遅延することがあるため、
+    # メインから6時間後（UTC 4:30 = JST 13:30）にも実行し、メインが遅延・スキップされた場合に備える。
+    # 同日に2回実行されても、data.json/history.jsonは日付キーで上書きされるだけなので害はない。
+    - cron: '30 4 * * 2-6'
   workflow_dispatch: # 手動実行ボタン
 
 permissions:
