@@ -1,21 +1,18 @@
 {
-  "lastUpdated": "2026-07-29 17:09:18",
+  "lastUpdated": "2026-07-29 22:46:30",
   "combinedStatus": "Correction",
   "combinedDrivenBy": "S\u0026P 500\u30FBNasdaq Composite\u3068\u3082\u306B\u540C\u6C34\u6E96",
   "sp500": {
     "name": "S\u0026P 500",
-    "latestClose": 7413.18017578125,
-    "sma50": 7472.04,
+    "latestClose": 7420.10986328125,
+    "sma50": 7470.18,
     "isAboveSma50": false,
-    "distributionDaysActive": 6,
+    "distributionDaysActive": 5,
     "trendState": "RallyAttempt",
     "lastFollowThroughDate": "2026-04-08",
     "statusId": "Correction",
     "chart": {
       "labels": [
-        "03-03",
-        "03-04",
-        "03-05",
         "03-06",
         "03-09",
         "03-10",
@@ -112,12 +109,12 @@
         "07-21",
         "07-22",
         "07-23",
-        "07-27"
+        "07-24",
+        "07-27",
+        "07-28",
+        "07-29"
       ],
       "closes": [
-        6816.6298828125,
-        6869.5,
-        6830.7099609375,
         6740.02001953125,
         6795.990234375,
         6781.47998046875,
@@ -214,12 +211,12 @@
         7509.2001953125,
         7498.9599609375,
         7408.2998046875,
-        7413.18017578125
+        7411.97998046875,
+        7413.18017578125,
+        7428.77978515625,
+        7420.10986328125
       ],
       "sma50": [
-        6903.40,
-        6905.30,
-        6905.22,
         6902.45,
         6900.17,
         6897.16,
@@ -316,12 +313,12 @@
         7469.88,
         7471.88,
         7471.79,
-        7472.04
+        7472.01,
+        7471.39,
+        7469.94,
+        7470.18
       ],
       "distMarks": [
-        6816.6298828125,
-        null,
-        6830.7099609375,
         null,
         null,
         null,
@@ -418,24 +415,24 @@
         null,
         null,
         7408.2998046875,
+        null,
+        null,
+        null,
         null
       ]
     }
   },
   "nasdaq": {
     "name": "Nasdaq Composite",
-    "latestClose": 24932.080078125,
-    "sma50": 26077.07,
+    "latestClose": 24837.705078125,
+    "sma50": 25985.63,
     "isAboveSma50": false,
-    "distributionDaysActive": 10,
+    "distributionDaysActive": 9,
     "trendState": "Correction",
     "lastFollowThroughDate": "2026-07-21",
     "statusId": "Correction",
     "chart": {
       "labels": [
-        "03-03",
-        "03-04",
-        "03-05",
         "03-06",
         "03-09",
         "03-10",
@@ -532,12 +529,12 @@
         "07-21",
         "07-22",
         "07-23",
-        "07-27"
+        "07-24",
+        "07-27",
+        "07-28",
+        "07-29"
       ],
       "closes": [
-        22516.689453125,
-        22807.48046875,
-        22748.990234375,
         22387.6796875,
         22695.94921875,
         22697.099609375,
@@ -634,12 +631,12 @@
         25837.2109375,
         25690.900390625,
         25137.689453125,
-        24932.080078125
+        24975.8203125,
+        24932.080078125,
+        24876.91015625,
+        24837.705078125
       ],
       "sma50": [
-        23225.84,
-        23221.86,
-        23210.69,
         23189.87,
         23172.55,
         23154.23,
@@ -736,12 +733,12 @@
         26134.05,
         26122.92,
         26100.19,
-        26077.07
+        26077.95,
+        26048.54,
+        26013.38,
+        25985.63
       ],
       "distMarks": [
-        22516.689453125,
-        null,
-        22748.990234375,
         null,
         null,
         null,
@@ -838,19 +835,22 @@
         null,
         null,
         25137.689453125,
-        24932.080078125
+        null,
+        null,
+        24876.91015625,
+        null
       ]
     }
   },
   "putCallRatio": {
-    "status": "unavailable",
+    "status": "ok",
     "underlying": "SPY",
-    "callVolume": null,
-    "putVolume": null,
-    "ratio": null,
-    "sma10": null,
+    "callVolume": 52206,
+    "putVolume": 96544,
+    "ratio": 1.849,
+    "sma10": 1.849,
     "percentileRank": null,
-    "historyDays": null,
-    "note": "SPY\u30AA\u30D7\u30B7\u30E7\u30F3\u30C7\u30FC\u30BF\u306E\u53D6\u5F97\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002\u8A73\u7D30\u306FActions\u306E\u30ED\u30B0\uFF08PutCallRatio\u306E\u884C\uFF09\u3092\u78BA\u8A8D\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
+    "historyDays": 1,
+    "note": "SPY\u30AA\u30D7\u30B7\u30E7\u30F3\u51FA\u6765\u9AD8\u304B\u3089\u81EA\u524D\u7B97\u51FA\u3057\u305F\u4EE3\u66FF\u6307\u6A19\u3067\u3059\u3002IBD/CBOE\u306E\u516C\u5F0F\u5024\u3068\u306F\u6BCD\u96C6\u56E3\u304C\u7570\u306A\u308B\u305F\u3081\u76F4\u63A5\u6BD4\u8F03\u3067\u304D\u307E\u305B\u3093\u3002"
   }
 }
