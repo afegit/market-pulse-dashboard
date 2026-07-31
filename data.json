@@ -1,19 +1,18 @@
 {
-  "lastUpdated": "2026-07-31 11:33:38",
+  "lastUpdated": "2026-08-01 07:32:37",
   "combinedStatus": "Correction",
   "combinedDrivenBy": "S\u0026P 500\u30FBNasdaq Composite\u3068\u3082\u306B\u540C\u6C34\u6E96",
   "sp500": {
     "name": "S\u0026P 500",
-    "latestClose": 7437.6298828125,
-    "sma50": 7468.79,
-    "isAboveSma50": false,
+    "latestClose": 7489.72021484375,
+    "sma50": 7471.51,
+    "isAboveSma50": true,
     "distributionDaysActive": 6,
     "trendState": "RallyAttempt",
     "lastFollowThroughDate": "2026-04-08",
     "statusId": "Correction",
     "chart": {
       "labels": [
-        "03-09",
         "03-10",
         "03-11",
         "03-12",
@@ -112,10 +111,10 @@
         "07-27",
         "07-28",
         "07-29",
-        "07-30"
+        "07-30",
+        "07-31"
       ],
       "closes": [
-        6795.990234375,
         6781.47998046875,
         6775.7998046875,
         6672.6201171875,
@@ -214,10 +213,10 @@
         7413.18017578125,
         7428.77978515625,
         7316.14990234375,
-        7437.6298828125
+        7437.6298828125,
+        7489.72021484375
       ],
       "sma50": [
-        6900.17,
         6897.16,
         6894.08,
         6889.42,
@@ -316,10 +315,10 @@
         7471.39,
         7469.94,
         7468.10,
-        7468.79
+        7468.79,
+        7471.51
       ],
       "distMarks": [
-        null,
         null,
         null,
         6672.6201171875,
@@ -418,22 +417,22 @@
         null,
         null,
         7316.14990234375,
+        null,
         null
       ]
     }
   },
   "nasdaq": {
     "name": "Nasdaq Composite",
-    "latestClose": 25122.177734375,
-    "sma50": 25958.36,
+    "latestClose": 25373.853515625,
+    "sma50": 25948.42,
     "isAboveSma50": false,
-    "distributionDaysActive": 8,
+    "distributionDaysActive": 7,
     "trendState": "RallyAttempt",
     "lastFollowThroughDate": "2026-07-21",
     "statusId": "Correction",
     "chart": {
       "labels": [
-        "03-09",
         "03-10",
         "03-11",
         "03-12",
@@ -532,10 +531,10 @@
         "07-27",
         "07-28",
         "07-29",
-        "07-30"
+        "07-30",
+        "07-31"
       ],
       "closes": [
-        22695.94921875,
         22697.099609375,
         22716.130859375,
         22311.98046875,
@@ -634,10 +633,10 @@
         24932.080078125,
         24876.91015625,
         24442.939453125,
-        25122.177734375
+        25122.1796875,
+        25373.853515625
       ],
       "sma50": [
-        23172.55,
         23154.23,
         23136.69,
         23113.44,
@@ -736,10 +735,10 @@
         26048.54,
         26013.38,
         25977.73,
-        25958.36
+        25958.36,
+        25948.42
       ],
       "distMarks": [
-        null,
         null,
         null,
         22311.98046875,
@@ -838,6 +837,7 @@
         null,
         24876.91015625,
         null,
+        null,
         null
       ]
     }
@@ -845,10 +845,10 @@
   "putCallRatio": {
     "status": "ok",
     "underlying": "SPY",
-    "callVolume": 935304,
-    "putVolume": 1133446,
-    "ratio": 1.212,
-    "sma10": 1.212,
+    "callVolume": 4974308,
+    "putVolume": 5000401,
+    "ratio": 1.005,
+    "sma10": 1.005,
     "percentileRank": null,
     "historyDays": 1,
     "note": "SPY\u30AA\u30D7\u30B7\u30E7\u30F3\u51FA\u6765\u9AD8\u304B\u3089\u81EA\u524D\u7B97\u51FA\u3057\u305F\u4EE3\u66FF\u6307\u6A19\u3067\u3059\u3002IBD/CBOE\u306E\u516C\u5F0F\u5024\u3068\u306F\u6BCD\u96C6\u56E3\u304C\u7570\u306A\u308B\u305F\u3081\u76F4\u63A5\u6BD4\u8F03\u3067\u304D\u307E\u305B\u3093\u3002"
