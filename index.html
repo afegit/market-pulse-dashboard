@@ -25,6 +25,7 @@
         .index-badge { font-size: 0.85rem; padding: 4px 10px; border-radius: 12px; color: #fff; font-weight: normal; }
         .metric-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border-color); font-size: 0.95rem; }
         .metric-row:last-child { border-bottom: none; }
+        .metric-help { font-size: 0.76rem; color: var(--text-muted); margin: -6px 0 6px 0; line-height: 1.35; }
         .chart-mini { height: 260px; margin-top: 15px; }
         .chart-container { background-color: var(--card-bg); border-radius: 10px; padding: 20px; height: 260px; margin-bottom: 20px; }
         .section-title { font-size: 1rem; color: var(--text-muted); margin: 30px 0 10px 4px; }
@@ -47,7 +48,9 @@
             <div class="status-value" id="market-status">--</div>
             <div class="status-sub" id="market-status-jp">--</div>
             <div class="exposure-badge">推奨 Exposure: <span id="exposure-val">--</span></div>
+            <div class="metric-help" style="text-align:center; margin-top:6px;">株式にどれくらいの比率で資金を投じるかの目安です。100%に近いほど積極的に買い、0%に近いほど現金比率を高めることを示唆します。</div>
             <div class="status-sub" style="margin-top:10px;">判定根拠: <span id="driven-by">--</span></div>
+            <div class="metric-help" style="text-align:center;">S&P 500とNasdaq Compositeのうち、より弱い方（悲観的な方）の判定を採用する方式です（IBD Market Pulseと同じ考え方）。</div>
         </div>
     </div>
 
@@ -56,22 +59,34 @@
             <h3>S&P 500 <span class="index-badge" id="badge-sp500">--</span></h3>
             <div class="metric-row"><span>終値</span><strong id="close-sp500">--</strong></div>
             <div class="metric-row"><span>50日移動平均線</span><strong id="sma-sp500">--</strong></div>
+            <div class="metric-help">直近50営業日の終値の平均線。株価がこの線より上か下かがトレンドの基本的な目安です。</div>
             <div class="metric-row"><span>52週高値からのドローダウン</span><strong id="drawdown-sp500">--</strong></div>
+            <div class="metric-help">過去1年の最高値から現在どれだけ下落しているか。押し目の深さの目安です。</div>
             <div class="metric-row"><span>トレンド状態</span><strong id="trend-sp500">--</strong></div>
+            <div class="metric-help">「上昇トレンド確認済み」になるには、下落局面からの反発を裏付ける出来高急増日（フォロースルーデー）が必要です。単に50日線を上回っただけでは昇格しません。</div>
             <div class="metric-row"><span>売り抜け日（有効カウント）</span><strong id="dist-sp500">--</strong></div>
+            <div class="metric-help">機関投資家が売り抜けたとみられる日のカウント。直近25営業日以内で「下落率0.2%以上・前日より出来高が多い」日を数え、5%以上の反発があった日は無効化されます。</div>
             <div class="metric-row"><span>売り抜け日の深刻さ（最大下落率）</span><strong id="worst-dd-sp500">--</strong></div>
+            <div class="metric-help">現在有効な売り抜け日の中で、下落率が最も大きかった日。同じ「5日」でも中身の深刻さが分かります。</div>
             <div class="metric-row"><span>直近フォロースルーデー</span><strong id="ftd-sp500">--</strong></div>
+            <div class="metric-help">下落相場からの本格反発を裏付ける、出来高を伴う大幅上昇日（目安1.25%以上）。これが「上昇トレンド確認済み」への切り替えトリガーです。</div>
             <div class="chart-mini"><canvas id="chart-sp500"></canvas></div>
         </div>
         <div class="card index-card" id="card-nasdaq">
             <h3>Nasdaq Composite <span class="index-badge" id="badge-nasdaq">--</span></h3>
             <div class="metric-row"><span>終値</span><strong id="close-nasdaq">--</strong></div>
             <div class="metric-row"><span>50日移動平均線</span><strong id="sma-nasdaq">--</strong></div>
+            <div class="metric-help">直近50営業日の終値の平均線。株価がこの線より上か下かがトレンドの基本的な目安です。</div>
             <div class="metric-row"><span>52週高値からのドローダウン</span><strong id="drawdown-nasdaq">--</strong></div>
+            <div class="metric-help">過去1年の最高値から現在どれだけ下落しているか。押し目の深さの目安です。</div>
             <div class="metric-row"><span>トレンド状態</span><strong id="trend-nasdaq">--</strong></div>
+            <div class="metric-help">「上昇トレンド確認済み」になるには、下落局面からの反発を裏付ける出来高急増日（フォロースルーデー）が必要です。単に50日線を上回っただけでは昇格しません。</div>
             <div class="metric-row"><span>売り抜け日（有効カウント）</span><strong id="dist-nasdaq">--</strong></div>
+            <div class="metric-help">機関投資家が売り抜けたとみられる日のカウント。直近25営業日以内で「下落率0.2%以上・前日より出来高が多い」日を数え、5%以上の反発があった日は無効化されます。</div>
             <div class="metric-row"><span>売り抜け日の深刻さ（最大下落率）</span><strong id="worst-dd-nasdaq">--</strong></div>
+            <div class="metric-help">現在有効な売り抜け日の中で、下落率が最も大きかった日。同じ「5日」でも中身の深刻さが分かります。</div>
             <div class="metric-row"><span>直近フォロースルーデー</span><strong id="ftd-nasdaq">--</strong></div>
+            <div class="metric-help">下落相場からの本格反発を裏付ける、出来高を伴う大幅上昇日（目安1.25%以上）。これが「上昇トレンド確認済み」への切り替えトリガーです。</div>
             <div class="chart-mini"><canvas id="chart-nasdaq"></canvas></div>
         </div>
     </div>
@@ -85,10 +100,12 @@
             <div id="putcall-ok" style="display:none;">
                 <div class="metric-row"><span>算出対象</span><strong id="pc-underlying">--</strong></div>
                 <div class="metric-row"><span>Put/Call Ratio（当日・出来高ベース）</span><strong id="pc-ratio" style="font-size:1.3rem;">--</strong></div>
+                <div class="metric-help">プット出来高÷コール出来高。1.0を超えるとプットの方が多く取引されたことを意味します（SPYは元々ヘッジ需要で1.0超えが常態なので、個別株の目安をそのまま当てはめないでください）。</div>
                 <div class="metric-row"><span>10日移動平均</span><strong id="pc-sma10">--</strong></div>
                 <div class="metric-row"><span>コール出来高</span><strong id="pc-call-vol">--</strong></div>
                 <div class="metric-row"><span>プット出来高</span><strong id="pc-put-vol">--</strong></div>
                 <div class="metric-row"><span>自己の過去分布での位置</span><strong id="pc-percentile">--</strong></div>
+                <div class="metric-help">このサイトが蓄積してきた過去の値と比べた順位（パーセンタイル）。80以上なら過去と比べてプットに偏っている、20以下ならコールに偏っている状態です。履歴が10日たまるまでは表示されません。</div>
             </div>
             <div id="putcall-unavailable" style="display:none; text-align:center; color: var(--text-muted); padding: 12px 0;">
                 <p style="font-size: 1.05rem; margin-bottom: 6px;">⚠ 本日はPut/Call Ratioを取得できませんでした</p>
@@ -115,7 +132,7 @@
                             <th style="text-align:left; padding: 8px 4px;">セクター</th>
                             <th style="text-align:right; padding: 8px 4px;">1ヶ月</th>
                             <th style="text-align:right; padding: 8px 4px;">3ヶ月</th>
-                            <th style="text-align:right; padding: 8px 4px;">対SPY(3ヶ月)</th>
+                            <th style="text-align:right; padding: 8px 4px; border-bottom: 1px dotted var(--text-muted); cursor: help;" title="このセクターの3ヶ月リターンからSPY自体の3ヶ月リターンを引いた差。プラスが大きいほど市場平均より資金が集まっている（＝リーダーシップが強い）ことを示します。">対SPY(3ヶ月)</th>
                         </tr>
                     </thead>
                     <tbody id="sector-table-body"></tbody>
