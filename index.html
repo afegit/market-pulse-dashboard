@@ -56,8 +56,10 @@
             <h3>S&P 500 <span class="index-badge" id="badge-sp500">--</span></h3>
             <div class="metric-row"><span>終値</span><strong id="close-sp500">--</strong></div>
             <div class="metric-row"><span>50日移動平均線</span><strong id="sma-sp500">--</strong></div>
+            <div class="metric-row"><span>52週高値からのドローダウン</span><strong id="drawdown-sp500">--</strong></div>
             <div class="metric-row"><span>トレンド状態</span><strong id="trend-sp500">--</strong></div>
             <div class="metric-row"><span>売り抜け日（有効カウント）</span><strong id="dist-sp500">--</strong></div>
+            <div class="metric-row"><span>売り抜け日の深刻さ（最大下落率）</span><strong id="worst-dd-sp500">--</strong></div>
             <div class="metric-row"><span>直近フォロースルーデー</span><strong id="ftd-sp500">--</strong></div>
             <div class="chart-mini"><canvas id="chart-sp500"></canvas></div>
         </div>
@@ -65,8 +67,10 @@
             <h3>Nasdaq Composite <span class="index-badge" id="badge-nasdaq">--</span></h3>
             <div class="metric-row"><span>終値</span><strong id="close-nasdaq">--</strong></div>
             <div class="metric-row"><span>50日移動平均線</span><strong id="sma-nasdaq">--</strong></div>
+            <div class="metric-row"><span>52週高値からのドローダウン</span><strong id="drawdown-nasdaq">--</strong></div>
             <div class="metric-row"><span>トレンド状態</span><strong id="trend-nasdaq">--</strong></div>
             <div class="metric-row"><span>売り抜け日（有効カウント）</span><strong id="dist-nasdaq">--</strong></div>
+            <div class="metric-row"><span>売り抜け日の深刻さ（最大下落率）</span><strong id="worst-dd-nasdaq">--</strong></div>
             <div class="metric-row"><span>直近フォロースルーデー</span><strong id="ftd-nasdaq">--</strong></div>
             <div class="chart-mini"><canvas id="chart-nasdaq"></canvas></div>
         </div>
@@ -95,6 +99,33 @@
                 「過去分布での位置」はこのサイト自身が蓄積した履歴内での相対位置で、IBD/CBOEの一般的なしきい値（0.6〜1.2）とは基準が異なります。
             </p>
             <div class="chart-mini" style="height: 220px; margin-top: 15px;"><canvas id="chart-putcall"></canvas></div>
+        </div>
+    </div>
+
+    <div class="section-title">セクターローテーション（自前算出・SPYに対する相対強度）</div>
+    <div class="dashboard-grid">
+        <div class="card" id="card-sector">
+            <div id="sector-ok" style="display:none;">
+                <p style="color: var(--text-muted); font-size: 0.85rem; margin-top:0;">
+                    SPDRセクターETF11銘柄の騰落率をSPY自体と比較し、3ヶ月の相対強度が高い順（＝資金が向かっているセクター）に並べています。CAN SLIMの「L(Leader)」の補助指標です。
+                </p>
+                <table style="width:100%; border-collapse: collapse; font-size: 0.88rem;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--accent-blue);">
+                            <th style="text-align:left; padding: 8px 4px;">セクター</th>
+                            <th style="text-align:right; padding: 8px 4px;">1ヶ月</th>
+                            <th style="text-align:right; padding: 8px 4px;">3ヶ月</th>
+                            <th style="text-align:right; padding: 8px 4px;">対SPY(3ヶ月)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sector-table-body"></tbody>
+                </table>
+                <p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom:0;">SPY自体のリターン：1ヶ月 <span id="spy-return-1m">--</span> / 3ヶ月 <span id="spy-return-3m">--</span></p>
+            </div>
+            <div id="sector-unavailable" style="display:none; text-align:center; color: var(--text-muted); padding: 12px 0;">
+                <p style="font-size: 1.05rem; margin-bottom: 6px;">⚠ 本日はセクターデータを取得できませんでした</p>
+                <p style="font-size: 0.85rem;" id="sector-unavailable-note">--</p>
+            </div>
         </div>
     </div>
 </div>
@@ -155,6 +186,10 @@
         smaEl.innerText = data.sma50 ? Number(data.sma50).toFixed(2) : '--';
         smaEl.style.color = data.isAboveSma50 ? 'var(--accent-green)' : 'var(--accent-red)';
 
+        const drawdownEl = document.getElementById(`drawdown-${key}`);
+        drawdownEl.innerText = `${Number(data.drawdownFromHighPct).toFixed(2)}%`;
+        drawdownEl.style.color = data.drawdownFromHighPct <= -10 ? 'var(--accent-red)' : (data.drawdownFromHighPct <= -3 ? 'var(--accent-yellow)' : 'var(--accent-green)');
+
         const trendEl = document.getElementById(`trend-${key}`);
         trendEl.innerText = trendJp[data.trendState] || data.trendState;
         trendEl.style.color = data.trendState === 'ConfirmedUptrend' ? 'var(--accent-green)' : 'var(--text-main)';
@@ -162,6 +197,9 @@
         const distEl = document.getElementById(`dist-${key}`);
         distEl.innerText = `${data.distributionDaysActive} 日`;
         distEl.style.color = data.distributionDaysActive >= 6 ? 'var(--accent-red)' : (data.distributionDaysActive >= 3 ? 'var(--accent-yellow)' : 'var(--accent-green)');
+
+        const worstDdEl = document.getElementById(`worst-dd-${key}`);
+        worstDdEl.innerText = data.worstActiveDropPct != null ? `-${Math.abs(data.worstActiveDropPct).toFixed(2)}% (${data.worstActiveDropDate})` : 'なし';
 
         document.getElementById(`ftd-${key}`).innerText = data.lastFollowThroughDate || '未発生';
 
@@ -172,10 +210,40 @@
                 datasets: [
                     { label: '終値', data: data.chart.closes, borderColor: '#2980b9', backgroundColor: 'rgba(41, 128, 185, 0.08)', borderWidth: 2, fill: true, tension: 0.1, pointRadius: 0 },
                     { label: '50日移動平均線', data: data.chart.sma50, borderColor: '#e67e22', borderWidth: 2, borderDash: [5, 5], fill: false, pointRadius: 0 },
-                    { label: '売り抜け日', data: data.chart.distMarks, backgroundColor: '#e74c3c', borderColor: '#e74c3c', pointStyle: 'triangle', pointRadius: 6, pointHoverRadius: 8, showLine: false }
+                    { label: '売り抜け日(有効)', data: data.chart.distMarksActive, backgroundColor: '#e74c3c', borderColor: '#e74c3c', pointStyle: 'triangle', pointRadius: 6, pointHoverRadius: 8, showLine: false },
+                    { label: '売り抜け日(失効済み)', data: data.chart.distMarksExpired, backgroundColor: 'rgba(150, 150, 150, 0.5)', borderColor: 'rgba(120, 120, 120, 0.6)', pointStyle: 'triangle', pointRadius: 5, pointHoverRadius: 7, showLine: false }
                 ]
             },
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+    }
+
+    function renderSectorTable(sr) {
+        document.getElementById('sector-ok').style.display = 'none';
+        document.getElementById('sector-unavailable').style.display = 'none';
+
+        if (!sr || sr.status !== 'ok' || !sr.sectors) {
+            document.getElementById('sector-unavailable').style.display = 'block';
+            document.getElementById('sector-unavailable-note').innerText = (sr && sr.note) || '取得結果がありません。';
+            return;
+        }
+        document.getElementById('sector-ok').style.display = 'block';
+        document.getElementById('spy-return-1m').innerText = `${sr.spyReturn1m.toFixed(2)}%`;
+        document.getElementById('spy-return-3m').innerText = `${sr.spyReturn3m.toFixed(2)}%`;
+
+        const tbody = document.getElementById('sector-table-body');
+        tbody.innerHTML = '';
+        sr.sectors.forEach(s => {
+            const relColor = s.relStrength3m > 0 ? 'var(--accent-green)' : (s.relStrength3m < 0 ? 'var(--accent-red)' : 'var(--text-main)');
+            const row = document.createElement('tr');
+            row.style.borderBottom = '1px solid var(--border-color)';
+            row.innerHTML = `
+                <td style="padding: 6px 4px;">${s.name}<span style="color:var(--text-muted); font-size:0.8em;"> (${s.symbol})</span></td>
+                <td style="text-align:right; padding: 6px 4px;">${s.return1m.toFixed(2)}%</td>
+                <td style="text-align:right; padding: 6px 4px;">${s.return3m.toFixed(2)}%</td>
+                <td style="text-align:right; padding: 6px 4px; color:${relColor}; font-weight:bold;">${s.relStrength3m > 0 ? '+' : ''}${s.relStrength3m.toFixed(2)}%</td>
+            `;
+            tbody.appendChild(row);
         });
     }
 
@@ -207,6 +275,7 @@
                 try { renderIndexCard('sp500', data.sp500); } catch (e) { console.error('sp500 card failed:', e); }
                 try { renderIndexCard('nasdaq', data.nasdaq); } catch (e) { console.error('nasdaq card failed:', e); }
                 try { renderPutCallCard(data.putCallRatio); } catch (e) { console.error('putcall card failed:', e); }
+                try { renderSectorTable(data.sectorRotation); } catch (e) { console.error('sector table failed:', e); }
             })
             .catch(err => {
                 console.error(err);
