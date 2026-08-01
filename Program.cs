@@ -37,6 +37,25 @@ class Program
     // パーセンタイル順位を意味のある値として表示し始める最低履歴日数
     const int PUT_CALL_MIN_HISTORY_FOR_PERCENTILE = 10;
 
+    // ===== セクターローテーション（CAN SLIMの"L=Leader"に対応する補助指標） =====
+    // 主要セクターの相対強度を見るためのSPDRセクターETF一覧
+    static readonly Dictionary<string, string> SECTOR_ETFS = new()
+    {
+        ["XLK"] = "テクノロジー",
+        ["XLF"] = "金融",
+        ["XLE"] = "エネルギー",
+        ["XLV"] = "ヘルスケア",
+        ["XLY"] = "一般消費財",
+        ["XLP"] = "生活必需品",
+        ["XLI"] = "資本財",
+        ["XLB"] = "素材",
+        ["XLU"] = "公益事業",
+        ["XLRE"] = "不動産",
+        ["XLC"] = "通信サービス"
+    };
+    const int SECTOR_RETURN_1M_DAYS = 21; // 約1ヶ月分の営業日
+    const int SECTOR_RETURN_3M_DAYS = 63; // 約3ヶ月分の営業日
+
     // HttpClientは使い回す（毎回newすると接続のオーバーヘッドやソケット枯渇のリスクが積み重なるため、プロセス内で1つを共有する）
     static readonly HttpClient httpClient = CreateHttpClient();
 
@@ -112,6 +131,23 @@ class Program
                     Note = "SPYオプション出来高から自前算出した代替指標です。IBD/CBOEの公式値とは母集団が異なるため直接比較できません。"
                 };
 
+            // セクターローテーション（自前算出）。これも失敗して良い補助機能として独立させる
+            var sectorRotation = await FetchSectorRotation();
+            var sectorOutput = sectorRotation == null
+                ? new SectorRotationOutput
+                {
+                    Status = "unavailable",
+                    Note = "セクターデータの取得に失敗しました。詳細はActionsのログ（SectorRotationの行）を確認してください。"
+                }
+                : new SectorRotationOutput
+                {
+                    Status = "ok",
+                    SpyReturn1m = sectorRotation.SpyReturn1m,
+                    SpyReturn3m = sectorRotation.SpyReturn3m,
+                    Sectors = sectorRotation.Sectors,
+                    Note = "SPDRセクターETF11銘柄のSPYに対する相対リターン(自前算出)。CAN SLIMの「L(Leader)」に対応する補助指標です。"
+                };
+
             var output = new
             {
                 lastUpdated = DateTime.UtcNow.AddHours(9).ToString("yyyy-MM-dd HH:mm:ss"),
@@ -119,7 +155,8 @@ class Program
                 combinedDrivenBy,
                 sp500,
                 nasdaq,
-                putCallRatio = putCallOutput
+                putCallRatio = putCallOutput,
+                sectorRotation = sectorOutput
             };
 
             var options = new JsonSerializerOptions
@@ -260,6 +297,12 @@ class Program
                 if (!response.IsSuccessStatusCode)
                 {
                     Console.WriteLine($"[PutCallRatio] attempt {attempt}/3: HTTPステータス {(int)response.StatusCode} が返されました。");
+                    if ((int)response.StatusCode == 401 || (int)response.StatusCode == 403)
+                    {
+                        // crumbが無効化された可能性があるため、キャッシュを破棄して次のリトライで取り直す
+                        Console.WriteLine("[PutCallRatio] 認証エラーの可能性があるため、crumbキャッシュを破棄します。");
+                        _yahooCrumb = null;
+                    }
                     if (attempt < 3) { await Task.Delay(TimeSpan.FromSeconds(3 * attempt)); continue; }
                     return null;
                 }
@@ -300,6 +343,74 @@ class Program
         }
         Console.WriteLine("[PutCallRatio] 3回試行しましたが取得できませんでした。putCallRatioは省略されます。");
         return null;
+    }
+
+    // ================= セクターローテーション（自前算出） =================
+
+    static async Task<SectorRotationResult?> FetchSectorRotation()
+    {
+        try
+        {
+            // 基準となるSPY自身のリターンを先に取得
+            var spyData = await FetchYahooDataWithRetry("SPY", "6mo");
+            decimal spyReturn1m = ComputeReturnPct(spyData, SECTOR_RETURN_1M_DAYS);
+            decimal spyReturn3m = ComputeReturnPct(spyData, SECTOR_RETURN_3M_DAYS);
+
+            var sectorList = new List<SectorInfo>();
+            foreach (var (symbol, name) in SECTOR_ETFS)
+            {
+                try
+                {
+                    var data = await FetchYahooDataWithRetry(symbol, "6mo");
+                    decimal r1m = ComputeReturnPct(data, SECTOR_RETURN_1M_DAYS);
+                    decimal r3m = ComputeReturnPct(data, SECTOR_RETURN_3M_DAYS);
+                    sectorList.Add(new SectorInfo
+                    {
+                        Symbol = symbol,
+                        Name = name,
+                        Return1m = r1m,
+                        Return3m = r3m,
+                        RelStrength1m = Math.Round(r1m - spyReturn1m, 2),
+                        RelStrength3m = Math.Round(r3m - spyReturn3m, 2)
+                    });
+                }
+                catch (Exception ex)
+                {
+                    // 1銘柄の失敗は他のセクターの表示を止める理由にしない
+                    Console.WriteLine($"[SectorRotation] {symbol} の取得に失敗（このセクターのみスキップ）: {ex.Message}");
+                }
+                // Yahoo側への負荷を抑えるため、連続リクエストの間に軽くウェイトを入れる
+                await Task.Delay(300);
+            }
+
+            if (sectorList.Count == 0)
+            {
+                Console.WriteLine("[SectorRotation] 全セクターの取得に失敗しました。");
+                return null;
+            }
+
+            return new SectorRotationResult
+            {
+                SpyReturn1m = spyReturn1m,
+                SpyReturn3m = spyReturn3m,
+                // 3ヶ月の相対強度が高い順（＝リーダーシップが強い順）に並べる
+                Sectors = sectorList.OrderByDescending(s => s.RelStrength3m).ToList()
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[SectorRotation] fetch failed (non-fatal): {ex.Message}");
+            return null;
+        }
+    }
+
+    static decimal ComputeReturnPct(List<DailyData> data, int lookbackDays)
+    {
+        int n = data.Count;
+        int startIdx = Math.Max(0, n - 1 - lookbackDays);
+        decimal startClose = data[startIdx].Close;
+        decimal endClose = data[n - 1].Close;
+        return Math.Round((endClose - startClose) / startClose * 100m, 2);
     }
 
     // ================= 指数ごとの分析 =================
@@ -347,6 +458,22 @@ class Program
                 activeDDs.Add((i, data[i].Close));
             }
             distDaysActive[i] = activeDDs.Count;
+        }
+
+        // ループ終了時点のactiveDDsが「最新日時点でアクティブな売り抜け日」そのもの。
+        // チャートでの有効/失効の視覚区別と、深刻さ（最大下落率）の算出に使う
+        var activeDDIndices = activeDDs.Select(dd => dd.idx).ToHashSet();
+
+        decimal? worstActiveDropPct = null;
+        string? worstActiveDropDate = null;
+        if (activeDDs.Count > 0)
+        {
+            int worstIdx = activeDDs
+                .Select(dd => dd.idx)
+                .OrderByDescending(idx => (data[idx - 1].Close - data[idx].Close) / data[idx - 1].Close)
+                .First();
+            worstActiveDropPct = Math.Round((data[worstIdx - 1].Close - data[worstIdx].Close) / data[worstIdx - 1].Close * 100m, 2);
+            worstActiveDropDate = data[worstIdx].Date.ToString("yyyy-MM-dd");
         }
 
         // --- ラリー・アテンプト / フォロースルーデー のステートマシン ---
@@ -433,19 +560,29 @@ class Program
 
         bool isAboveSma50 = sma50[n - 1].HasValue && data[n - 1].Close >= sma50[n - 1]!.Value;
 
+        // --- 52週高値からのドローダウン（取得済みの1年分データからそのまま算出、追加取得コスト無し） ---
+        decimal high52Week = data.Max(d => d.Close);
+        decimal drawdownFromHighPct = Math.Round((data[n - 1].Close - high52Week) / high52Week * 100m, 2);
+
         // --- チャート表示用（直近100日） ---
         int chartStart = Math.Max(0, n - 100);
         var chartLabels = new List<string>();
         var chartCloses = new List<decimal>();
         var chartSma50 = new List<decimal?>();
-        var distMarks = new List<decimal?>();
+        var distMarksActive = new List<decimal?>();
+        var distMarksExpired = new List<decimal?>();
 
         for (int i = chartStart; i < n; i++)
         {
             chartLabels.Add(data[i].Date.ToString("MM-dd"));
             chartCloses.Add(data[i].Close);
             chartSma50.Add(sma50[i]);
-            distMarks.Add(isRawDistDay[i] ? data[i].Close : (decimal?)null);
+            // 同じ「売り抜け日」でも、最新日時点でまだアクティブなものと、
+            // 25日経過または5%反発で既に失効したものを別データセットとして分ける
+            bool isActive = isRawDistDay[i] && activeDDIndices.Contains(i);
+            bool isExpired = isRawDistDay[i] && !activeDDIndices.Contains(i);
+            distMarksActive.Add(isActive ? data[i].Close : (decimal?)null);
+            distMarksExpired.Add(isExpired ? data[i].Close : (decimal?)null);
         }
 
         return new IndexAnalysis
@@ -454,7 +591,11 @@ class Program
             LatestClose = data[n - 1].Close,
             Sma50 = sma50[n - 1],
             IsAboveSma50 = isAboveSma50,
+            High52Week = high52Week,
+            DrawdownFromHighPct = drawdownFromHighPct,
             DistributionDaysActive = lastDistDays,
+            WorstActiveDropPct = worstActiveDropPct,
+            WorstActiveDropDate = worstActiveDropDate,
             TrendState = lastState,
             LastFollowThroughDate = lastFtdDate?.ToString("yyyy-MM-dd"),
             StatusId = statusId,
@@ -463,7 +604,8 @@ class Program
                 Labels = chartLabels,
                 Closes = chartCloses,
                 Sma50 = chartSma50,
-                DistMarks = distMarks
+                DistMarksActive = distMarksActive,
+                DistMarksExpired = distMarksExpired
             }
         };
     }
@@ -536,7 +678,11 @@ class Program
         public decimal LatestClose { get; set; }
         public decimal? Sma50 { get; set; }
         public bool IsAboveSma50 { get; set; }
+        public decimal High52Week { get; set; }
+        public decimal DrawdownFromHighPct { get; set; } // 0以下の値（52週高値からの下落率）
         public int DistributionDaysActive { get; set; }
+        public decimal? WorstActiveDropPct { get; set; } // アクティブな売り抜け日の中での最大下落率
+        public string? WorstActiveDropDate { get; set; }
         public string TrendState { get; set; } = ""; // Correction / RallyAttempt / ConfirmedUptrend
         public string? LastFollowThroughDate { get; set; }
         public string StatusId { get; set; } = ""; // Uptrend / Pressure / Correction
@@ -548,7 +694,34 @@ class Program
         public List<string> Labels { get; set; } = new();
         public List<decimal> Closes { get; set; } = new();
         public List<decimal?> Sma50 { get; set; } = new();
-        public List<decimal?> DistMarks { get; set; } = new();
+        public List<decimal?> DistMarksActive { get; set; } = new();  // 現在も有効な売り抜け日
+        public List<decimal?> DistMarksExpired { get; set; } = new(); // 25日経過/5%反発で失効した売り抜け日
+    }
+
+    class SectorInfo
+    {
+        public string Symbol { get; set; } = "";
+        public string Name { get; set; } = "";
+        public decimal Return1m { get; set; }
+        public decimal Return3m { get; set; }
+        public decimal RelStrength1m { get; set; } // SPY比（1ヶ月）
+        public decimal RelStrength3m { get; set; } // SPY比（3ヶ月）
+    }
+
+    class SectorRotationResult
+    {
+        public decimal SpyReturn1m { get; set; }
+        public decimal SpyReturn3m { get; set; }
+        public List<SectorInfo> Sectors { get; set; } = new();
+    }
+
+    class SectorRotationOutput
+    {
+        public string Status { get; set; } = ""; // ok / unavailable
+        public decimal? SpyReturn1m { get; set; }
+        public decimal? SpyReturn3m { get; set; }
+        public List<SectorInfo>? Sectors { get; set; }
+        public string Note { get; set; } = "";
     }
 
     class HistoryEntry
