@@ -117,12 +117,21 @@
     "putCallRatio": null
   },
   {
-    "date": "2026-08-02",
+    "date": "",
+    "combinedStatus": "",
+    "sp500Status": "",
+    "sp500DistDays": 0,
+    "nasdaqStatus": "",
+    "nasdaqDistDays": 0,
+    "putCallRatio": null
+  },
+  {
+    "date": "2026-08-03",
     "combinedStatus": "Correction",
     "sp500Status": "Correction",
     "sp500DistDays": 6,
     "nasdaqStatus": "Correction",
     "nasdaqDistDays": 7,
-    "putCallRatio": 1.032
+    "putCallRatio": 1.036
   }
 ]
