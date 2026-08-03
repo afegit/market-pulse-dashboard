@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-08-03 07:30:57",
+  "lastUpdated": "2026-08-03 14:15:26",
   "combinedStatus": "Correction",
   "combinedDrivenBy": "S\u0026P 500\u30FBNasdaq Composite\u3068\u3082\u306B\u540C\u6C34\u6E96",
   "sp500": {
@@ -1159,6 +1159,34 @@
         "relStrength3m": -11.05
       }
     ],
+    "breadthProxies": [
+      {
+        "symbol": "RSP",
+        "name": "S\u0026P500\u5747\u7B49\u52A0\u91CD",
+        "return1m": 0.75,
+        "return3m": 5.69,
+        "relStrength1m": 0.58,
+        "relStrength3m": 1.74
+      },
+      {
+        "symbol": "IWM",
+        "name": "\u5C0F\u578B\u682A(Russell 2000)",
+        "return1m": -2.71,
+        "return3m": 4.76,
+        "relStrength1m": -2.88,
+        "relStrength3m": 0.81
+      }
+    ],
     "note": "SPDR\u30BB\u30AF\u30BF\u30FCETF11\u9298\u67C4\u306ESPY\u306B\u5BFE\u3059\u308B\u76F8\u5BFE\u30EA\u30BF\u30FC\u30F3(\u81EA\u524D\u7B97\u51FA)\u3002CAN SLIM\u306E\u300CL(Leader)\u300D\u306B\u5BFE\u5FDC\u3059\u308B\u88DC\u52A9\u6307\u6A19\u3067\u3059\u3002"
+  },
+  "creditRiskAppetite": {
+    "status": "ok",
+    "hygReturn1m": -0.14,
+    "hygReturn3m": -1.12,
+    "tltReturn1m": -3.82,
+    "tltReturn3m": -3.94,
+    "spread1m": 3.68,
+    "spread3m": 2.82,
+    "note": "\u30CF\u30A4\u30A4\u30FC\u30EB\u30C9\u793E\u50B5ETF(HYG)\u3068\u9577\u671F\u56FD\u50B5ETF(TLT)\u306E\u76F8\u5BFE\u30EA\u30BF\u30FC\u30F3(\u81EA\u524D\u7B97\u51FA)\u3002\u30D7\u30E9\u30B9\u304C\u5927\u304D\u3044\u307B\u3069\u30AF\u30EC\u30B8\u30C3\u30C8\u5E02\u5834\u304C\u30EA\u30B9\u30AF\u30AA\u30F3\u3001\u30DE\u30A4\u30CA\u30B9\u304C\u5927\u304D\u3044\u307B\u3069\u8CEA\u3078\u306E\u9003\u907F\uFF08\u30EA\u30B9\u30AF\u30AA\u30D5\uFF09\u3092\u793A\u5506\u3057\u307E\u3059\u3002"
   }
 }
