@@ -29,6 +29,8 @@
         .chart-mini { height: 260px; margin-top: 15px; }
         .chart-container { background-color: var(--card-bg); border-radius: 10px; padding: 20px; height: 260px; margin-bottom: 20px; }
         .section-title { font-size: 1rem; color: var(--text-muted); margin: 30px 0 10px 4px; }
+        .data-warning { background: #fff3cd; color: #664d03; border: 1px solid #ffecb5; border-radius: 7px; padding: 10px 12px; font-size: 0.84rem; line-height: 1.45; margin: 12px 0; }
+        .data-note { color: var(--text-muted); font-size: 0.82rem; line-height: 1.45; margin: 10px 0 0 0; }
     </style>
 </head>
 <body>
@@ -56,16 +58,16 @@
 
     <div class="index-grid">
         <div class="card index-card" id="card-sp500">
-            <h3>S&P 500 <span class="index-badge" id="badge-sp500">--</span></h3>
-            <div class="metric-row"><span>終値</span><strong id="close-sp500">--</strong></div>
+            <h3>S&P 500（SPY） <span class="index-badge" id="badge-sp500">--</span></h3>
+            <div class="metric-row"><span>調整後終値</span><strong id="close-sp500">--</strong></div>
             <div class="metric-row"><span>50日移動平均線</span><strong id="sma-sp500">--</strong></div>
-            <div class="metric-help">直近50営業日の終値の平均線。株価がこの線より上か下かがトレンドの基本的な目安です。</div>
+            <div class="metric-help">SPYの調整後終値を使用します。分配金・株式分割によるリターンの歪みを抑え、価格と移動平均線を比較します。</div>
             <div class="metric-row"><span>52週高値からのドローダウン</span><strong id="drawdown-sp500">--</strong></div>
             <div class="metric-help">過去1年の最高値から現在どれだけ下落しているか。押し目の深さの目安です。</div>
             <div class="metric-row"><span>トレンド状態</span><strong id="trend-sp500">--</strong></div>
             <div class="metric-help">「上昇トレンド確認済み」になるには、下落局面からの反発を裏付ける出来高急増日（フォロースルーデー）が必要です。単に50日線を上回っただけでは昇格しません。</div>
             <div class="metric-row"><span>売り抜け日（有効カウント）</span><strong id="dist-sp500">--</strong></div>
-            <div class="metric-help">機関投資家が売り抜けたとみられる日のカウント。直近25営業日以内で「下落率0.2%以上・前日より出来高が多い」日を数え、5%以上の反発があった日は無効化されます。</div>
+            <div class="metric-help">SPYの実取引出来高で判定します。直近25営業日以内で「下落率0.2%以上・前日より出来高が多い」日を数え、5%以上の反発があった日は無効化されます。</div>
             <div class="metric-row"><span>売り抜け日の深刻さ（最大下落率）</span><strong id="worst-dd-sp500">--</strong></div>
             <div class="metric-help">現在有効な売り抜け日の中で、下落率が最も大きかった日。同じ「5日」でも中身の深刻さが分かります。</div>
             <div class="metric-row"><span>直近フォロースルーデー</span><strong id="ftd-sp500">--</strong></div>
@@ -73,22 +75,26 @@
             <div class="chart-mini"><canvas id="chart-sp500"></canvas></div>
         </div>
         <div class="card index-card" id="card-nasdaq">
-            <h3>Nasdaq Composite <span class="index-badge" id="badge-nasdaq">--</span></h3>
-            <div class="metric-row"><span>終値</span><strong id="close-nasdaq">--</strong></div>
+            <h3>Nasdaq-100（QQQ） <span class="index-badge" id="badge-nasdaq">--</span></h3>
+            <div class="metric-row"><span>調整後終値</span><strong id="close-nasdaq">--</strong></div>
             <div class="metric-row"><span>50日移動平均線</span><strong id="sma-nasdaq">--</strong></div>
-            <div class="metric-help">直近50営業日の終値の平均線。株価がこの線より上か下かがトレンドの基本的な目安です。</div>
+            <div class="metric-help">QQQの調整後終値を使用します。分配金・株式分割によるリターンの歪みを抑え、価格と移動平均線を比較します。</div>
             <div class="metric-row"><span>52週高値からのドローダウン</span><strong id="drawdown-nasdaq">--</strong></div>
             <div class="metric-help">過去1年の最高値から現在どれだけ下落しているか。押し目の深さの目安です。</div>
             <div class="metric-row"><span>トレンド状態</span><strong id="trend-nasdaq">--</strong></div>
             <div class="metric-help">「上昇トレンド確認済み」になるには、下落局面からの反発を裏付ける出来高急増日（フォロースルーデー）が必要です。単に50日線を上回っただけでは昇格しません。</div>
             <div class="metric-row"><span>売り抜け日（有効カウント）</span><strong id="dist-nasdaq">--</strong></div>
-            <div class="metric-help">機関投資家が売り抜けたとみられる日のカウント。直近25営業日以内で「下落率0.2%以上・前日より出来高が多い」日を数え、5%以上の反発があった日は無効化されます。</div>
+            <div class="metric-help">QQQの実取引出来高で判定します。直近25営業日以内で「下落率0.2%以上・前日より出来高が多い」日を数え、5%以上の反発があった日は無効化されます。</div>
             <div class="metric-row"><span>売り抜け日の深刻さ（最大下落率）</span><strong id="worst-dd-nasdaq">--</strong></div>
             <div class="metric-help">現在有効な売り抜け日の中で、下落率が最も大きかった日。同じ「5日」でも中身の深刻さが分かります。</div>
             <div class="metric-row"><span>直近フォロースルーデー</span><strong id="ftd-nasdaq">--</strong></div>
             <div class="metric-help">下落相場からの本格反発を裏付ける、出来高を伴う大幅上昇日（目安1.25%以上）。これが「上昇トレンド確認済み」への切り替えトリガーです。</div>
             <div class="chart-mini"><canvas id="chart-nasdaq"></canvas></div>
         </div>
+    </div>
+
+    <div class="data-warning">
+        Distribution Dayとフォロースルーデーは出来高が生命線です。このダッシュボードでは、出来高が不明確になりやすい指数そのものではなく、実際に取引されるSPY／QQQの出来高を使います。各判定は地合い確認用であり、個別銘柄のエントリーや損切り判断を置き換えるものではありません。
     </div>
 
     <div class="section-title">Exposure 推移（過去180日）</div>
@@ -115,6 +121,9 @@
                 値が高いほどプット優勢（弱気/ヘッジ需要が強い）、低いほどコール優勢（強気）の目安です。
                 「過去分布での位置」はこのサイト自身が蓄積した履歴内での相対位置で、IBD/CBOEの一般的なしきい値（0.6〜1.2）とは基準が異なります。
             </p>
+            <div class="data-warning">
+                この値はSPYの<strong>直近限月だけ</strong>の出来高です。0DTE、ヘッジ取引、限月構成の影響が大きいため、方向予想の主シグナルには使えません。極端な需給の補助確認に限定してください。
+            </div>
             <div class="chart-mini" style="height: 220px; margin-top: 15px;"><canvas id="chart-putcall"></canvas></div>
         </div>
     </div>
@@ -124,7 +133,7 @@
         <div class="card" id="card-sector">
             <div id="sector-ok" style="display:none;">
                 <p style="color: var(--text-muted); font-size: 0.85rem; margin-top:0;">
-                    SPDRセクターETF11銘柄の騰落率をSPY自体と比較し、3ヶ月の相対強度が高い順（＝資金が向かっているセクター）に並べています。CAN SLIMの「L(Leader)」の補助指標です。
+                    SPDRセクターETF11銘柄の<strong>調整後終値</strong>による騰落率をSPY自体と比較し、3ヶ月の相対強度が高い順（＝資金が向かっているセクター）に並べています。CAN SLIMの「L(Leader)」の補助指標です。
                 </p>
                 <table style="width:100%; border-collapse: collapse; font-size: 0.88rem;">
                     <thead>
@@ -142,7 +151,7 @@
                 <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-color);">
                     <h4 style="margin: 0 0 6px 0; font-size: 0.95rem;">市場の値幅代理指標（Breadth Proxies）</h4>
                     <p style="color: var(--text-muted); font-size: 0.82rem; margin-top:0;">
-                        個別500銘柄のスキャンをせずに「上昇が市場全体に広がっているか、一部の大型株に偏っているか」を近似する代用指標です。マイナスが大きいほど、上昇が偏っている（集中リスクが高い）ことを示唆します。
+                        RSP・IWMは時価総額集中や小型株の強弱を見る<strong>代理指標</strong>です。真の市場ブレッドスではないため、下のNasdaq-100構成銘柄スキャンと併せて確認してください。マイナスが大きいほど、上昇が偏っている（集中リスクが高い）ことを示唆します。
                     </p>
                     <table style="width:100%; border-collapse: collapse; font-size: 0.88rem;">
                         <thead>
@@ -164,22 +173,69 @@
         </div>
     </div>
 
-    <div class="section-title">Credit Risk Appetite（自前算出・クレジット市場のリスク選好度）</div>
+    <div class="section-title">Credit Risk Appetite（信用リスクの警戒灯）</div>
     <div class="dashboard-grid">
         <div class="card" id="card-credit">
             <div id="credit-ok" style="display:none;">
                 <p style="color: var(--text-muted); font-size: 0.85rem; margin-top:0;">
-                    ハイイールド社債ETF(HYG)と長期国債ETF(TLT)の値動きを比較し、クレジット市場が「リスクを取りに行っているか」「安全資産に逃避しているか」を見る指標です。株式市場より先に警戒感が表れることがあります。
+                    ハイイールド社債ETF(HYG)と投資適格社債ETF(LQD)の調整後終値を比較し、信用リスクを取りに行く動きかを見ます。TLTとの比較は金利デュレーション差の影響が大きいため、信用不安の主指標には使いません。
                 </p>
                 <div class="metric-row"><span>HYG（ハイイールド社債）</span><strong id="credit-hyg">--</strong></div>
-                <div class="metric-row"><span>TLT（米国長期国債）</span><strong id="credit-tlt">--</strong></div>
-                <div class="metric-row"><span>リスク選好度スプレッド（3ヶ月）</span><strong id="credit-spread-3m" style="font-size:1.15rem;">--</strong></div>
-                <div class="metric-help">HYGの3ヶ月リターン − TLTの3ヶ月リターン。プラスが大きいほどクレジット市場がリスクオン（社債選好）、マイナスが大きいほどリスクオフ（質への逃避）を示唆します。</div>
+                <div class="metric-row"><span>LQD（投資適格社債）</span><strong id="credit-lqd">--</strong></div>
+                <div class="metric-row"><span>HY対IG相対リターン（3ヶ月）</span><strong id="credit-spread-3m" style="font-size:1.15rem;">--</strong></div>
+                <div class="metric-help">HYGの3ヶ月リターン − LQDの3ヶ月リターン。プラスが大きいほど低格付け債を選好、マイナスが大きいほど信用リスク回避の目安です。</div>
                 <div class="metric-row"><span>リスク選好度スプレッド（1ヶ月）</span><strong id="credit-spread-1m">--</strong></div>
+                <div class="metric-row"><span>HY OAS（ハイイールド債スプレッド）</span><strong id="credit-hy-oas">--</strong></div>
+                <div class="metric-row"><span>HY OASの1か月変化</span><strong id="credit-hy-oas-change">--</strong></div>
+                <div class="metric-help">HY OASは米国債に対してハイイールド債がどれだけ上乗せ利回りを求められているかを示す信用スプレッドです。拡大は信用不安の警戒灯、縮小は改善の目安です。取得元の公表遅延によりETF価格より更新が遅れることがあります。</div>
             </div>
             <div id="credit-unavailable" style="display:none; text-align:center; color: var(--text-muted); padding: 12px 0;">
                 <p style="font-size: 1.05rem; margin-bottom: 6px;">⚠ 本日はCredit Risk Appetiteを取得できませんでした</p>
                 <p style="font-size: 0.85rem;" id="credit-unavailable-note">--</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="section-title">Volatility Regime（ボラティリティ警戒灯）</div>
+    <div class="dashboard-grid">
+        <div class="card" id="card-volatility">
+            <div id="volatility-ok" style="display:none;">
+                <p class="data-note" style="margin-top:0;">
+                    VIX（直近30日）とVIX3M（3か月先）のインプライド・ボラティリティを比べます。これはVIX先物カーブの無料データによる近似であり、完全な先物期限構造ではありません。
+                </p>
+                <div class="metric-row"><span>VIX</span><strong id="vol-vix">--</strong></div>
+                <div class="metric-row"><span>VIX 20日平均</span><strong id="vol-vix-sma20">--</strong></div>
+                <div class="metric-row"><span>VIX3M</span><strong id="vol-vix3m">--</strong></div>
+                <div class="metric-row"><span>期限構造</span><strong id="vol-term-structure">--</strong></div>
+                <div class="metric-row"><span>VIX対VIX3Mスロープ</span><strong id="vol-term-slope">--</strong></div>
+                <div class="metric-help">VIXがVIX3Mを上回るBackwardationは短期ヘッジ需要が高い警戒状態です。VIXの20日平均超えと同時に起きる場合は、新規ロングやレバレッジのリスク予算を見直す材料になります。単独で売買を決めないでください。</div>
+            </div>
+            <div id="volatility-unavailable" style="display:none; text-align:center; color: var(--text-muted); padding: 12px 0;">
+                <p style="font-size: 1.05rem; margin-bottom: 6px;">⚠ 本日はVIXデータを取得できませんでした</p>
+                <p style="font-size: 0.85rem;" id="volatility-unavailable-note">--</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="section-title">Nasdaq-100 Market Breadth（構成銘柄による市場内部）</div>
+    <div class="dashboard-grid">
+        <div class="card" id="card-market-breadth">
+            <div id="market-breadth-ok" style="display:none;">
+                <p class="data-note" style="margin-top:0;">
+                    Nasdaq-100構成銘柄を等ウェイトで個別集計した真の市場ブレッドスです。指数だけが上昇していても、50日線上比率・新高値数・A/Dラインが悪化する場合は、上昇の広がり不足を確認できます。
+                </p>
+                <div class="metric-row"><span>データ取得カバレッジ</span><strong id="mb-coverage">--</strong></div>
+                <div class="metric-row"><span>50日線上の銘柄比率</span><strong id="mb-above-50">--</strong></div>
+                <div class="metric-row"><span>200日線上の銘柄比率</span><strong id="mb-above-200">--</strong></div>
+                <div class="metric-row"><span>52週新高値 / 新安値</span><strong id="mb-high-low">--</strong></div>
+                <div class="metric-row"><span>当日の騰落数（A/D）</span><strong id="mb-advance-decline">--</strong></div>
+                <div class="metric-row"><span>20日A/Dライン変化</span><strong id="mb-ad-line-20d">--</strong></div>
+                <div class="metric-help">A/Dラインは毎日の上昇銘柄数−下落銘柄数を累積する等ウェイト指標です。20日変化がマイナスで、かつ指数が高値圏なら、上昇が一部大型株に偏っていないかを再確認してください。</div>
+                <div class="data-warning" id="mb-partial-warning" style="display:none; margin-bottom:0;"></div>
+            </div>
+            <div id="market-breadth-unavailable" style="display:none; text-align:center; color: var(--text-muted); padding: 12px 0;">
+                <p style="font-size: 1.05rem; margin-bottom: 6px;">⚠ 本日は市場ブレッドスを算出できませんでした</p>
+                <p style="font-size: 0.85rem;" id="market-breadth-unavailable-note">--</p>
             </div>
         </div>
     </div>
@@ -263,7 +319,7 @@
             data: {
                 labels: data.chart.labels,
                 datasets: [
-                    { label: '終値', data: data.chart.closes, borderColor: '#2980b9', backgroundColor: 'rgba(41, 128, 185, 0.08)', borderWidth: 2, fill: true, tension: 0.1, pointRadius: 0 },
+                    { label: '調整後終値', data: data.chart.closes, borderColor: '#2980b9', backgroundColor: 'rgba(41, 128, 185, 0.08)', borderWidth: 2, fill: true, tension: 0.1, pointRadius: 0 },
                     { label: '50日移動平均線', data: data.chart.sma50, borderColor: '#e67e22', borderWidth: 2, borderDash: [5, 5], fill: false, pointRadius: 0 },
                     { label: '売り抜け日(有効)', data: data.chart.distMarksActive, backgroundColor: '#e74c3c', borderColor: '#e74c3c', pointStyle: 'triangle', pointRadius: 6, pointHoverRadius: 8, showLine: false },
                     { label: '売り抜け日(失効済み)', data: data.chart.distMarksExpired, backgroundColor: 'rgba(150, 150, 150, 0.5)', borderColor: 'rgba(120, 120, 120, 0.6)', pointStyle: 'triangle', pointRadius: 5, pointHoverRadius: 7, showLine: false }
@@ -329,7 +385,7 @@
         }
         document.getElementById('credit-ok').style.display = 'block';
         document.getElementById('credit-hyg').innerText = `1ヶ月 ${cr.hygReturn1m.toFixed(2)}% / 3ヶ月 ${cr.hygReturn3m.toFixed(2)}%`;
-        document.getElementById('credit-tlt').innerText = `1ヶ月 ${cr.tltReturn1m.toFixed(2)}% / 3ヶ月 ${cr.tltReturn3m.toFixed(2)}%`;
+        document.getElementById('credit-lqd').innerText = `1ヶ月 ${cr.lqdReturn1m.toFixed(2)}% / 3ヶ月 ${cr.lqdReturn3m.toFixed(2)}%`;
 
         const spread3mEl = document.getElementById('credit-spread-3m');
         spread3mEl.innerText = `${cr.spread3m > 0 ? '+' : ''}${cr.spread3m.toFixed(2)}%`;
@@ -338,6 +394,87 @@
         const spread1mEl = document.getElementById('credit-spread-1m');
         spread1mEl.innerText = `${cr.spread1m > 0 ? '+' : ''}${cr.spread1m.toFixed(2)}%`;
         spread1mEl.style.color = cr.spread1m > 0 ? 'var(--accent-green)' : (cr.spread1m < 0 ? 'var(--accent-red)' : 'var(--text-main)');
+
+        const oasEl = document.getElementById('credit-hy-oas');
+        const oasChangeEl = document.getElementById('credit-hy-oas-change');
+        if (cr.hyOasPct != null) {
+            oasEl.innerText = `${Number(cr.hyOasPct).toFixed(2)}% (${cr.hyOasDate || '最新'})`;
+            const change = Number(cr.hyOasChange1mBps || 0);
+            oasChangeEl.innerText = `${change > 0 ? '+' : ''}${change.toFixed(0)}bp`;
+            oasChangeEl.style.color = change > 0 ? 'var(--accent-red)' : (change < 0 ? 'var(--accent-green)' : 'var(--text-main)');
+        } else {
+            oasEl.innerText = '取得不可';
+            oasEl.style.color = 'var(--text-muted)';
+            oasChangeEl.innerText = '--';
+            oasChangeEl.style.color = 'var(--text-muted)';
+        }
+    }
+
+    function renderVolatilityCard(vr) {
+        document.getElementById('volatility-ok').style.display = 'none';
+        document.getElementById('volatility-unavailable').style.display = 'none';
+
+        if (!vr || vr.status !== 'ok') {
+            document.getElementById('volatility-unavailable').style.display = 'block';
+            document.getElementById('volatility-unavailable-note').innerText = (vr && vr.note) || '取得結果がありません。';
+            return;
+        }
+        document.getElementById('volatility-ok').style.display = 'block';
+        document.getElementById('vol-vix').innerText = Number(vr.vix).toFixed(2);
+        const vixSmaEl = document.getElementById('vol-vix-sma20');
+        vixSmaEl.innerText = Number(vr.vixSma20).toFixed(2);
+        vixSmaEl.style.color = vr.vix > vr.vixSma20 ? 'var(--accent-yellow)' : 'var(--text-main)';
+        document.getElementById('vol-vix3m').innerText = Number(vr.vix3m).toFixed(2);
+
+        const structureEl = document.getElementById('vol-term-structure');
+        structureEl.innerText = vr.termStructure === 'Backwardation' ? 'Backwardation（警戒）' : 'Contango（通常）';
+        structureEl.style.color = vr.termStructure === 'Backwardation' ? 'var(--accent-red)' : 'var(--accent-green)';
+
+        const slopeEl = document.getElementById('vol-term-slope');
+        const slope = Number(vr.termSlopePct);
+        slopeEl.innerText = `${slope > 0 ? '+' : ''}${slope.toFixed(2)}%`;
+        slopeEl.style.color = slope > 0 ? 'var(--accent-red)' : 'var(--accent-green)';
+    }
+
+    function renderMarketBreadthCard(mb) {
+        document.getElementById('market-breadth-ok').style.display = 'none';
+        document.getElementById('market-breadth-unavailable').style.display = 'none';
+
+        if (!mb || (mb.status !== 'ok' && mb.status !== 'partial')) {
+            document.getElementById('market-breadth-unavailable').style.display = 'block';
+            document.getElementById('market-breadth-unavailable-note').innerText = (mb && mb.note) || '取得結果がありません。';
+            return;
+        }
+        document.getElementById('market-breadth-ok').style.display = 'block';
+        document.getElementById('mb-coverage').innerText = `${Number(mb.coveragePct).toFixed(1)}%（${mb.analyzedConstituents}/${mb.expectedConstituents}、構成時点 ${mb.universeAsOf}）`;
+
+        const setBreadthPct = (id, value) => {
+            const el = document.getElementById(id);
+            if (value == null) { el.innerText = '--'; return; }
+            const pct = Number(value);
+            el.innerText = `${pct.toFixed(1)}%`;
+            el.style.color = pct >= 60 ? 'var(--accent-green)' : (pct <= 40 ? 'var(--accent-red)' : 'var(--accent-yellow)');
+        };
+        setBreadthPct('mb-above-50', mb.aboveSma50Pct);
+        setBreadthPct('mb-above-200', mb.aboveSma200Pct);
+
+        const highLowEl = document.getElementById('mb-high-low');
+        highLowEl.innerText = `${mb.newHighs52Week} / ${mb.newLows52Week}`;
+        highLowEl.style.color = mb.newHighs52Week >= mb.newLows52Week ? 'var(--accent-green)' : 'var(--accent-red)';
+
+        const adEl = document.getElementById('mb-advance-decline');
+        const adNet = Number(mb.advanceDeclineNet);
+        adEl.innerText = `${mb.advances} / ${mb.declines}（ネット ${adNet > 0 ? '+' : ''}${adNet}）`;
+        adEl.style.color = adNet > 0 ? 'var(--accent-green)' : (adNet < 0 ? 'var(--accent-red)' : 'var(--text-main)');
+
+        const ad20El = document.getElementById('mb-ad-line-20d');
+        const ad20 = Number(mb.adLineChange20d);
+        ad20El.innerText = `${ad20 > 0 ? '+' : ''}${ad20}`;
+        ad20El.style.color = ad20 > 0 ? 'var(--accent-green)' : (ad20 < 0 ? 'var(--accent-red)' : 'var(--text-main)');
+
+        const partialWarning = document.getElementById('mb-partial-warning');
+        partialWarning.style.display = mb.status === 'partial' ? 'block' : 'none';
+        partialWarning.innerText = mb.status === 'partial' ? `カバレッジが十分ではありません（${Number(mb.coveragePct).toFixed(1)}%）。この日のブレッドスは参考値として扱ってください。` : '';
     }
 
     let lastFetchTime = 0;
@@ -370,6 +507,8 @@
                 try { renderPutCallCard(data.putCallRatio); } catch (e) { console.error('putcall card failed:', e); }
                 try { renderSectorTable(data.sectorRotation); } catch (e) { console.error('sector table failed:', e); }
                 try { renderCreditRiskCard(data.creditRiskAppetite); } catch (e) { console.error('credit risk card failed:', e); }
+                try { renderVolatilityCard(data.volatilityRegime); } catch (e) { console.error('volatility card failed:', e); }
+                try { renderMarketBreadthCard(data.marketBreadth); } catch (e) { console.error('market breadth card failed:', e); }
             })
             .catch(err => {
                 console.error(err);
