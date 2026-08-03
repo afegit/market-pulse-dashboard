@@ -4,6 +4,8 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
+  <ItemGroup>
+    <None Update="nasdaq100-universe.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
