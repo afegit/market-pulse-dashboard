@@ -56,6 +56,22 @@ class Program
     const int SECTOR_RETURN_1M_DAYS = 21; // 約1ヶ月分の営業日
     const int SECTOR_RETURN_3M_DAYS = 63; // 約3ヶ月分の営業日
 
+    // ===== 値幅代理指標（Breadth Proxies） =====
+    // 500銘柄の個別スキャンをせずに「上昇が広いか一部の大型株に偏っているか」を近似する代用指標。
+    // RSP: S&P500均等加重（時価総額加重のSPYとの差が集中度の目安）
+    // IWM: 小型株(Russell 2000)。景気敏感・高ベータでリスク選好の代理指標になる
+    static readonly Dictionary<string, string> BREADTH_PROXY_ETFS = new()
+    {
+        ["RSP"] = "S&P500均等加重",
+        ["IWM"] = "小型株(Russell 2000)"
+    };
+
+    // ===== Credit Risk Appetite（クレジット市場のリスク選好度） =====
+    // HYG(ハイイールド社債ETF) と TLT(米国長期国債ETF) の相対リターン。
+    // HYGがTLTに対して優勢＝クレジット市場がリスクオン、逆＝質への逃避（リスクオフ）
+    const string CREDIT_RISK_ON_SYMBOL = "HYG";
+    const string CREDIT_RISK_OFF_SYMBOL = "TLT";
+
     // HttpClientは使い回す（毎回newすると接続のオーバーヘッドやソケット枯渇のリスクが積み重なるため、プロセス内で1つを共有する）
     static readonly HttpClient httpClient = CreateHttpClient();
 
@@ -145,7 +161,28 @@ class Program
                     SpyReturn1m = sectorRotation.SpyReturn1m,
                     SpyReturn3m = sectorRotation.SpyReturn3m,
                     Sectors = sectorRotation.Sectors,
+                    BreadthProxies = sectorRotation.BreadthProxies,
                     Note = "SPDRセクターETF11銘柄のSPYに対する相対リターン(自前算出)。CAN SLIMの「L(Leader)」に対応する補助指標です。"
+                };
+
+            // Credit Risk Appetite（自前算出）。これも失敗して良い補助機能として独立させる
+            var creditRisk = await FetchCreditRiskAppetite();
+            var creditRiskOutput = creditRisk == null
+                ? new CreditRiskAppetiteOutput
+                {
+                    Status = "unavailable",
+                    Note = "HYG/TLTデータの取得に失敗しました。詳細はActionsのログ（CreditRiskAppetiteの行）を確認してください。"
+                }
+                : new CreditRiskAppetiteOutput
+                {
+                    Status = "ok",
+                    HygReturn1m = creditRisk.HygReturn1m,
+                    HygReturn3m = creditRisk.HygReturn3m,
+                    TltReturn1m = creditRisk.TltReturn1m,
+                    TltReturn3m = creditRisk.TltReturn3m,
+                    Spread1m = creditRisk.Spread1m,
+                    Spread3m = creditRisk.Spread3m,
+                    Note = "ハイイールド社債ETF(HYG)と長期国債ETF(TLT)の相対リターン(自前算出)。プラスが大きいほどクレジット市場がリスクオン、マイナスが大きいほど質への逃避（リスクオフ）を示唆します。"
                 };
 
             var output = new
@@ -156,7 +193,8 @@ class Program
                 sp500,
                 nasdaq,
                 putCallRatio = putCallOutput,
-                sectorRotation = sectorOutput
+                sectorRotation = sectorOutput,
+                creditRiskAppetite = creditRiskOutput
             };
 
             var options = new JsonSerializerOptions
@@ -356,15 +394,15 @@ class Program
             decimal spyReturn1m = ComputeReturnPct(spyData, SECTOR_RETURN_1M_DAYS);
             decimal spyReturn3m = ComputeReturnPct(spyData, SECTOR_RETURN_3M_DAYS);
 
-            var sectorList = new List<SectorInfo>();
-            foreach (var (symbol, name) in SECTOR_ETFS)
+            // 1銘柄取得してSPY比の相対強度を計算する共通処理（セクターと値幅代理指標の両方で使う）
+            async Task<SectorInfo?> FetchOne(string symbol, string name)
             {
                 try
                 {
                     var data = await FetchYahooDataWithRetry(symbol, "6mo");
                     decimal r1m = ComputeReturnPct(data, SECTOR_RETURN_1M_DAYS);
                     decimal r3m = ComputeReturnPct(data, SECTOR_RETURN_3M_DAYS);
-                    sectorList.Add(new SectorInfo
+                    return new SectorInfo
                     {
                         Symbol = symbol,
                         Name = name,
@@ -372,14 +410,33 @@ class Program
                         Return3m = r3m,
                         RelStrength1m = Math.Round(r1m - spyReturn1m, 2),
                         RelStrength3m = Math.Round(r3m - spyReturn3m, 2)
-                    });
+                    };
                 }
                 catch (Exception ex)
                 {
-                    // 1銘柄の失敗は他のセクターの表示を止める理由にしない
-                    Console.WriteLine($"[SectorRotation] {symbol} の取得に失敗（このセクターのみスキップ）: {ex.Message}");
+                    // 1銘柄の失敗は他の銘柄の表示を止める理由にしない
+                    Console.WriteLine($"[SectorRotation] {symbol} の取得に失敗（この銘柄のみスキップ）: {ex.Message}");
+                    return null;
                 }
+            }
+
+            var sectorList = new List<SectorInfo>();
+            foreach (var (symbol, name) in SECTOR_ETFS)
+            {
+                var info = await FetchOne(symbol, name);
+                if (info != null) sectorList.Add(info);
                 // Yahoo側への負荷を抑えるため、連続リクエストの間に軽くウェイトを入れる
+                await Task.Delay(300);
+            }
+
+            // 値幅代理指標（RSP: 均等加重、IWM: 小型株）。500銘柄の個別スキャンをせずに
+            // 「上昇が広いか一部の大型株に偏っているか」を近似する。こちらは失敗しても
+            // セクターローテーション自体は成立させたいので、空でも先に進む
+            var breadthList = new List<SectorInfo>();
+            foreach (var (symbol, name) in BREADTH_PROXY_ETFS)
+            {
+                var info = await FetchOne(symbol, name);
+                if (info != null) breadthList.Add(info);
                 await Task.Delay(300);
             }
 
@@ -394,7 +451,8 @@ class Program
                 SpyReturn1m = spyReturn1m,
                 SpyReturn3m = spyReturn3m,
                 // 3ヶ月の相対強度が高い順（＝リーダーシップが強い順）に並べる
-                Sectors = sectorList.OrderByDescending(s => s.RelStrength3m).ToList()
+                Sectors = sectorList.OrderByDescending(s => s.RelStrength3m).ToList(),
+                BreadthProxies = breadthList
             };
         }
         catch (Exception ex)
@@ -411,6 +469,41 @@ class Program
         decimal startClose = data[startIdx].Close;
         decimal endClose = data[n - 1].Close;
         return Math.Round((endClose - startClose) / startClose * 100m, 2);
+    }
+
+    // ================= Credit Risk Appetite（自前算出） =================
+
+    static async Task<CreditRiskAppetiteResult?> FetchCreditRiskAppetite()
+    {
+        // HYGとTLTの「差」自体が指標の本体なので、片方だけ成功しても意味がない。
+        // そのためセクターローテーションのような1銘柄ずつの部分成功は許容せず、
+        // どちらかが失敗したら全体をunavailable扱いにする
+        try
+        {
+            var hygData = await FetchYahooDataWithRetry(CREDIT_RISK_ON_SYMBOL, "6mo");
+            await Task.Delay(300); // Yahoo側への負荷を抑える
+            var tltData = await FetchYahooDataWithRetry(CREDIT_RISK_OFF_SYMBOL, "6mo");
+
+            decimal hyg1m = ComputeReturnPct(hygData, SECTOR_RETURN_1M_DAYS);
+            decimal hyg3m = ComputeReturnPct(hygData, SECTOR_RETURN_3M_DAYS);
+            decimal tlt1m = ComputeReturnPct(tltData, SECTOR_RETURN_1M_DAYS);
+            decimal tlt3m = ComputeReturnPct(tltData, SECTOR_RETURN_3M_DAYS);
+
+            return new CreditRiskAppetiteResult
+            {
+                HygReturn1m = hyg1m,
+                HygReturn3m = hyg3m,
+                TltReturn1m = tlt1m,
+                TltReturn3m = tlt3m,
+                Spread1m = Math.Round(hyg1m - tlt1m, 2),
+                Spread3m = Math.Round(hyg3m - tlt3m, 2)
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[CreditRiskAppetite] fetch failed (non-fatal): {ex.Message}");
+            return null;
+        }
     }
 
     // ================= 指数ごとの分析 =================
@@ -713,6 +806,7 @@ class Program
         public decimal SpyReturn1m { get; set; }
         public decimal SpyReturn3m { get; set; }
         public List<SectorInfo> Sectors { get; set; } = new();
+        public List<SectorInfo> BreadthProxies { get; set; } = new();
     }
 
     class SectorRotationOutput
@@ -721,6 +815,29 @@ class Program
         public decimal? SpyReturn1m { get; set; }
         public decimal? SpyReturn3m { get; set; }
         public List<SectorInfo>? Sectors { get; set; }
+        public List<SectorInfo>? BreadthProxies { get; set; }
+        public string Note { get; set; } = "";
+    }
+
+    class CreditRiskAppetiteResult
+    {
+        public decimal HygReturn1m { get; set; }
+        public decimal HygReturn3m { get; set; }
+        public decimal TltReturn1m { get; set; }
+        public decimal TltReturn3m { get; set; }
+        public decimal Spread1m { get; set; } // HYGリターン - TLTリターン（1ヶ月）
+        public decimal Spread3m { get; set; } // 同（3ヶ月）
+    }
+
+    class CreditRiskAppetiteOutput
+    {
+        public string Status { get; set; } = ""; // ok / unavailable
+        public decimal? HygReturn1m { get; set; }
+        public decimal? HygReturn3m { get; set; }
+        public decimal? TltReturn1m { get; set; }
+        public decimal? TltReturn3m { get; set; }
+        public decimal? Spread1m { get; set; }
+        public decimal? Spread3m { get; set; }
         public string Note { get; set; } = "";
     }
 
