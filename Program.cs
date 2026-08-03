@@ -6,6 +6,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Threading;
 
 class Program
 {
@@ -57,7 +59,7 @@ class Program
     const int SECTOR_RETURN_3M_DAYS = 63; // 約3ヶ月分の営業日
 
     // ===== 値幅代理指標（Breadth Proxies） =====
-    // 500銘柄の個別スキャンをせずに「上昇が広いか一部の大型株に偏っているか」を近似する代用指標。
+    // 「真のブレッドス」とは別の補助指標。時価総額集中・小型株の強弱を素早く確認するために残す。
     // RSP: S&P500均等加重（時価総額加重のSPYとの差が集中度の目安）
     // IWM: 小型株(Russell 2000)。景気敏感・高ベータでリスク選好の代理指標になる
     static readonly Dictionary<string, string> BREADTH_PROXY_ETFS = new()
@@ -67,10 +69,24 @@ class Program
     };
 
     // ===== Credit Risk Appetite（クレジット市場のリスク選好度） =====
-    // HYG(ハイイールド社債ETF) と TLT(米国長期国債ETF) の相対リターン。
-    // HYGがTLTに対して優勢＝クレジット市場がリスクオン、逆＝質への逃避（リスクオフ）
+    // HYG(ハイイールド社債ETF) と LQD(投資適格社債ETF) の相対リターン。
+    // TLTとの比較は金利デュレーション差の影響が強いため、信用リスクの比較対象としては使わない。
     const string CREDIT_RISK_ON_SYMBOL = "HYG";
-    const string CREDIT_RISK_OFF_SYMBOL = "TLT";
+    const string CREDIT_RISK_OFF_SYMBOL = "LQD";
+    const string HY_OAS_FRED_SERIES = "BAMLH0A0HYM2";
+
+    // ===== ボラティリティ警戒灯 =====
+    // VIX3Mは3ヶ月先のS&P 500インプライド・ボラティリティ指数。
+    // VIX先物そのものではないが、日次の無料データで期限構造を確認する実用的な近似として用いる。
+    const string VIX_SYMBOL = "%5EVIX";
+    const string VIX3M_SYMBOL = "%5EVIX3M";
+    const int VIX_SMA_WINDOW = 20;
+
+    // ===== Nasdaq-100 真の市場ブレッドス =====
+    // 構成銘柄スナップショットは公式Nasdaq資料（2026-05-01時点）に基づく。
+    // 年次リバランスなどで構成が変わるため、nasdaq100-universe.txt を更新する運用にする。
+    const string NASDAQ100_UNIVERSE_FILE = "nasdaq100-universe.txt";
+    const int BREADTH_MIN_COVERAGE = 80;
 
     // HttpClientは使い回す（毎回newすると接続のオーバーヘッドやソケット枯渇のリスクが積み重なるため、プロセス内で1つを共有する）
     static readonly HttpClient httpClient = CreateHttpClient();
@@ -89,12 +105,13 @@ class Program
         {
             Console.WriteLine("Fetching index data from Yahoo Finance...");
 
-            // IBD方式に合わせ、S&P500 と Nasdaq Composite の両方を見る（QQQ単体はNasdaq-100であり代替として不正確なため使用しない）
-            var sp500Data = await FetchYahooDataWithRetry("%5EGSPC", "1y");
-            var nasdaqData = await FetchYahooDataWithRetry("%5EIXIC", "1y");
+            // 売り抜け日/FTDは出来高が必要なため、指数ではなく実際に売買できる流動性の高いETFを使用する。
+            // 判定価格には調整後終値を使い、分配金による相対リターンの歪みを避ける。
+            var sp500Data = await FetchYahooDataWithRetry("SPY", "1y");
+            var nasdaqData = await FetchYahooDataWithRetry("QQQ", "1y");
 
-            var sp500 = AnalyzeIndex("S&P 500", sp500Data);
-            var nasdaq = AnalyzeIndex("Nasdaq Composite", nasdaqData);
+            var sp500 = AnalyzeIndex("S&P 500（SPY）", sp500Data);
+            var nasdaq = AnalyzeIndex("Nasdaq-100（QQQ）", nasdaqData);
 
             // 2指数のうち「悪い方（より弱気な方）」を採用するのがIBD Market Pulseの流儀
             // ※ 同順位（引き分け）のときに片方だけを「弱いから採用」と表示すると誤解を招くため、
@@ -144,7 +161,7 @@ class Program
                     Sma10 = putCallStats.Sma10,
                     PercentileRank = putCallStats.PercentileRank,
                     HistoryDays = putCallStats.HistoryDays,
-                    Note = "SPYオプション出来高から自前算出した代替指標です。IBD/CBOEの公式値とは母集団が異なるため直接比較できません。"
+                    Note = "SPYの直近限月のみを集計した出来高ベースの参考指標です。0DTE・ヘッジ・満期構成の影響を受けるため、方向予想の主シグナルには使わず、極端な需給の補助確認に限定してください。"
                 };
 
             // セクターローテーション（自前算出）。これも失敗して良い補助機能として独立させる
@@ -171,18 +188,64 @@ class Program
                 ? new CreditRiskAppetiteOutput
                 {
                     Status = "unavailable",
-                    Note = "HYG/TLTデータの取得に失敗しました。詳細はActionsのログ（CreditRiskAppetiteの行）を確認してください。"
+                    Note = "HYG/LQDデータの取得に失敗しました。詳細はActionsのログ（CreditRiskAppetiteの行）を確認してください。"
                 }
                 : new CreditRiskAppetiteOutput
                 {
                     Status = "ok",
                     HygReturn1m = creditRisk.HygReturn1m,
                     HygReturn3m = creditRisk.HygReturn3m,
-                    TltReturn1m = creditRisk.TltReturn1m,
-                    TltReturn3m = creditRisk.TltReturn3m,
+                    LqdReturn1m = creditRisk.LqdReturn1m,
+                    LqdReturn3m = creditRisk.LqdReturn3m,
                     Spread1m = creditRisk.Spread1m,
                     Spread3m = creditRisk.Spread3m,
-                    Note = "ハイイールド社債ETF(HYG)と長期国債ETF(TLT)の相対リターン(自前算出)。プラスが大きいほどクレジット市場がリスクオン、マイナスが大きいほど質への逃避（リスクオフ）を示唆します。"
+                    HyOasPct = creditRisk.HyOasPct,
+                    HyOasChange1mBps = creditRisk.HyOasChange1mBps,
+                    HyOasDate = creditRisk.HyOasDate,
+                    Note = "HYGと投資適格社債ETF(LQD)の相対リターンに、ICE BofA US High Yield OASを追加しました。TLT比較より金利デュレーション差の影響を抑え、信用リスクを読み取りやすくします。"
+                };
+
+            var volatility = await FetchVolatilityRegime();
+            var volatilityOutput = volatility == null
+                ? new VolatilityOutput
+                {
+                    Status = "unavailable",
+                    Note = "VIX/VIX3Mデータの取得に失敗しました。"
+                }
+                : new VolatilityOutput
+                {
+                    Status = "ok",
+                    Vix = volatility.Vix,
+                    VixSma20 = volatility.VixSma20,
+                    Vix3m = volatility.Vix3m,
+                    TermSlopePct = volatility.TermSlopePct,
+                    TermStructure = volatility.TermStructure,
+                    Note = "VIXとVIX3Mの比較による期限構造の近似です。逆転（Backwardation）は市場ストレスの警戒灯として扱い、単独の売買シグナルには使いません。"
+                };
+
+            var marketBreadth = await FetchNasdaq100Breadth();
+            var marketBreadthOutput = marketBreadth == null
+                ? new MarketBreadthOutput
+                {
+                    Status = "unavailable",
+                    Note = "Nasdaq-100構成銘柄の取得数が不足したため、真の市場ブレッドスを算出できませんでした。"
+                }
+                : new MarketBreadthOutput
+                {
+                    Status = marketBreadth.CoveragePct >= 95 ? "ok" : "partial",
+                    UniverseAsOf = marketBreadth.UniverseAsOf,
+                    ExpectedConstituents = marketBreadth.ExpectedConstituents,
+                    AnalyzedConstituents = marketBreadth.AnalyzedConstituents,
+                    CoveragePct = marketBreadth.CoveragePct,
+                    AboveSma50Pct = marketBreadth.AboveSma50Pct,
+                    AboveSma200Pct = marketBreadth.AboveSma200Pct,
+                    NewHighs52Week = marketBreadth.NewHighs52Week,
+                    NewLows52Week = marketBreadth.NewLows52Week,
+                    Advances = marketBreadth.Advances,
+                    Declines = marketBreadth.Declines,
+                    AdvanceDeclineNet = marketBreadth.AdvanceDeclineNet,
+                    AdLineChange20d = marketBreadth.AdLineChange20d,
+                    Note = "Nasdaq-100構成銘柄を個別に集計した等ウェイトの市場内部指標です。指数上昇時でも50日線上比率やA/Dラインが悪化していれば、上昇の広がり不足を確認できます。"
                 };
 
             var output = new
@@ -194,7 +257,9 @@ class Program
                 nasdaq,
                 putCallRatio = putCallOutput,
                 sectorRotation = sectorOutput,
-                creditRiskAppetite = creditRiskOutput
+                creditRiskAppetite = creditRiskOutput,
+                volatilityRegime = volatilityOutput,
+                marketBreadth = marketBreadthOutput
             };
 
             var options = new JsonSerializerOptions
@@ -255,13 +320,19 @@ class Program
         var closes = quote.Close ?? throw new Exception($"close配列が取得できませんでした ({symbol})。");
         var volumes = quote.Volume ?? throw new Exception($"volume配列が取得できませんでした ({symbol})。");
 
+        var adjustedCloses = result.Indicators.AdjClose?.FirstOrDefault()?.AdjustedClose;
         var dailyData = new List<DailyData>();
         for (int i = 0; i < timestamps.Length; i++)
         {
             if (i < closes.Length && i < volumes.Length && closes[i].HasValue && volumes[i].HasValue)
             {
                 var date = DateTimeOffset.FromUnixTimeSeconds(timestamps[i]).DateTime;
-                dailyData.Add(new DailyData(date, closes[i]!.Value, volumes[i]!.Value));
+                // ETFでは分配金・権利落ちによるリターンの歪みを避けるため調整後終値を優先する。
+                // 指数などadjusted closeがない銘柄は通常終値へ安全にフォールバックする。
+                decimal adjustedClose = i < (adjustedCloses?.Length ?? 0) && adjustedCloses![i].HasValue
+                    ? adjustedCloses[i]!.Value
+                    : closes[i]!.Value;
+                dailyData.Add(new DailyData(date, closes[i]!.Value, adjustedClose, volumes[i]!.Value));
             }
         }
 
@@ -271,6 +342,142 @@ class Program
             throw new Exception($"計算に必要な100日分のデータが不足しています ({symbol})。");
         }
         return ordered;
+    }
+
+    // Yahooのsparkエンドポイントで複数銘柄をまとめて取得する。
+    // ブレッドス用に100超の銘柄を扱うため、1銘柄ずつの取得による遅延・レート制限を避ける。
+    static async Task<Dictionary<string, List<DailyData>>> FetchYahooSparkData(IEnumerable<string> symbols, string range)
+    {
+        var output = new Dictionary<string, List<DailyData>>(StringComparer.OrdinalIgnoreCase);
+        // Yahoo sparkは一度に10銘柄までしか受け付けないため、その上限に合わせる。
+        foreach (var batch in symbols.Distinct(StringComparer.OrdinalIgnoreCase).Chunk(10))
+        {
+            var batchResult = await FetchYahooSparkBatchWithRetry(batch, range);
+            foreach (var (symbol, data) in batchResult)
+            {
+                if (data.Count >= 100) output[symbol] = data;
+            }
+            await Task.Delay(250); // 無料エンドポイントへの連続アクセスを抑制
+        }
+        return output;
+    }
+
+    static async Task<Dictionary<string, List<DailyData>>> FetchYahooSparkBatchWithRetry(IEnumerable<string> symbols, string range)
+    {
+        Exception? lastEx = null;
+        var batch = symbols.ToArray();
+        for (int attempt = 1; attempt <= 3; attempt++)
+        {
+            try
+            {
+                string symbolQuery = string.Join("%2C", batch.Select(Uri.EscapeDataString));
+                string url = $"https://query1.finance.yahoo.com/v7/finance/spark?symbols={symbolQuery}&range={range}&interval=1d";
+                using var document = JsonDocument.Parse(await httpClient.GetStringAsync(url));
+                var output = new Dictionary<string, List<DailyData>>(StringComparer.OrdinalIgnoreCase);
+
+                if (!document.RootElement.TryGetProperty("spark", out var spark) ||
+                    !spark.TryGetProperty("result", out var results) || results.ValueKind != JsonValueKind.Array)
+                {
+                    throw new Exception("Yahoo sparkのデータ構造が無効です。");
+                }
+
+                foreach (var item in results.EnumerateArray())
+                {
+                    if (!item.TryGetProperty("symbol", out var symbolElement) ||
+                        !item.TryGetProperty("response", out var responses) || responses.GetArrayLength() == 0)
+                    {
+                        continue;
+                    }
+
+                    string? symbol = symbolElement.GetString();
+                    var response = responses[0];
+                    if (string.IsNullOrWhiteSpace(symbol) ||
+                        !response.TryGetProperty("timestamp", out var timestamps) ||
+                        !response.TryGetProperty("indicators", out var indicators) ||
+                        !indicators.TryGetProperty("quote", out var quotes) || quotes.GetArrayLength() == 0)
+                    {
+                        continue;
+                    }
+
+                    var quote = quotes[0];
+                    if (!quote.TryGetProperty("close", out var closes) || !quote.TryGetProperty("volume", out var volumes)) continue;
+
+                    JsonElement adjustedCloses = default;
+                    bool hasAdjustedCloses = indicators.TryGetProperty("adjclose", out var adjGroups) &&
+                                             adjGroups.GetArrayLength() > 0 &&
+                                             adjGroups[0].TryGetProperty("adjclose", out adjustedCloses);
+
+                    var dailyData = new List<DailyData>();
+                    int count = Math.Min(timestamps.GetArrayLength(), Math.Min(closes.GetArrayLength(), volumes.GetArrayLength()));
+                    for (int i = 0; i < count; i++)
+                    {
+                        var timestamp = timestamps[i];
+                        var close = closes[i];
+                        var volume = volumes[i];
+                        if (timestamp.ValueKind != JsonValueKind.Number || close.ValueKind != JsonValueKind.Number || volume.ValueKind != JsonValueKind.Number)
+                        {
+                            continue;
+                        }
+
+                        decimal closeValue = close.GetDecimal();
+                        decimal adjustedValue = closeValue;
+                        if (hasAdjustedCloses && i < adjustedCloses.GetArrayLength() && adjustedCloses[i].ValueKind == JsonValueKind.Number)
+                        {
+                            adjustedValue = adjustedCloses[i].GetDecimal();
+                        }
+
+                        dailyData.Add(new DailyData(
+                            DateTimeOffset.FromUnixTimeSeconds(timestamp.GetInt64()).DateTime,
+                            closeValue,
+                            adjustedValue,
+                            volume.GetInt64()));
+                    }
+
+                    if (dailyData.Count > 0) output[symbol] = dailyData.OrderBy(d => d.Date).ToList();
+                }
+                return output;
+            }
+            catch (Exception ex)
+            {
+                lastEx = ex;
+                Console.WriteLine($"[Breadth] Yahoo spark batch attempt {attempt}/3 failed: {ex.Message}");
+                if (attempt < 3) await Task.Delay(TimeSpan.FromSeconds(3 * attempt));
+            }
+        }
+
+        Console.WriteLine($"[Breadth] Yahoo spark batch skipped after retries: {lastEx?.Message}");
+        return new Dictionary<string, List<DailyData>>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    // sparkエンドポイントは調整後終値・出来高を返さないため、真のブレッドスには使わない。
+    // chartエンドポイントを最大5並列で取得し、調整後終値ベースの計算品質を優先する。
+    static async Task<Dictionary<string, List<DailyData>>> FetchYahooBreadthData(IEnumerable<string> symbols)
+    {
+        using var gate = new SemaphoreSlim(5);
+        var uniqueSymbols = symbols.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var tasks = uniqueSymbols.Select(async symbol =>
+        {
+            await gate.WaitAsync();
+            try
+            {
+                var data = await FetchYahooDataWithRetry(symbol, "1y");
+                return (Symbol: symbol, Data: data);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Breadth] {symbol} skipped: {ex.Message}");
+                return (Symbol: symbol, Data: (List<DailyData>?)null);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        });
+
+        var fetched = await Task.WhenAll(tasks);
+        return fetched
+            .Where(x => x.Data != null && x.Data.Count >= 100)
+            .ToDictionary(x => x.Symbol, x => x.Data!, StringComparer.OrdinalIgnoreCase);
     }
 
     // ================= Put/Call Ratio（自前算出） =================
@@ -466,8 +673,8 @@ class Program
     {
         int n = data.Count;
         int startIdx = Math.Max(0, n - 1 - lookbackDays);
-        decimal startClose = data[startIdx].Close;
-        decimal endClose = data[n - 1].Close;
+        decimal startClose = data[startIdx].AdjustedClose;
+        decimal endClose = data[n - 1].AdjustedClose;
         return Math.Round((endClose - startClose) / startClose * 100m, 2);
     }
 
@@ -475,33 +682,192 @@ class Program
 
     static async Task<CreditRiskAppetiteResult?> FetchCreditRiskAppetite()
     {
-        // HYGとTLTの「差」自体が指標の本体なので、片方だけ成功しても意味がない。
+        // HYGとLQDの「差」自体が指標の本体なので、片方だけ成功しても意味がない。
         // そのためセクターローテーションのような1銘柄ずつの部分成功は許容せず、
         // どちらかが失敗したら全体をunavailable扱いにする
         try
         {
             var hygData = await FetchYahooDataWithRetry(CREDIT_RISK_ON_SYMBOL, "6mo");
             await Task.Delay(300); // Yahoo側への負荷を抑える
-            var tltData = await FetchYahooDataWithRetry(CREDIT_RISK_OFF_SYMBOL, "6mo");
+            var lqdData = await FetchYahooDataWithRetry(CREDIT_RISK_OFF_SYMBOL, "6mo");
 
             decimal hyg1m = ComputeReturnPct(hygData, SECTOR_RETURN_1M_DAYS);
             decimal hyg3m = ComputeReturnPct(hygData, SECTOR_RETURN_3M_DAYS);
-            decimal tlt1m = ComputeReturnPct(tltData, SECTOR_RETURN_1M_DAYS);
-            decimal tlt3m = ComputeReturnPct(tltData, SECTOR_RETURN_3M_DAYS);
+            decimal lqd1m = ComputeReturnPct(lqdData, SECTOR_RETURN_1M_DAYS);
+            decimal lqd3m = ComputeReturnPct(lqdData, SECTOR_RETURN_3M_DAYS);
+
+            // FREDが一時的に取得不能でも、HYG/LQDの比較は表示を継続する。
+            HyOasResult? hyOas = null;
+            try { hyOas = await FetchHyOas(); }
+            catch (Exception ex) { Console.WriteLine($"[CreditRiskAppetite] HY OAS fetch failed (non-fatal): {ex.Message}"); }
 
             return new CreditRiskAppetiteResult
             {
                 HygReturn1m = hyg1m,
                 HygReturn3m = hyg3m,
-                TltReturn1m = tlt1m,
-                TltReturn3m = tlt3m,
-                Spread1m = Math.Round(hyg1m - tlt1m, 2),
-                Spread3m = Math.Round(hyg3m - tlt3m, 2)
+                LqdReturn1m = lqd1m,
+                LqdReturn3m = lqd3m,
+                Spread1m = Math.Round(hyg1m - lqd1m, 2),
+                Spread3m = Math.Round(hyg3m - lqd3m, 2),
+                HyOasPct = hyOas?.ValuePct,
+                HyOasChange1mBps = hyOas?.Change1mBps,
+                HyOasDate = hyOas?.Date
             };
         }
         catch (Exception ex)
         {
             Console.WriteLine($"[CreditRiskAppetite] fetch failed (non-fatal): {ex.Message}");
+            return null;
+        }
+    }
+
+    static async Task<HyOasResult?> FetchHyOas()
+    {
+        string url = $"https://fred.stlouisfed.org/graph/fredgraph.csv?id={HY_OAS_FRED_SERIES}";
+        string csv = await httpClient.GetStringAsync(url);
+        var observations = new List<(DateTime Date, decimal Value)>();
+
+        foreach (string line in csv.Split('\n', StringSplitOptions.RemoveEmptyEntries).Skip(1))
+        {
+            var fields = line.Trim().Split(',', 2);
+            if (fields.Length != 2 || fields[1].Trim() == ".") continue;
+            if (DateTime.TryParseExact(fields[0].Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) &&
+                decimal.TryParse(fields[1].Trim().Trim('"'), NumberStyles.Number, CultureInfo.InvariantCulture, out var value))
+            {
+                observations.Add((date, value));
+            }
+        }
+
+        if (observations.Count == 0) return null;
+        var ordered = observations.OrderBy(x => x.Date).ToList();
+        var latest = ordered[^1];
+        int lookbackIndex = Math.Max(0, ordered.Count - 1 - SECTOR_RETURN_1M_DAYS);
+        decimal change1mBps = Math.Round((latest.Value - ordered[lookbackIndex].Value) * 100m, 0);
+        return new HyOasResult
+        {
+            ValuePct = latest.Value,
+            Change1mBps = change1mBps,
+            Date = latest.Date.ToString("yyyy-MM-dd")
+        };
+    }
+
+    // ================= ボラティリティ警戒灯 =================
+
+    static async Task<VolatilityResult?> FetchVolatilityRegime()
+    {
+        try
+        {
+            var vixData = await FetchYahooDataWithRetry(VIX_SYMBOL, "6mo");
+            await Task.Delay(250);
+            var vix3mData = await FetchYahooDataWithRetry(VIX3M_SYMBOL, "6mo");
+            if (vixData.Count < VIX_SMA_WINDOW || vix3mData.Count == 0) return null;
+
+            decimal vix = vixData[^1].AdjustedClose;
+            decimal vix3m = vix3mData[^1].AdjustedClose;
+            decimal vixSma20 = Math.Round(vixData.TakeLast(VIX_SMA_WINDOW).Average(d => d.AdjustedClose), 2);
+            decimal termSlopePct = Math.Round((vix - vix3m) / vix3m * 100m, 2);
+
+            return new VolatilityResult
+            {
+                Vix = vix,
+                VixSma20 = vixSma20,
+                Vix3m = vix3m,
+                TermSlopePct = termSlopePct,
+                TermStructure = termSlopePct > 0 ? "Backwardation" : "Contango"
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Volatility] fetch failed (non-fatal): {ex.Message}");
+            return null;
+        }
+    }
+
+    // ================= Nasdaq-100 真の市場ブレッドス =================
+
+    static async Task<MarketBreadthResult?> FetchNasdaq100Breadth()
+    {
+        try
+        {
+            string universePath = Path.Combine(Directory.GetCurrentDirectory(), NASDAQ100_UNIVERSE_FILE);
+            if (!File.Exists(universePath))
+            {
+                Console.WriteLine($"[Breadth] universe file not found: {universePath}");
+                return null;
+            }
+
+            var symbols = File.ReadLines(universePath)
+                .Select(line => line.Trim())
+                .Where(line => !string.IsNullOrWhiteSpace(line) && !line.StartsWith('#'))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (symbols.Count == 0) return null;
+
+            var allData = await FetchYahooBreadthData(symbols);
+            var analyzed = allData.Values.Where(data => data.Count >= 100).ToList();
+            if (analyzed.Count < BREADTH_MIN_COVERAGE)
+            {
+                Console.WriteLine($"[Breadth] insufficient coverage: {analyzed.Count}/{symbols.Count}");
+                return null;
+            }
+
+            int above50 = 0, above50Eligible = 0;
+            int above200 = 0, above200Eligible = 0;
+            int newHighs = 0, newLows = 0;
+            int advances = 0, declines = 0;
+            var adNetByDate = new Dictionary<DateTime, int>();
+
+            foreach (var data in analyzed)
+            {
+                decimal latest = data[^1].AdjustedClose;
+                if (data.Count >= 50)
+                {
+                    above50Eligible++;
+                    if (latest >= data.TakeLast(50).Average(d => d.AdjustedClose)) above50++;
+                }
+                if (data.Count >= 200)
+                {
+                    above200Eligible++;
+                    if (latest >= data.TakeLast(200).Average(d => d.AdjustedClose)) above200++;
+                }
+
+                var trailingYear = data.TakeLast(Math.Min(252, data.Count)).Select(d => d.AdjustedClose).ToList();
+                if (latest >= trailingYear.Max()) newHighs++;
+                if (latest <= trailingYear.Min()) newLows++;
+
+                for (int i = 1; i < data.Count; i++)
+                {
+                    int net = data[i].AdjustedClose > data[i - 1].AdjustedClose ? 1 :
+                              data[i].AdjustedClose < data[i - 1].AdjustedClose ? -1 : 0;
+                    DateTime date = data[i].Date.Date;
+                    adNetByDate[date] = adNetByDate.TryGetValue(date, out int current) ? current + net : net;
+                }
+
+                if (latest > data[^2].AdjustedClose) advances++;
+                else if (latest < data[^2].AdjustedClose) declines++;
+            }
+
+            var latestAdDates = adNetByDate.Keys.OrderBy(d => d).TakeLast(20).ToList();
+            int adLineChange20d = latestAdDates.Sum(date => adNetByDate[date]);
+            return new MarketBreadthResult
+            {
+                UniverseAsOf = "2026-05-01",
+                ExpectedConstituents = symbols.Count,
+                AnalyzedConstituents = analyzed.Count,
+                CoveragePct = Math.Round((decimal)analyzed.Count / symbols.Count * 100m, 1),
+                AboveSma50Pct = above50Eligible == 0 ? null : Math.Round((decimal)above50 / above50Eligible * 100m, 1),
+                AboveSma200Pct = above200Eligible == 0 ? null : Math.Round((decimal)above200 / above200Eligible * 100m, 1),
+                NewHighs52Week = newHighs,
+                NewLows52Week = newLows,
+                Advances = advances,
+                Declines = declines,
+                AdvanceDeclineNet = advances - declines,
+                AdLineChange20d = adLineChange20d
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Breadth] fetch failed (non-fatal): {ex.Message}");
             return null;
         }
     }
@@ -519,11 +885,11 @@ class Program
         if (n >= 50)
         {
             decimal windowSum = 0;
-            for (int i = 0; i < 50; i++) windowSum += data[i].Close;
+            for (int i = 0; i < 50; i++) windowSum += data[i].AdjustedClose;
             sma50[49] = Math.Round(windowSum / 50m, 2);
             for (int i = 50; i < n; i++)
             {
-                windowSum += data[i].Close - data[i - 50].Close;
+                windowSum += data[i].AdjustedClose - data[i - 50].AdjustedClose;
                 sma50[i] = Math.Round(windowSum / 50m, 2);
             }
         }
@@ -534,7 +900,7 @@ class Program
         var isRawDistDay = new bool[n];
         for (int i = 1; i < n; i++)
         {
-            decimal dropPct = (data[i - 1].Close - data[i].Close) / data[i - 1].Close * 100m;
+            decimal dropPct = (data[i - 1].AdjustedClose - data[i].AdjustedClose) / data[i - 1].AdjustedClose * 100m;
             isRawDistDay[i] = dropPct >= DIST_DAY_DROP_PCT && data[i].Volume > data[i - 1].Volume;
         }
 
@@ -544,11 +910,11 @@ class Program
         for (int i = 1; i < n; i++)
         {
             // 25営業日経過 または そのDDの終値から5%以上反発 したものは無効化
-            activeDDs.RemoveAll(dd => (i - dd.idx) > DIST_DAY_WINDOW || data[i].Close >= dd.close * (1 + DIST_DAY_INVALIDATE_RALLY_PCT / 100m));
+            activeDDs.RemoveAll(dd => (i - dd.idx) > DIST_DAY_WINDOW || data[i].AdjustedClose >= dd.close * (1 + DIST_DAY_INVALIDATE_RALLY_PCT / 100m));
 
             if (isRawDistDay[i])
             {
-                activeDDs.Add((i, data[i].Close));
+                activeDDs.Add((i, data[i].AdjustedClose));
             }
             distDaysActive[i] = activeDDs.Count;
         }
@@ -563,9 +929,9 @@ class Program
         {
             int worstIdx = activeDDs
                 .Select(dd => dd.idx)
-                .OrderByDescending(idx => (data[idx - 1].Close - data[idx].Close) / data[idx - 1].Close)
+                .OrderByDescending(idx => (data[idx - 1].AdjustedClose - data[idx].AdjustedClose) / data[idx - 1].AdjustedClose)
                 .First();
-            worstActiveDropPct = Math.Round((data[worstIdx - 1].Close - data[worstIdx].Close) / data[worstIdx - 1].Close * 100m, 2);
+            worstActiveDropPct = Math.Round((data[worstIdx - 1].AdjustedClose - data[worstIdx].AdjustedClose) / data[worstIdx - 1].AdjustedClose * 100m, 2);
             worstActiveDropDate = data[worstIdx].Date.ToString("yyyy-MM-dd");
         }
 
@@ -582,7 +948,7 @@ class Program
             // Confirmed Uptrend からの「格下げ」判定（50日線割れ + 売り抜け日蓄積）
             if (currentState == "ConfirmedUptrend" && sma50[i].HasValue)
             {
-                bool aboveSma = data[i].Close >= sma50[i]!.Value;
+                bool aboveSma = data[i].AdjustedClose >= sma50[i]!.Value;
                 if (!aboveSma && distDaysActive[i] >= DIST_DAY_BREAKDOWN_THRESHOLD)
                 {
                     currentState = "Correction";
@@ -598,21 +964,21 @@ class Program
                     // Day1候補：前日が直近10日の安値で、当日が陽転した日
                     // （LINQのSkip/Take/Minは短い区間でも毎回列挙用オブジェクトを作るため、単純なforループで代替）
                     int lookback = Math.Max(0, i - DAY1_LOOKBACK);
-                    decimal recentLow = data[lookback].Close;
+                    decimal recentLow = data[lookback].AdjustedClose;
                     for (int k = lookback + 1; k < i; k++)
                     {
-                        if (data[k].Close < recentLow) recentLow = data[k].Close;
+                        if (data[k].AdjustedClose < recentLow) recentLow = data[k].AdjustedClose;
                     }
-                    if (data[i].Close > data[i - 1].Close && data[i - 1].Close <= recentLow)
+                    if (data[i].AdjustedClose > data[i - 1].AdjustedClose && data[i - 1].AdjustedClose <= recentLow)
                     {
                         day1Index = i;
-                        day1Low = data[i - 1].Close;
+                        day1Low = data[i - 1].AdjustedClose;
                         currentState = "RallyAttempt";
                     }
                 }
                 else
                 {
-                    if (data[i].Close < day1Low!.Value)
+                    if (data[i].AdjustedClose < day1Low!.Value)
                     {
                         // アンダーカット：ラリー失敗。仕切り直し（次の陽転日を新たなDay1候補として探す）
                         day1Index = null;
@@ -630,7 +996,7 @@ class Program
                         }
                         else if (attemptDay >= FTD_MIN_DAY)
                         {
-                            decimal gainPct = (data[i].Close - data[i - 1].Close) / data[i - 1].Close * 100m;
+                            decimal gainPct = (data[i].AdjustedClose - data[i - 1].AdjustedClose) / data[i - 1].AdjustedClose * 100m;
                             if (gainPct >= FTD_GAIN_PCT && data[i].Volume > data[i - 1].Volume)
                             {
                                 currentState = "ConfirmedUptrend";
@@ -651,11 +1017,11 @@ class Program
             ? (lastDistDays < DIST_DAY_PRESSURE_THRESHOLD ? "Uptrend" : "Pressure")
             : "Correction";
 
-        bool isAboveSma50 = sma50[n - 1].HasValue && data[n - 1].Close >= sma50[n - 1]!.Value;
+        bool isAboveSma50 = sma50[n - 1].HasValue && data[n - 1].AdjustedClose >= sma50[n - 1]!.Value;
 
         // --- 52週高値からのドローダウン（取得済みの1年分データからそのまま算出、追加取得コスト無し） ---
-        decimal high52Week = data.Max(d => d.Close);
-        decimal drawdownFromHighPct = Math.Round((data[n - 1].Close - high52Week) / high52Week * 100m, 2);
+        decimal high52Week = data.Max(d => d.AdjustedClose);
+        decimal drawdownFromHighPct = Math.Round((data[n - 1].AdjustedClose - high52Week) / high52Week * 100m, 2);
 
         // --- チャート表示用（直近100日） ---
         int chartStart = Math.Max(0, n - 100);
@@ -668,20 +1034,20 @@ class Program
         for (int i = chartStart; i < n; i++)
         {
             chartLabels.Add(data[i].Date.ToString("MM-dd"));
-            chartCloses.Add(data[i].Close);
+            chartCloses.Add(data[i].AdjustedClose);
             chartSma50.Add(sma50[i]);
             // 同じ「売り抜け日」でも、最新日時点でまだアクティブなものと、
             // 25日経過または5%反発で既に失効したものを別データセットとして分ける
             bool isActive = isRawDistDay[i] && activeDDIndices.Contains(i);
             bool isExpired = isRawDistDay[i] && !activeDDIndices.Contains(i);
-            distMarksActive.Add(isActive ? data[i].Close : (decimal?)null);
-            distMarksExpired.Add(isExpired ? data[i].Close : (decimal?)null);
+            distMarksActive.Add(isActive ? data[i].AdjustedClose : (decimal?)null);
+            distMarksExpired.Add(isExpired ? data[i].AdjustedClose : (decimal?)null);
         }
 
         return new IndexAnalysis
         {
             Name = name,
-            LatestClose = data[n - 1].Close,
+            LatestClose = data[n - 1].AdjustedClose,
             Sma50 = sma50[n - 1],
             IsAboveSma50 = isAboveSma50,
             High52Week = high52Week,
@@ -763,7 +1129,9 @@ class Program
 
     // ================= モデル =================
 
-    record DailyData(DateTime Date, decimal Close, long Volume);
+    // Closeは取得元の通常終値、AdjustedCloseは分配金・株式分割調整後の終値。
+    // トレンド・相対リターン計算は後者を使用し、出来高は実取引のETF出来高をそのまま使用する。
+    record DailyData(DateTime Date, decimal Close, decimal AdjustedClose, long Volume);
 
     class IndexAnalysis
     {
@@ -823,10 +1191,13 @@ class Program
     {
         public decimal HygReturn1m { get; set; }
         public decimal HygReturn3m { get; set; }
-        public decimal TltReturn1m { get; set; }
-        public decimal TltReturn3m { get; set; }
-        public decimal Spread1m { get; set; } // HYGリターン - TLTリターン（1ヶ月）
+        public decimal LqdReturn1m { get; set; }
+        public decimal LqdReturn3m { get; set; }
+        public decimal Spread1m { get; set; } // HYGリターン - LQDリターン（1ヶ月）
         public decimal Spread3m { get; set; } // 同（3ヶ月）
+        public decimal? HyOasPct { get; set; }
+        public decimal? HyOasChange1mBps { get; set; }
+        public string? HyOasDate { get; set; }
     }
 
     class CreditRiskAppetiteOutput
@@ -834,10 +1205,62 @@ class Program
         public string Status { get; set; } = ""; // ok / unavailable
         public decimal? HygReturn1m { get; set; }
         public decimal? HygReturn3m { get; set; }
-        public decimal? TltReturn1m { get; set; }
-        public decimal? TltReturn3m { get; set; }
+        public decimal? LqdReturn1m { get; set; }
+        public decimal? LqdReturn3m { get; set; }
         public decimal? Spread1m { get; set; }
         public decimal? Spread3m { get; set; }
+        public decimal? HyOasPct { get; set; }
+        public decimal? HyOasChange1mBps { get; set; }
+        public string? HyOasDate { get; set; }
+        public string Note { get; set; } = "";
+    }
+
+    class HyOasResult
+    {
+        public decimal ValuePct { get; set; }
+        public decimal Change1mBps { get; set; }
+        public string Date { get; set; } = "";
+    }
+
+    class VolatilityResult
+    {
+        public decimal Vix { get; set; }
+        public decimal VixSma20 { get; set; }
+        public decimal Vix3m { get; set; }
+        public decimal TermSlopePct { get; set; }
+        public string TermStructure { get; set; } = "";
+    }
+
+    class VolatilityOutput
+    {
+        public string Status { get; set; } = "";
+        public decimal? Vix { get; set; }
+        public decimal? VixSma20 { get; set; }
+        public decimal? Vix3m { get; set; }
+        public decimal? TermSlopePct { get; set; }
+        public string? TermStructure { get; set; }
+        public string Note { get; set; } = "";
+    }
+
+    class MarketBreadthResult
+    {
+        public string UniverseAsOf { get; set; } = "";
+        public int ExpectedConstituents { get; set; }
+        public int AnalyzedConstituents { get; set; }
+        public decimal CoveragePct { get; set; }
+        public decimal? AboveSma50Pct { get; set; }
+        public decimal? AboveSma200Pct { get; set; }
+        public int NewHighs52Week { get; set; }
+        public int NewLows52Week { get; set; }
+        public int Advances { get; set; }
+        public int Declines { get; set; }
+        public int AdvanceDeclineNet { get; set; }
+        public int AdLineChange20d { get; set; }
+    }
+
+    class MarketBreadthOutput : MarketBreadthResult
+    {
+        public string Status { get; set; } = ""; // ok / partial / unavailable
         public string Note { get; set; } = "";
     }
 
@@ -887,12 +1310,17 @@ class Program
         [JsonPropertyName("timestamp")] public long[]? Timestamp { get; set; }
         [JsonPropertyName("indicators")] public Indicators? Indicators { get; set; }
     }
-    class Indicators { [JsonPropertyName("quote")] public Quote[]? Quote { get; set; } }
+    class Indicators
+    {
+        [JsonPropertyName("quote")] public Quote[]? Quote { get; set; }
+        [JsonPropertyName("adjclose")] public AdjustedQuote[]? AdjClose { get; set; }
+    }
     class Quote
     {
         [JsonPropertyName("close")] public decimal?[]? Close { get; set; }
         [JsonPropertyName("volume")] public long?[]? Volume { get; set; }
     }
+    class AdjustedQuote { [JsonPropertyName("adjclose")] public decimal?[]? AdjustedClose { get; set; } }
 
     // ---- Yahoo Finance オプションチェーンAPI（Put/Call Ratio用） ----
     class YahooOptionsResult { [JsonPropertyName("optionChain")] public OptionChainRoot? OptionChain { get; set; } }
