@@ -46,25 +46,24 @@
       background: rgba(7, 17, 31, .82); backdrop-filter: blur(18px);
       border-bottom: 1px solid var(--line);
     }
-    .brand { display: flex; align-items: center; gap: 11px; font-weight: 750; letter-spacing: -.02em; }
+    .brand { display: flex; align-items: center; gap: 11px; font-size: 18px; font-weight: 750; letter-spacing: -.02em; }
     .brand-mark {
       width: 28px; height: 28px; border-radius: 8px;
       display: grid; place-items: center; color: #06121f;
       background: linear-gradient(135deg, var(--teal), var(--blue));
       font-size: 16px; font-weight: 900;
     }
-    .brand small { display: block; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .12em; }
-    .update { text-align: right; color: var(--muted); font-size: 12px; }
-    .update strong { display: block; color: var(--text); font-size: 13px; font-variant-numeric: tabular-nums; }
+    .update { text-align: right; color: var(--muted); font-size: 14px; }
+    .update strong { display: block; color: var(--text); font-size: 15px; font-variant-numeric: tabular-nums; }
     .live-dot { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 10px var(--teal); }
 
     .hero { padding: 34px 0 20px; }
-    .eyebrow { color: var(--teal); font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    .eyebrow { display: none; }
     h1 { margin: 6px 0 7px; font-size: clamp(28px, 4vw, 42px); letter-spacing: -.045em; line-height: 1.05; }
-    .hero > p { max-width: 720px; margin: 0; color: var(--muted); }
+    .hero > p { max-width: 720px; margin: 0; color: var(--muted); font-size: 16px; }
     .alert {
       display: none; margin-top: 18px; padding: 11px 14px; border: 1px solid rgba(255, 201, 92, .34);
-      border-radius: 10px; color: #ffe0a2; background: rgba(255, 201, 92, .08); font-size: 13px;
+      border-radius: 10px; color: #ffe0a2; background: rgba(255, 201, 92, .08); font-size: 14px;
     }
 
     .grid { display: grid; gap: 16px; }
@@ -77,10 +76,20 @@
     }
     .panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
     .panel h2, .panel h3 { margin: 0; letter-spacing: -.02em; }
-    .panel h2 { font-size: 16px; }
-    .panel h3 { font-size: 15px; }
-    .panel-sub { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
-    .compact-help { margin: 12px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .panel h2 { font-size: 20px; }
+    .panel h3 { font-size: 18px; }
+    .panel-sub { margin: 5px 0 0; color: var(--muted); font-size: 14px; }
+    .compact-help { margin: 12px 0 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
+
+    .read-order {
+      display: flex; align-items: center; gap: 14px; margin: 0 0 16px; padding: 12px 16px;
+      background: rgba(13, 26, 44, .76); border: 1px solid var(--line); border-radius: 12px;
+    }
+    .read-order-title { flex: 0 0 auto; font-size: 15px; font-weight: 800; white-space: nowrap; }
+    .read-steps { display: flex; flex: 1; flex-wrap: wrap; gap: 8px; }
+    .read-step { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 14px; font-weight: 650; }
+    .read-step b { display: grid; width: 21px; height: 21px; place-items: center; border-radius: 50%; color: #06121f; background: var(--teal); font-size: 12px; }
+    .read-step:not(:last-child)::after { content: "→"; margin-left: 4px; color: var(--faint); }
 
     .score-hero { display: flex; align-items: center; gap: 20px; min-height: 170px; }
     .score-ring {
@@ -91,20 +100,20 @@
     }
     .score-ring::before { content: ""; position: absolute; inset: 9px; border-radius: 50%; background: var(--surface); }
     .score-ring span { position: relative; text-align: center; font-size: 30px; font-weight: 800; letter-spacing: -.05em; font-variant-numeric: tabular-nums; }
-    .score-ring small { display: block; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; }
+    .score-ring small { display: block; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .08em; }
     .score-copy { min-width: 0; }
     .score-copy .headline { margin: 5px 0 7px; font-size: 22px; font-weight: 750; letter-spacing: -.035em; }
-    .score-copy p { margin: 0; color: var(--muted); font-size: 12px; }
-    .coverage { margin-top: 10px; color: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums; }
+    .score-copy p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
+    .coverage { margin-top: 10px; color: var(--faint); font-size: 13px; font-variant-numeric: tabular-nums; }
 
     .state-value { margin: 8px 0 5px; font-size: 23px; font-weight: 750; letter-spacing: -.04em; }
-    .state-meta { color: var(--muted); font-size: 12px; }
-    .exposure { display: inline-flex; align-items: center; gap: 7px; margin-top: 15px; padding: 7px 10px; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--text); font-size: 12px; }
-    .exposure strong { font-size: 15px; }
+    .state-meta { color: var(--muted); font-size: 14px; }
+    .exposure { display: inline-flex; align-items: center; gap: 7px; margin-top: 15px; padding: 8px 11px; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--text); font-size: 14px; }
+    .exposure strong { font-size: 17px; }
     .health-list { display: grid; gap: 8px; margin-top: 10px; }
-    .health-item { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12px; }
+    .health-item { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 14px; }
 
-    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid currentColor; border-radius: 999px; font-size: 11px; font-weight: 750; white-space: nowrap; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border: 1px solid currentColor; border-radius: 999px; font-size: 13px; font-weight: 750; white-space: nowrap; }
     .tone-good { color: var(--green); }
     .tone-info { color: var(--blue); }
     .tone-warn { color: var(--amber); }
@@ -116,15 +125,15 @@
     .metric-list { display: grid; margin-top: 14px; }
     .metric { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); }
     .metric:last-child { border-bottom: 0; }
-    .metric span { color: var(--muted); font-size: 12px; }
-    .metric strong { color: var(--text); font-size: 13px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+    .metric span { color: var(--muted); font-size: 14px; }
+    .metric strong { color: var(--text); font-size: 15px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
     .chart-box { position: relative; height: 205px; margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); }
     .chart-box.tall { height: 270px; margin-top: 0; padding-top: 0; border-top: 0; }
 
     .risk-table { width: 100%; border-collapse: collapse; }
-    .risk-table th { padding: 0 7px 9px; color: var(--faint); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-align: left; text-transform: uppercase; }
+    .risk-table th { padding: 0 7px 9px; color: var(--faint); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-align: left; text-transform: uppercase; }
     .risk-table th:last-child, .risk-table td:last-child { text-align: right; }
-    .risk-table td { padding: 10px 7px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; vertical-align: middle; }
+    .risk-table td { padding: 11px 7px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; vertical-align: middle; }
     .risk-table td:nth-child(2) { color: var(--text); font-weight: 650; }
     .risk-table .points { font-variant-numeric: tabular-nums; font-weight: 750; white-space: nowrap; }
     .risk-bar { width: 90px; height: 5px; margin-top: 5px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.08); }
@@ -132,26 +141,30 @@
 
     .data-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
     .datum { min-width: 0; padding: 12px; background: rgba(3, 11, 22, .24); border: 1px solid var(--line); border-radius: 10px; }
-    .datum span { display: block; color: var(--muted); font-size: 11px; }
-    .datum strong { display: block; overflow: hidden; margin-top: 5px; color: var(--text); font-size: 17px; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
-    .datum small { display: block; overflow: hidden; margin-top: 3px; color: var(--faint); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .datum span { display: block; color: var(--muted); font-size: 13px; }
+    .datum strong { display: block; overflow: hidden; margin-top: 5px; color: var(--text); font-size: 19px; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .datum small { display: block; overflow: hidden; margin-top: 3px; color: var(--faint); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 
     .table-wrap { overflow-x: auto; }
     .sector-table { width: 100%; min-width: 500px; border-collapse: collapse; }
-    .sector-table th { padding: 0 7px 10px; color: var(--faint); font-size: 10px; letter-spacing: .08em; text-align: right; text-transform: uppercase; }
+    .sector-table th { padding: 0 7px 10px; color: var(--faint); font-size: 12px; letter-spacing: .08em; text-align: right; text-transform: uppercase; }
     .sector-table th:first-child { text-align: left; }
-    .sector-table td { padding: 9px 7px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+    .sector-table td { padding: 10px 7px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; text-align: right; font-variant-numeric: tabular-nums; }
     .sector-table td:first-child { color: var(--text); text-align: left; font-weight: 650; }
-    .symbol { margin-left: 4px; color: var(--faint); font-size: 10px; font-weight: 600; }
+    .symbol { margin-left: 4px; color: var(--faint); font-size: 12px; font-weight: 600; }
 
-    .empty { padding: 22px 6px; color: var(--muted); font-size: 12px; text-align: center; }
-    .footer { margin-top: 24px; color: var(--faint); font-size: 11px; text-align: center; }
+    .empty { padding: 22px 6px; color: var(--muted); font-size: 14px; text-align: center; }
+    .footer { margin-top: 24px; color: var(--faint); font-size: 12px; text-align: center; }
+    .history-panel { grid-column: 1 / -1; }
+    section[aria-label="History charts"] > article:first-child { grid-column: 1 / -1; }
+    section[aria-label="History charts"] > article:last-child { display: none; }
 
     @media (max-width: 1050px) { .overview { grid-template-columns: 1.25fr 1fr; } .overview > :last-child { grid-column: span 2; } .three-col { grid-template-columns: 1fr 1fr; } .three-col > :last-child { grid-column: span 2; } }
     @media (max-width: 700px) {
-      .app { padding: 0 14px 32px; } .topbar { margin: 0 -14px; padding: 0 14px; } .brand small { display: none; }
+      .app { padding: 0 14px 32px; } .topbar { margin: 0 -14px; padding: 0 14px; }
       .overview, .two-col, .three-col { grid-template-columns: 1fr; } .overview > :last-child, .three-col > :last-child { grid-column: auto; }
       .hero { padding-top: 26px; } .panel { padding: 16px; } .score-hero { align-items: flex-start; } .score-ring { width: 104px; height: 104px; } .score-ring span { font-size: 26px; }
+      .read-order { align-items: flex-start; flex-direction: column; gap: 8px; } .read-step { font-size: 13px; } .read-step:not(:last-child)::after { display: none; }
       .risk-table th:nth-child(1), .risk-table td:nth-child(1), .risk-table th:nth-child(3), .risk-table td:nth-child(3) { display: none; }
     }
   </style>
@@ -159,23 +172,32 @@
 <body>
   <div class="app">
     <header class="topbar">
-      <div class="brand"><span class="brand-mark">M</span><span>Market Pulse<small>US EQUITY RISK MONITOR</small></span></div>
-      <div class="update"><span><i class="live-dot"></i>END-OF-DAY DATA</span><strong id="update-time">Loading…</strong></div>
+      <div class="brand"><span class="brand-mark">M</span><span>Market Pulse</span></div>
+      <div class="update"><span><i class="live-dot"></i>&#x7D42;&#x5024;&#x30C7;&#x30FC;&#x30BF;</span><strong id="update-time">Loading…</strong></div>
     </header>
 
     <main>
       <section class="hero">
-        <div class="eyebrow">Decision support · not investment advice</div>
         <h1>市場のリスクを、先に読む。</h1>
         <p>トレンド、値幅の広がり、ボラティリティ、信用、セクター、需給をまとめて確認する米国株ロング向けの地合いモニターです。</p>
         <div class="alert" id="stale-banner">データが3日以上更新されていません。数値の鮮度を確認してください。</div>
+      </section>
+
+      <section class="read-order" aria-label="&#x307E;&#x305A;&#x898B;&#x308B;&#x9806;&#x756A;">
+        <div class="read-order-title">&#x307E;&#x305A;&#x898B;&#x308B;&#x9806;&#x756A;</div>
+        <div class="read-steps">
+          <span class="read-step"><b>1</b>&#x7DCF;&#x5408;&#x30B9;&#x30B3;&#x30A2;</span>
+          <span class="read-step"><b>2</b>SPY / QQQ</span>
+          <span class="read-step"><b>3</b>&#x5E02;&#x5834;&#x306E;&#x5E83;&#x304C;&#x308A;</span>
+          <span class="read-step"><b>4</b>VIX &#x30FB; &#x4FE1;&#x7528;</span>
+          <span class="read-step"><b>5</b>&#x30BB;&#x30AF;&#x30BF;&#x30FC;</span>
+        </div>
       </section>
 
       <section class="grid overview" aria-label="Market overview">
         <article class="panel score-hero">
           <div class="score-ring" id="risk-ring"><span id="risk-score">--<small>/ 100</small></span></div>
           <div class="score-copy">
-            <div class="eyebrow">Composite risk score</div>
             <div class="headline" id="risk-label">算出中</div>
             <p>0に近いほどロングの地合いが良好。100に近いほど市場リスクが高い目安です。</p>
             <div class="coverage" id="risk-coverage">データを確認中</div>
@@ -183,7 +205,6 @@
         </article>
 
         <article class="panel">
-          <div class="eyebrow">Market regime</div>
           <div class="state-value" id="market-status">--</div>
           <div class="state-meta" id="market-status-jp">--</div>
           <div class="exposure">目安 Exposure <strong id="exposure-value">--</strong></div>
@@ -191,7 +212,6 @@
         </article>
 
         <article class="panel">
-          <div class="eyebrow">System health</div>
           <h2 style="margin-top:7px;">データ状態</h2>
           <div class="health-list" id="data-health"></div>
           <p class="compact-help">取得できない項目はスコアを低く見せず、採点カバレッジを下げて表示します。</p>
@@ -244,7 +264,7 @@
         <article class="panel"><div class="panel-head"><div><div class="eyebrow">How to read this dashboard</div><h2>まず見る順番</h2><p class="panel-sub">迷ったら、上から下へ。</p></div></div><div class="metric-list"><div class="metric"><span>1. 総合スコア</span><strong>地合いの温度感</strong></div><div class="metric"><span>2. SPY / QQQ</span><strong>価格と売り圧力</strong></div><div class="metric"><span>3. ブレッドス</span><strong>上昇の広がり</strong></div><div class="metric"><span>4. VIX・信用</span><strong>急変リスク</strong></div><div class="metric"><span>5. セクター</span><strong>候補探しの方向</strong></div></div><p class="compact-help">この画面はポジション量や新規エントリーの慎重さを考える補助です。個別銘柄の決算、損切り水準、保有期間は別途判断してください。</p></article>
       </section>
     </main>
-    <footer class="footer">Market Pulse · End-of-day decision support · Data may be delayed or unavailable.</footer>
+    <footer class="footer">Market Pulse &middot; &#x7D42;&#x5024;&#x30C7;&#x30FC;&#x30BF;</footer>
   </div>
 
   <script>
