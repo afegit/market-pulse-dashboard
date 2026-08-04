@@ -60,6 +60,13 @@ class Program
     const int SECTOR_RETURN_1M_DAYS = 21; // 約1ヶ月分の営業日
     const int SECTOR_RETURN_3M_DAYS = 63; // 約3ヶ月分の営業日
 
+    // ===== 市場リスクスコアの事後検証 =====
+    // スコアが記録された21/63営業日後の実績を確定値として保存する。
+    // 当日の終値からの途中経過ではなく、指定営業日後の終値を使うことで検証値が後から変わらないようにする。
+    const int SCORE_VALIDATION_1M_DAYS = 21;
+    const int SCORE_VALIDATION_3M_DAYS = 63;
+    const int SCORE_VALIDATION_RECOMMENDED_MIN_SAMPLES = 10;
+
     // ===== 値幅代理指標（Breadth Proxies） =====
     // 「真のブレッドス」とは別の補助指標。時価総額集中・小型株の強弱を素早く確認するために残す。
     // RSP: S&P500均等加重（時価総額加重のSPYとの差が集中度の目安）
@@ -222,9 +229,10 @@ class Program
             // Put/Call Ratio（自前算出）。失敗しても既存のExposure機能全体を止めないよう内部で例外を握りつぶす設計
             var putCall = await FetchPutCallRatio();
 
-            // 履歴を先に更新し、そこから移動平均・パーセンタイル順位を算出する
-            var putCallStats = AppendHistory(combinedStatus, sp500, nasdaq, putCall?.Ratio);
-            Console.WriteLine("history.json has been updated.");
+            // 履歴はメモリ上で準備し、全指標の算出成功後に一度だけ保存する。
+            // 途中失敗で当日分の最終スコアを失わないための原子性を持たせる。
+            var historyPreparation = PrepareHistory(combinedStatus, sp500, nasdaq, putCall?.Ratio, marketDataAsOf);
+            var putCallStats = historyPreparation.PutCallStats;
 
             var putCallOutput = putCall == null
                 ? new PutCallOutput
@@ -335,6 +343,12 @@ class Program
             var marketRiskScore = CalculateMarketRiskScore(
                 sp500, nasdaq, putCallOutput, sectorOutput,
                 creditRiskOutput, volatilityOutput, marketBreadthOutput);
+            ApplyTodayRiskScoreSnapshot(historyPreparation.Entries, marketRiskScore);
+            UpdateScoreValidationOutcomes(historyPreparation.Entries, sp500Data, nasdaqData);
+            var marketRiskChange = BuildMarketRiskChange(historyPreparation.Entries);
+            var scoreValidation = BuildScoreValidation(historyPreparation.Entries);
+            PersistHistory(historyPreparation.Entries);
+            Console.WriteLine("history.json has been updated.");
 
             var output = new
             {
@@ -349,7 +363,9 @@ class Program
                 creditRiskAppetite = creditRiskOutput,
                 volatilityRegime = volatilityOutput,
                 marketBreadth = marketBreadthOutput,
-                marketRiskScore
+                marketRiskScore,
+                marketRiskChange,
+                scoreValidation
             };
 
             var json = JsonSerializer.Serialize(output, JsonOptions);
@@ -1239,7 +1255,7 @@ class Program
 
     // ================= 履歴保存 =================
 
-    static PutCallStats AppendHistory(string combinedStatus, IndexAnalysis sp500, IndexAnalysis nasdaq, decimal? putCallRatio)
+    static HistoryPreparation PrepareHistory(string combinedStatus, IndexAnalysis sp500, IndexAnalysis nasdaq, decimal? putCallRatio, string marketDataAsOf)
     {
         string historyPath = GetOutputPath("history.json");
 
@@ -1262,19 +1278,21 @@ class Program
         history.Add(new HistoryEntry
         {
             Date = today,
+            MarketDataAsOf = marketDataAsOf,
             CombinedStatus = combinedStatus,
             Sp500Status = sp500.StatusId,
             Sp500DistDays = sp500.DistributionDaysActive,
             NasdaqStatus = nasdaq.StatusId,
             NasdaqDistDays = nasdaq.DistributionDaysActive,
-            PutCallRatio = putCallRatio
+            PutCallRatio = putCallRatio,
+            SpyAdjustedClose = sp500.LatestAdjustedClose,
+            QqqAdjustedClose = nasdaq.LatestAdjustedClose
         });
 
-        // 直近180日分のみ保持
+        // 直近180日分のみ保持。ここではまだファイルへ書かず、全計算成功後に保存する。
         var trimmed = history.OrderBy(h => h.Date).TakeLast(180).ToList();
-        WriteTextAtomically(historyPath, JsonSerializer.Serialize(trimmed, JsonOptions));
 
-        // --- Put/Call Ratioのトレンド統計（保存後の履歴から算出。今日の値自身も含めて計算する） ---
+        // --- Put/Call Ratioのトレンド統計（当日の候補値を含めてメモリ上で算出する） ---
         var validRatios = trimmed.Where(h => h.PutCallRatio.HasValue).Select(h => h.PutCallRatio!.Value).ToList();
 
         decimal? sma = validRatios.Count > 0
@@ -1289,18 +1307,252 @@ class Program
             percentile = Math.Round((double)countAtOrBelow / validRatios.Count * 100.0, 1);
         }
 
-        return new PutCallStats { Sma10 = sma, PercentileRank = percentile, HistoryDays = validRatios.Count };
+        return new HistoryPreparation
+        {
+            Entries = trimmed,
+            PutCallStats = new PutCallStats { Sma10 = sma, PercentileRank = percentile, HistoryDays = validRatios.Count }
+        };
     }
 
     static bool IsValidHistoryEntry(HistoryEntry entry)
     {
         bool validDate = DateTime.TryParseExact(entry.Date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _);
+        bool validMarketDataDate = string.IsNullOrEmpty(entry.MarketDataAsOf) ||
+            DateTime.TryParseExact(entry.MarketDataAsOf, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _);
         bool validStatus = entry.CombinedStatus is "Correction" or "Pressure" or "Uptrend" &&
             entry.Sp500Status is "Correction" or "Pressure" or "Uptrend" &&
             entry.NasdaqStatus is "Correction" or "Pressure" or "Uptrend";
         bool validNumbers = entry.Sp500DistDays >= 0 && entry.NasdaqDistDays >= 0 &&
-            (!entry.PutCallRatio.HasValue || (entry.PutCallRatio.Value > 0m && entry.PutCallRatio.Value <= 100m));
-        return validDate && validStatus && validNumbers;
+            (!entry.PutCallRatio.HasValue || (entry.PutCallRatio.Value > 0m && entry.PutCallRatio.Value <= 100m)) &&
+            (!entry.MarketRiskScore.HasValue || (entry.MarketRiskScore.Value >= 0m && entry.MarketRiskScore.Value <= 100m)) &&
+            (!entry.MarketRiskAvailableMaxPoints.HasValue || (entry.MarketRiskAvailableMaxPoints.Value > 0m && entry.MarketRiskAvailableMaxPoints.Value <= 100m)) &&
+            (!entry.SpyAdjustedClose.HasValue || entry.SpyAdjustedClose.Value > 0m) &&
+            (!entry.QqqAdjustedClose.HasValue || entry.QqqAdjustedClose.Value > 0m) &&
+            IsValidForwardReturn(entry.SpyReturn1m) && IsValidForwardReturn(entry.QqqReturn1m) &&
+            IsValidForwardReturn(entry.SpyReturn3m) && IsValidForwardReturn(entry.QqqReturn3m) &&
+            IsValidDrawdown(entry.SpyMaxDrawdown1m) && IsValidDrawdown(entry.QqqMaxDrawdown1m) &&
+            IsValidDrawdown(entry.SpyMaxDrawdown3m) && IsValidDrawdown(entry.QqqMaxDrawdown3m) &&
+            (entry.MarketRiskMetrics == null || entry.MarketRiskMetrics.All(IsValidMarketRiskMetric));
+        return validDate && validMarketDataDate && validStatus && validNumbers;
+    }
+
+    static bool IsValidForwardReturn(decimal? value) => !value.HasValue || (value.Value > -100m && value.Value <= 1000m);
+
+    static bool IsValidDrawdown(decimal? value) => !value.HasValue || (value.Value >= -100m && value.Value <= 0m);
+
+    static bool IsValidMarketRiskMetric(MarketRiskMetric metric) =>
+        !string.IsNullOrWhiteSpace(metric.Group) && !string.IsNullOrWhiteSpace(metric.Name) &&
+        metric.Score >= 0m && metric.MaxPoints > 0m && metric.Score <= metric.MaxPoints;
+
+    static void ApplyTodayRiskScoreSnapshot(List<HistoryEntry> history, MarketRiskScore riskScore)
+    {
+        if (riskScore.Score < 0m || riskScore.Score > 100m || riskScore.AvailableMaxPoints <= 0m)
+            throw new ArgumentOutOfRangeException(nameof(riskScore), "市場リスクスコアまたは採点カバレッジが不正です。");
+
+        string today = JstNow().ToString("yyyy-MM-dd");
+        var todayEntry = history.SingleOrDefault(entry => entry.Date == today)
+            ?? throw new InvalidDataException("当日の履歴が見つからないため、市場リスクスコアを保存できません。");
+        todayEntry.MarketRiskScore = Math.Round(riskScore.Score, 1);
+        todayEntry.MarketRiskAvailableMaxPoints = Math.Round(riskScore.AvailableMaxPoints, 1);
+        todayEntry.MarketRiskMetrics = riskScore.Metrics.Select(CopyMarketRiskMetric).ToList();
+    }
+
+    static MarketRiskMetric CopyMarketRiskMetric(MarketRiskMetric metric) => new()
+    {
+        Group = metric.Group,
+        Name = metric.Name,
+        Score = metric.Score,
+        MaxPoints = metric.MaxPoints,
+        Detail = metric.Detail
+    };
+
+    static void UpdateScoreValidationOutcomes(List<HistoryEntry> history, List<DailyData> sp500Data, List<DailyData> nasdaqData)
+    {
+        foreach (var entry in history)
+        {
+            if (string.IsNullOrEmpty(entry.MarketDataAsOf) || !entry.SpyAdjustedClose.HasValue || !entry.QqqAdjustedClose.HasValue)
+                continue; // 機能追加前の履歴には基準価格がないため、推測で補完しない。
+
+            UpdateHorizonOutcome(
+                sp500Data, entry.MarketDataAsOf, entry.SpyAdjustedClose.Value, SCORE_VALIDATION_1M_DAYS,
+                value => entry.SpyReturn1m = value, value => entry.SpyMaxDrawdown1m = value, entry.SpyReturn1m.HasValue);
+            UpdateHorizonOutcome(
+                nasdaqData, entry.MarketDataAsOf, entry.QqqAdjustedClose.Value, SCORE_VALIDATION_1M_DAYS,
+                value => entry.QqqReturn1m = value, value => entry.QqqMaxDrawdown1m = value, entry.QqqReturn1m.HasValue);
+            UpdateHorizonOutcome(
+                sp500Data, entry.MarketDataAsOf, entry.SpyAdjustedClose.Value, SCORE_VALIDATION_3M_DAYS,
+                value => entry.SpyReturn3m = value, value => entry.SpyMaxDrawdown3m = value, entry.SpyReturn3m.HasValue);
+            UpdateHorizonOutcome(
+                nasdaqData, entry.MarketDataAsOf, entry.QqqAdjustedClose.Value, SCORE_VALIDATION_3M_DAYS,
+                value => entry.QqqReturn3m = value, value => entry.QqqMaxDrawdown3m = value, entry.QqqReturn3m.HasValue);
+        }
+    }
+
+    static void UpdateHorizonOutcome(
+        List<DailyData> data,
+        string marketDataAsOf,
+        decimal baseClose,
+        int horizonDays,
+        Action<decimal> setReturn,
+        Action<decimal> setMaxDrawdown,
+        bool alreadyMatured)
+    {
+        if (alreadyMatured) return;
+
+        if (!DateTime.TryParseExact(marketDataAsOf, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var baseDate))
+            return;
+
+        int startIndex = data.FindIndex(day => day.Date.Date == baseDate.Date);
+        int targetIndex = startIndex + horizonDays;
+        if (startIndex < 0 || targetIndex >= data.Count) return;
+
+        decimal futureClose = data[targetIndex].AdjustedClose;
+        decimal maxDrawdown = data.Skip(startIndex).Take(horizonDays + 1)
+            .Min(day => (day.AdjustedClose / baseClose - 1m) * 100m);
+        setReturn(Math.Round((futureClose / baseClose - 1m) * 100m, 2));
+        setMaxDrawdown(Math.Round(maxDrawdown, 2));
+    }
+
+    static MarketRiskChange BuildMarketRiskChange(List<HistoryEntry> history)
+    {
+        string today = JstNow().ToString("yyyy-MM-dd");
+        var current = history.SingleOrDefault(entry => entry.Date == today);
+        var previous = history.Where(entry => entry.Date != today && entry.MarketRiskScore.HasValue)
+            .OrderByDescending(entry => entry.Date).FirstOrDefault();
+
+        if (current?.MarketRiskScore == null || previous?.MarketRiskScore == null ||
+            current.MarketRiskMetrics == null || previous.MarketRiskMetrics == null ||
+            current.MarketRiskMetrics.Count == 0 || previous.MarketRiskMetrics.Count == 0 ||
+            !current.MarketRiskAvailableMaxPoints.HasValue || !previous.MarketRiskAvailableMaxPoints.HasValue)
+        {
+            return new MarketRiskChange
+            {
+                Status = "collecting",
+                Note = "前回分の採点内訳がそろうと、前回からの変動理由を表示します。"
+            };
+        }
+
+        var previousMetrics = previous.MarketRiskMetrics.ToDictionary(
+            metric => $"{metric.Group}\u001f{metric.Name}", StringComparer.Ordinal);
+        var factors = new List<MarketRiskChangeFactor>();
+        foreach (var metric in current.MarketRiskMetrics)
+        {
+            if (!previousMetrics.TryGetValue($"{metric.Group}\u001f{metric.Name}", out var prior)) continue;
+
+            decimal currentContribution = metric.Score / current.MarketRiskAvailableMaxPoints.Value * 100m;
+            decimal previousContribution = prior.Score / previous.MarketRiskAvailableMaxPoints.Value * 100m;
+            decimal delta = Math.Round(currentContribution - previousContribution, 1);
+            if (Math.Abs(delta) < 0.1m) continue;
+
+            factors.Add(new MarketRiskChangeFactor
+            {
+                Group = metric.Group,
+                Name = metric.Name,
+                ChangeInRiskPoints = delta,
+                CurrentDetail = metric.Detail,
+                PreviousDetail = prior.Detail
+            });
+        }
+
+        decimal scoreChange = Math.Round(current.MarketRiskScore.Value - previous.MarketRiskScore.Value, 1);
+        decimal coverageChange = Math.Round(current.MarketRiskAvailableMaxPoints.Value - previous.MarketRiskAvailableMaxPoints.Value, 1);
+        string note = coverageChange == 0m
+            ? "前回と共通する採点項目を、100点換算で比較しています。"
+            : $"採点カバレッジも前回から{coverageChange:+0.0;-0.0;0.0}ポイント変化しています。欠損項目による単純比較には注意してください。";
+
+        return new MarketRiskChange
+        {
+            Status = "ok",
+            PreviousDate = previous.Date,
+            PreviousScore = previous.MarketRiskScore,
+            ScoreChange = scoreChange,
+            CoverageChange = coverageChange,
+            Factors = factors.OrderByDescending(factor => Math.Abs(factor.ChangeInRiskPoints)).Take(4).ToList(),
+            Note = note
+        };
+    }
+
+    static ScoreValidationOutput BuildScoreValidation(List<HistoryEntry> history)
+    {
+        // 同じ市場基準日を複数回更新した場合は最後の記録だけを使い、休日・再実行による重複集計を防ぐ。
+        var observations = history
+            .Where(entry => entry.MarketRiskScore.HasValue && !string.IsNullOrEmpty(entry.MarketDataAsOf) &&
+                entry.SpyAdjustedClose.HasValue && entry.QqqAdjustedClose.HasValue)
+            .GroupBy(entry => entry.MarketDataAsOf!, StringComparer.Ordinal)
+            .Select(group => group.OrderBy(entry => entry.Date).Last())
+            .OrderBy(entry => entry.MarketDataAsOf)
+            .ToList();
+
+        var bands = new[]
+        {
+            (Label: "0–20", Matches: new Func<decimal, bool>(score => score <= 20m)),
+            (Label: "21–40", Matches: new Func<decimal, bool>(score => score > 20m && score <= 40m)),
+            (Label: "41–60", Matches: new Func<decimal, bool>(score => score > 40m && score <= 60m)),
+            (Label: "61–80", Matches: new Func<decimal, bool>(score => score > 60m && score <= 80m)),
+            (Label: "81–100", Matches: new Func<decimal, bool>(score => score > 80m))
+        };
+
+        var bandResults = bands.Select(band => BuildScoreBandValidation(
+            band.Label, observations.Where(entry => band.Matches(entry.MarketRiskScore!.Value)).ToList())).ToList();
+        int oneMonthMatured = observations.Count(entry => entry.SpyReturn1m.HasValue && entry.QqqReturn1m.HasValue);
+        int threeMonthMatured = observations.Count(entry => entry.SpyReturn3m.HasValue && entry.QqqReturn3m.HasValue);
+        string status = oneMonthMatured >= SCORE_VALIDATION_RECOMMENDED_MIN_SAMPLES ? "preliminary" : "collecting";
+
+        return new ScoreValidationOutput
+        {
+            Status = status,
+            ObservationCount = observations.Count,
+            OneMonthMaturedCount = oneMonthMatured,
+            ThreeMonthMaturedCount = threeMonthMatured,
+            RecommendedMinSamples = SCORE_VALIDATION_RECOMMENDED_MIN_SAMPLES,
+            Bands = bandResults,
+            Note = "各スコア記録日の調整後終値から21・63営業日後までの実績です。過去実績であり、将来のリターンや投資成果を保証するものではありません。"
+        };
+    }
+
+    static ScoreBandValidation BuildScoreBandValidation(string label, List<HistoryEntry> entries)
+    {
+        var oneMonth = entries.Where(entry => entry.SpyReturn1m.HasValue && entry.QqqReturn1m.HasValue).ToList();
+        var threeMonth = entries.Where(entry => entry.SpyReturn3m.HasValue && entry.QqqReturn3m.HasValue).ToList();
+        return new ScoreBandValidation
+        {
+            Label = label,
+            ObservationCount = entries.Count,
+            OneMonthSampleSize = oneMonth.Count,
+            ThreeMonthSampleSize = threeMonth.Count,
+            SpyAverageReturn1m = AverageOrNull(oneMonth.Select(entry => entry.SpyReturn1m)),
+            QqqAverageReturn1m = AverageOrNull(oneMonth.Select(entry => entry.QqqReturn1m)),
+            SpyWinRate1m = WinRateOrNull(oneMonth.Select(entry => entry.SpyReturn1m)),
+            QqqWinRate1m = WinRateOrNull(oneMonth.Select(entry => entry.QqqReturn1m)),
+            SpyAverageMaxDrawdown1m = AverageOrNull(oneMonth.Select(entry => entry.SpyMaxDrawdown1m)),
+            QqqAverageMaxDrawdown1m = AverageOrNull(oneMonth.Select(entry => entry.QqqMaxDrawdown1m)),
+            SpyAverageReturn3m = AverageOrNull(threeMonth.Select(entry => entry.SpyReturn3m)),
+            QqqAverageReturn3m = AverageOrNull(threeMonth.Select(entry => entry.QqqReturn3m)),
+            SpyWinRate3m = WinRateOrNull(threeMonth.Select(entry => entry.SpyReturn3m)),
+            QqqWinRate3m = WinRateOrNull(threeMonth.Select(entry => entry.QqqReturn3m)),
+            SpyAverageMaxDrawdown3m = AverageOrNull(threeMonth.Select(entry => entry.SpyMaxDrawdown3m)),
+            QqqAverageMaxDrawdown3m = AverageOrNull(threeMonth.Select(entry => entry.QqqMaxDrawdown3m))
+        };
+    }
+
+    static decimal? AverageOrNull(IEnumerable<decimal?> values)
+    {
+        var numbers = values.Where(value => value.HasValue).Select(value => value!.Value).ToList();
+        return numbers.Count == 0 ? null : Math.Round(numbers.Average(), 2);
+    }
+
+    static decimal? WinRateOrNull(IEnumerable<decimal?> returns)
+    {
+        var values = returns.Where(value => value.HasValue).Select(value => value!.Value).ToList();
+        return values.Count == 0 ? null : Math.Round(values.Count(value => value > 0m) / (decimal)values.Count * 100m, 1);
+    }
+
+    static void PersistHistory(List<HistoryEntry> history)
+    {
+        if (history.Any(entry => !IsValidHistoryEntry(entry)))
+            throw new InvalidDataException("history.json に不正なデータがあるため、市場リスクスコアを保存できません。");
+
+        WriteTextAtomically(GetOutputPath("history.json"), JsonSerializer.Serialize(history.OrderBy(entry => entry.Date).TakeLast(180).ToList(), JsonOptions));
     }
 
     // ================= モデル =================
@@ -1462,12 +1714,80 @@ class Program
     class HistoryEntry
     {
         public string Date { get; set; } = "";
+        // スコア計算時に使った市場の基準日と調整後終値。
+        // 後日の検証ではこの値を起点にするため、古い履歴を推測で補完しない。
+        public string? MarketDataAsOf { get; set; }
         public string CombinedStatus { get; set; } = "";
         public string Sp500Status { get; set; } = "";
         public int Sp500DistDays { get; set; }
         public string NasdaqStatus { get; set; } = "";
         public int NasdaqDistDays { get; set; }
         public decimal? PutCallRatio { get; set; }
+        public decimal? MarketRiskScore { get; set; }
+        public decimal? MarketRiskAvailableMaxPoints { get; set; }
+        public List<MarketRiskMetric>? MarketRiskMetrics { get; set; }
+        public decimal? SpyAdjustedClose { get; set; }
+        public decimal? QqqAdjustedClose { get; set; }
+        public decimal? SpyReturn1m { get; set; }
+        public decimal? QqqReturn1m { get; set; }
+        public decimal? SpyMaxDrawdown1m { get; set; }
+        public decimal? QqqMaxDrawdown1m { get; set; }
+        public decimal? SpyReturn3m { get; set; }
+        public decimal? QqqReturn3m { get; set; }
+        public decimal? SpyMaxDrawdown3m { get; set; }
+        public decimal? QqqMaxDrawdown3m { get; set; }
+    }
+
+    class MarketRiskChange
+    {
+        public string Status { get; set; } = ""; // ok / collecting
+        public string? PreviousDate { get; set; }
+        public decimal? PreviousScore { get; set; }
+        public decimal? ScoreChange { get; set; }
+        public decimal? CoverageChange { get; set; }
+        public List<MarketRiskChangeFactor> Factors { get; set; } = new();
+        public string Note { get; set; } = "";
+    }
+
+    class MarketRiskChangeFactor
+    {
+        public string Group { get; set; } = "";
+        public string Name { get; set; } = "";
+        // 正なら市場リスクを押し上げ、負なら押し下げた寄与（100点換算）。
+        public decimal ChangeInRiskPoints { get; set; }
+        public string CurrentDetail { get; set; } = "";
+        public string PreviousDetail { get; set; } = "";
+    }
+
+    class ScoreValidationOutput
+    {
+        public string Status { get; set; } = ""; // collecting / preliminary
+        public int ObservationCount { get; set; }
+        public int OneMonthMaturedCount { get; set; }
+        public int ThreeMonthMaturedCount { get; set; }
+        public int RecommendedMinSamples { get; set; }
+        public List<ScoreBandValidation> Bands { get; set; } = new();
+        public string Note { get; set; } = "";
+    }
+
+    class ScoreBandValidation
+    {
+        public string Label { get; set; } = "";
+        public int ObservationCount { get; set; }
+        public int OneMonthSampleSize { get; set; }
+        public int ThreeMonthSampleSize { get; set; }
+        public decimal? SpyAverageReturn1m { get; set; }
+        public decimal? QqqAverageReturn1m { get; set; }
+        public decimal? SpyWinRate1m { get; set; }
+        public decimal? QqqWinRate1m { get; set; }
+        public decimal? SpyAverageMaxDrawdown1m { get; set; }
+        public decimal? QqqAverageMaxDrawdown1m { get; set; }
+        public decimal? SpyAverageReturn3m { get; set; }
+        public decimal? QqqAverageReturn3m { get; set; }
+        public decimal? SpyWinRate3m { get; set; }
+        public decimal? QqqWinRate3m { get; set; }
+        public decimal? SpyAverageMaxDrawdown3m { get; set; }
+        public decimal? QqqAverageMaxDrawdown3m { get; set; }
     }
 
     class PutCallResult
@@ -1476,6 +1796,12 @@ class Program
         public long CallVolume { get; set; }
         public long PutVolume { get; set; }
         public decimal Ratio { get; set; }
+    }
+
+    class HistoryPreparation
+    {
+        public List<HistoryEntry> Entries { get; set; } = new();
+        public PutCallStats PutCallStats { get; set; } = new();
     }
 
     class PutCallStats

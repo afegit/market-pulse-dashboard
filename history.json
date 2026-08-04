@@ -1,11 +1,96 @@
 [
   {
     "date": "2026-08-04",
+    "marketDataAsOf": "2026-07-31",
     "combinedStatus": "Correction",
     "sp500Status": "Correction",
     "sp500DistDays": 7,
     "nasdaqStatus": "Correction",
     "nasdaqDistDays": 9,
-    "putCallRatio": 0.909
+    "putCallRatio": 0.909,
+    "marketRiskScore": 50.1,
+    "marketRiskAvailableMaxPoints": 72,
+    "marketRiskMetrics": [
+      {
+        "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
+        "name": "\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9",
+        "score": 18,
+        "maxPoints": 18,
+        "detail": "SPY: Correction / QQQ: Correction"
+      },
+      {
+        "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
+        "name": "50\u65E5\u7DDA",
+        "score": 3,
+        "maxPoints": 6,
+        "detail": "SPY: \u4E0A / QQQ: \u4E0B"
+      },
+      {
+        "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
+        "name": "\u6709\u52B9Distribution Day",
+        "score": 6,
+        "maxPoints": 6,
+        "detail": "SPY: 7\u65E5 / QQQ: 9\u65E5"
+      },
+      {
+        "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
+        "name": "50\u65E5\u7DDA\u4E0A\u6BD4\u7387",
+        "score": 2.1,
+        "maxPoints": 7,
+        "detail": "51.5%"
+      },
+      {
+        "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
+        "name": "200\u65E5\u7DDA\u4E0A\u6BD4\u7387",
+        "score": 0,
+        "maxPoints": 7,
+        "detail": "61.4%"
+      },
+      {
+        "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
+        "name": "52\u9031\u65B0\u9AD8\u5024\u30FB\u65B0\u5B89\u5024",
+        "score": 0,
+        "maxPoints": 5,
+        "detail": "\u65B0\u9AD8\u5024 2 / \u65B0\u5B89\u5024 0"
+      },
+      {
+        "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
+        "name": "20\u65E5A/D\u30E9\u30A4\u30F3",
+        "score": 3,
+        "maxPoints": 6,
+        "detail": "20\u65E5\u5909\u5316 -68"
+      },
+      {
+        "group": "\u30AF\u30EC\u30B8\u30C3\u30C8",
+        "name": "HY\u5BFEIG\u76F8\u5BFE\u30EA\u30BF\u30FC\u30F3",
+        "score": 0,
+        "maxPoints": 7,
+        "detail": "3\u304B\u6708 \u002B1.66%"
+      },
+      {
+        "group": "\u30BB\u30AF\u30BF\u30FC",
+        "name": "\u5BFESPY\u3067\u512A\u4F4D\u306A\u30BB\u30AF\u30BF\u30FC\u6570",
+        "score": 4,
+        "maxPoints": 6,
+        "detail": "3/11\u30BB\u30AF\u30BF\u30FC"
+      },
+      {
+        "group": "\u30BB\u30AF\u30BF\u30FC",
+        "name": "RSP\u30FBIWM\u306E\u76F8\u5BFE\u5F37\u5EA6",
+        "score": 0,
+        "maxPoints": 4,
+        "detail": "RSP \u002B1.88% / IWM \u002B0.79%"
+      }
+    ],
+    "spyAdjustedClose": 747.030029296875,
+    "qqqAdjustedClose": 687.989990234375,
+    "spyReturn1m": null,
+    "qqqReturn1m": null,
+    "spyMaxDrawdown1m": null,
+    "qqqMaxDrawdown1m": null,
+    "spyReturn3m": null,
+    "qqqReturn3m": null,
+    "spyMaxDrawdown3m": null,
+    "qqqMaxDrawdown3m": null
   }
 ]

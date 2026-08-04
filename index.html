@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#07111f">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ' 'sha256-YfNNHCS3ia0947FW6OX4yOy40rSw8RLXZZ6NeDfsxgM='; style-src 'self' 'sha256-TAmrIJO8q8KO8YtUPzCaL1XdqMtsSxkUqkL/KYH9KRY='; connect-src 'self'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ' 'sha256-Se+9/fwbDueZvxV5iIeOErjwhUmfLOvHlcxhvax+McY='; style-src 'self' 'sha256-yiwnZHUi+tK38fYLs9raHb7RUVT2ohhOv1fQ8TqOVjA='; connect-src 'self'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Market Pulse | US Equity Risk Monitor</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <style>
@@ -141,6 +141,25 @@
     .risk-bar { width: 90px; height: 5px; margin-top: 5px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.08); }
     .risk-bar > i { display: block; height: 100%; border-radius: inherit; }
 
+    .score-change-summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px 14px; padding: 13px 14px; border: 1px solid var(--line); border-radius: 11px; background: rgba(3, 11, 22, .24); }
+    .score-change-summary strong { font-size: 24px; font-variant-numeric: tabular-nums; }
+    .score-change-summary span { color: var(--muted); font-size: 14px; }
+    .change-list { display: grid; margin-top: 10px; }
+    .change-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px 14px; padding: 11px 2px; border-bottom: 1px solid var(--line); }
+    .change-item:last-child { border-bottom: 0; }
+    .change-item strong { font-size: 15px; }
+    .change-item small { grid-column: 1 / -1; color: var(--muted); font-size: 13px; }
+    .change-points { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+    .validation-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 14px; }
+    .validation-table { width: 100%; min-width: 900px; border-collapse: collapse; }
+    .validation-table th { padding: 0 7px 10px; color: var(--faint); font-size: 12px; font-weight: 800; letter-spacing: .05em; text-align: right; }
+    .validation-table th:first-child { text-align: left; }
+    .validation-table td { padding: 11px 7px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; text-align: right; font-variant-numeric: tabular-nums; vertical-align: middle; }
+    .validation-table td:first-child { color: var(--text); text-align: left; font-size: 15px; font-weight: 750; }
+    .validation-table .outcome { color: var(--text); font-weight: 700; white-space: nowrap; }
+    .validation-table .subvalue { display: block; margin-top: 3px; color: var(--faint); font-size: 12px; font-weight: 500; white-space: nowrap; }
+
     .data-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
     .datum { min-width: 0; padding: 12px; background: rgba(3, 11, 22, .24); border: 1px solid var(--line); border-radius: 10px; }
     .datum span { display: block; color: var(--muted); font-size: 13px; }
@@ -168,6 +187,7 @@
       .hero { padding-top: 26px; } .panel { padding: 16px; } .score-hero { align-items: flex-start; } .score-ring { width: 104px; height: 104px; } .score-ring span { font-size: 26px; }
       .read-order { align-items: flex-start; flex-direction: column; gap: 8px; } .read-step { font-size: 13px; } .read-step:not(:last-child)::after { display: none; }
       .risk-table th:nth-child(1), .risk-table td:nth-child(1), .risk-table th:nth-child(3), .risk-table td:nth-child(3) { display: none; }
+      .validation-summary { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -221,6 +241,13 @@
         <div class="table-wrap"><table class="risk-table"><thead><tr><th>分類</th><th>指標</th><th>根拠</th><th>リスク点</th></tr></thead><tbody id="risk-metrics"></tbody></table></div>
       </section>
 
+      <section class="panel" aria-labelledby="risk-change-title">
+        <div class="panel-head"><div><h2 id="risk-change-title">今日のスコア変動理由</h2><p class="panel-sub">前回保存したスコアと比べ、何が市場リスクを動かしたかを示します。</p></div><span class="pill" id="risk-change-status">--</span></div>
+        <div class="score-change-summary" id="risk-change-summary"><span>比較データを確認中</span></div>
+        <div class="change-list" id="risk-change-factors"></div>
+        <p class="compact-help" id="risk-change-note">同日の複数回更新は最後の成功結果だけを残します。</p>
+      </section>
+
       <section class="grid two-col" aria-label="Index trend">
         <article class="panel index-card">
           <div class="index-title"><div><div class="eyebrow">Broad market</div><h2 id="index-spy-name">SPY</h2></div><span class="pill" id="index-spy-status">--</span></div>
@@ -258,8 +285,15 @@
       </section>
 
       <section class="grid two-col" aria-label="History charts">
-        <article class="panel"><div class="panel-head"><div><div class="eyebrow">Risk history</div><h2>Exposure の推移</h2><p class="panel-sub">日々の市場ステータスから導く目安。</p></div></div><div class="chart-box tall"><canvas id="chart-history"></canvas></div></article>
+        <article class="panel"><div class="panel-head"><div><div class="eyebrow">Risk history</div><h2>市場リスクスコアの推移</h2><p class="panel-sub">0に近いほどロング投資に良好、100に近いほど市場リスクが高い状態です。</p></div></div><div class="chart-box tall"><canvas id="chart-history"></canvas></div></article>
         <article class="panel"><div class="panel-head"><div><div class="eyebrow">How to read this dashboard</div><h2>見る順番</h2><p class="panel-sub">迷ったら、上から下へ。</p></div></div><div class="metric-list"><div class="metric"><span>1. 総合スコア</span><strong>地合いの温度感</strong></div><div class="metric"><span>2. SPY / QQQ</span><strong>価格と売り圧力</strong></div><div class="metric"><span>3. ブレッドス</span><strong>上昇の広がり</strong></div><div class="metric"><span>4. VIX・信用</span><strong>急変リスク</strong></div><div class="metric"><span>5. セクター</span><strong>候補探しの方向</strong></div></div><p class="compact-help">この画面はポジション量や新規エントリーの慎重さを考える補助です。個別銘柄の決算、損切り水準、保有期間は別途判断してください。</p></article>
+      </section>
+
+      <section class="panel" aria-labelledby="score-validation-title">
+        <div class="panel-head"><div><h2 id="score-validation-title">スコアの過去実績検証</h2><p class="panel-sub">スコア帯ごとに、その後の市場成績と保有中の最大下落を確認します。</p></div><span class="pill" id="score-validation-status">--</span></div>
+        <div class="data-grid validation-summary" id="score-validation-summary"></div>
+        <div class="table-wrap"><table class="validation-table"><thead><tr><th>スコア帯</th><th>標本数<br>1M / 3M</th><th>1か月後<br>SPY / QQQ</th><th>1か月中の平均最大下落<br>SPY / QQQ</th><th>3か月後<br>SPY / QQQ</th><th>3か月中の平均最大下落<br>SPY / QQQ</th></tr></thead><tbody id="score-validation-table"></tbody></table></div>
+        <p class="compact-help" id="score-validation-note">検証データを蓄積中です。</p>
       </section>
     </main>
     <footer class="footer">Market Pulse &middot; &#x7D42;&#x5024;&#x30C7;&#x30FC;&#x30BF;</footer>
@@ -378,6 +412,85 @@
       table.replaceChildren(fragment);
     }
 
+    function renderRiskChange(change) {
+      const summary = byId('risk-change-summary');
+      const factors = byId('risk-change-factors');
+      byId('risk-change-note').textContent = change?.note || '前回分の採点内訳がそろうと、変動理由を表示します。';
+      if (!change || change.status !== 'ok' || change.previousScore == null || change.scoreChange == null) {
+        setPill('risk-change-status', '蓄積中', 'muted');
+        summary.replaceChildren(createNode('span', '', '前回との比較は、次回以降の更新から表示されます。'));
+        factors.replaceChildren();
+        return;
+      }
+
+      const prior = Number(change.previousScore);
+      const delta = Number(change.scoreChange);
+      const current = prior + delta;
+      const scoreText = createNode('strong', delta > 0 ? 'tone-risk' : delta < 0 ? 'tone-good' : 'tone-muted', `${delta > 0 ? '+' : ''}${delta.toFixed(1)}点`);
+      summary.replaceChildren(
+        createNode('span', '', `${change.previousDate} の ${prior.toFixed(1)}点 → 今日の ${current.toFixed(1)}点`),
+        scoreText,
+        createNode('span', '', delta > 0 ? '市場リスクが上昇' : delta < 0 ? '市場リスクが低下' : '前回と同水準')
+      );
+      setPill('risk-change-status', delta > 0 ? 'リスク上昇' : delta < 0 ? 'リスク低下' : '変化なし', delta > 0 ? 'risk' : delta < 0 ? 'good' : 'muted');
+
+      const fragment = document.createDocumentFragment();
+      const items = Array.isArray(change.factors) ? change.factors : [];
+      if (!items.length) {
+        fragment.append(createNode('div', 'empty', '共通する採点項目に大きな変化はありません。'));
+      } else {
+        items.forEach(factor => {
+          const deltaPoints = Number(factor.changeInRiskPoints || 0);
+          const item = createNode('div', 'change-item');
+          item.append(createNode('strong', '', `${factor.group}｜${factor.name}`));
+          item.append(createNode('span', `change-points ${deltaPoints > 0 ? 'tone-risk' : 'tone-good'}`, `${deltaPoints > 0 ? '+' : ''}${deltaPoints.toFixed(1)}点`));
+          item.append(createNode('small', '', `${factor.previousDetail || '前回値なし'} → ${factor.currentDetail || '今回値なし'}`));
+          fragment.append(item);
+        });
+      }
+      factors.replaceChildren(fragment);
+    }
+
+    function renderScoreValidation(validation) {
+      const isPreliminary = validation?.status === 'preliminary';
+      const isCollecting = validation?.status === 'collecting';
+      setPill('score-validation-status', isPreliminary ? '暫定集計' : isCollecting ? '蓄積中' : '未計算', isPreliminary ? 'warn' : 'muted');
+      replaceDataGrid('score-validation-summary', [
+        { label: 'スコア記録', value: `${validation?.observationCount || 0}件`, sub: '同じ市場基準日は重複集計しません' },
+        { label: '1か月後の確定実績', value: `${validation?.oneMonthMaturedCount || 0}件`, sub: `目安: ${validation?.recommendedMinSamples || 10}件以上` },
+        { label: '3か月後の確定実績', value: `${validation?.threeMonthMaturedCount || 0}件`, sub: '63営業日経過後に確定' }
+      ]);
+      byId('score-validation-note').textContent = validation?.note || '検証データを蓄積中です。';
+
+      const table = byId('score-validation-table');
+      const fragment = document.createDocumentFragment();
+      const bands = Array.isArray(validation?.bands) ? validation.bands : [];
+      bands.forEach(band => {
+        const row = document.createElement('tr');
+        row.append(createNode('td', '', `${band.label}点`));
+        const samples = createNode('td', '', `${band.oneMonthSampleSize || 0} / ${band.threeMonthSampleSize || 0}`);
+        samples.append(createNode('span', 'subvalue', `記録 ${band.observationCount || 0}件`));
+        row.append(samples, createValidationOutcomeCell(band.spyAverageReturn1m, band.qqqAverageReturn1m, band.spyWinRate1m, band.qqqWinRate1m), createValidationDrawdownCell(band.spyAverageMaxDrawdown1m, band.qqqAverageMaxDrawdown1m), createValidationOutcomeCell(band.spyAverageReturn3m, band.qqqAverageReturn3m, band.spyWinRate3m, band.qqqWinRate3m), createValidationDrawdownCell(band.spyAverageMaxDrawdown3m, band.qqqAverageMaxDrawdown3m));
+        fragment.append(row);
+      });
+      if (!bands.length) {
+        const row = document.createElement('tr'); const cell = createNode('td', 'empty', '検証データを準備中です。'); cell.colSpan = 6; row.append(cell); fragment.append(row);
+      }
+      table.replaceChildren(fragment);
+    }
+
+    function createValidationOutcomeCell(spyReturn, qqqReturn, spyWinRate, qqqWinRate) {
+      const cell = createNode('td', 'outcome', `SPY ${signedPct(spyReturn)} / QQQ ${signedPct(qqqReturn)}`);
+      cell.append(createNode('span', 'subvalue', `勝率 SPY ${pct(spyWinRate, 0)} / QQQ ${pct(qqqWinRate, 0)}`));
+      return cell;
+    }
+
+    function createValidationDrawdownCell(spyDrawdown, qqqDrawdown) {
+      const cell = createNode('td', '', `SPY ${pct(spyDrawdown)} / QQQ ${pct(qqqDrawdown)}`);
+      cell.append(createNode('span', 'subvalue', '記録日から期間中の最大下落'));
+      return cell;
+    }
+
     function renderIndex(key, index) {
       const status = statusMeta[index.statusId] || statusMeta.Correction;
       byId(`index-${key}-name`).textContent = index.name;
@@ -489,8 +602,8 @@
 
     function renderHistory(history) {
       if (!Array.isArray(history) || history.length === 0) return;
-      const values = { Correction: 10, Pressure: 40, Uptrend: 90 };
-      chart('chart-history', { type: 'line', data: { labels: history.map(item => item.date), datasets: [{ data: history.map(item => values[item.combinedStatus] ?? null), borderColor: '#a990ff', backgroundColor: 'rgba(169,144,255,.12)', stepped: true, fill: true, borderWidth: 2, pointRadius: 0 }] }, options: chartOptions({ scales: { x: { grid: { display: false }, ticks: { color: '#657791', maxTicksLimit: 7, font: { size: 12 } } }, y: { min: 0, max: 100, grid: { color: 'rgba(158,185,220,.10)' }, ticks: { color: '#657791', font: { size: 12 } } } } }) });
+      const scores = history.filter(item => Number.isFinite(Number(item.marketRiskScore)) && item.marketRiskScore != null);
+      if (scores.length) chart('chart-history', { type: 'line', data: { labels: scores.map(item => item.date), datasets: [{ label: '市場リスクスコア', data: scores.map(item => item.marketRiskScore), borderColor: '#a990ff', backgroundColor: 'rgba(169,144,255,.12)', tension: .18, fill: true, borderWidth: 2, pointRadius: scores.length === 1 ? 4 : 2, pointHoverRadius: 5 }] }, options: chartOptions({ scales: { x: { grid: { display: false }, ticks: { color: '#657791', maxTicksLimit: 7, font: { size: 12 } } }, y: { min: 0, max: 100, grid: { color: 'rgba(158,185,220,.10)' }, ticks: { color: '#657791', font: { size: 12 }, callback: value => `${value}点` } } } }) });
       const pc = history.filter(item => item.putCallRatio != null);
       if (pc.length) chart('chart-putcall', { type: 'line', data: { labels: pc.map(item => item.date), datasets: [{ data: pc.map(item => item.putCallRatio), borderColor: '#a990ff', backgroundColor: 'rgba(169,144,255,.10)', fill: true, tension: .18, borderWidth: 2, pointRadius: 0 }] }, options: chartOptions() });
     }
@@ -515,10 +628,10 @@
         const generatedAt = data.lastUpdated || '—';
         byId('update-time').textContent = sourceAsOf ? `${sourceAsOf} 時点 · 更新 ${generatedAt} JST` : `更新 ${generatedAt} JST`;
         showStaleWarning(sourceAsOf || data.lastUpdated);
-        renderOverview(data); renderRiskScore(data.marketRiskScore); renderHealth(data);
+        renderOverview(data); renderRiskScore(data.marketRiskScore); renderRiskChange(data.marketRiskChange); renderHealth(data);
         renderIndex('spy', data.sp500); renderIndex('qqq', data.nasdaq);
         renderBreadth(data.marketBreadth); renderVolatility(data.volatilityRegime); renderCredit(data.creditRiskAppetite);
-        renderSector(data.sectorRotation); renderPutCall(data.putCallRatio); renderHistory(history);
+        renderSector(data.sectorRotation); renderPutCall(data.putCallRatio); renderHistory(history); renderScoreValidation(data.scoreValidation);
       } catch (error) {
         console.error(error); byId('update-time').textContent = 'データ読込エラー'; byId('stale-banner').style.display = 'block'; byId('stale-banner').textContent = 'データを読み込めませんでした。data.json と更新ワークフローを確認してください。';
       }
