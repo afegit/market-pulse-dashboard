@@ -1,587 +1,511 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CAN SLIM Market Pulse Dashboard</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-    <style>
-        :root { --primary-bg: #f8f9fa; --card-bg: #ffffff; --text-main: #333333; --text-muted: #6c757d; --accent-green: #2ecc71; --accent-yellow: #f1c40f; --accent-red: #e74c3c; --border-color: #e9ecef; --accent-blue: #3498db; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--primary-bg); color: var(--text-main); margin: 0; padding: 20px; display: flex; justify-content: center; }
-        .container { max-width: 1100px; width: 100%; }
-        .header { text-align: center; margin-bottom: 20px; }
-        .header h1 { margin: 0; color: #2c3e50; }
-        .header p { color: var(--text-muted); }
-        .stale-banner { display: none; background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; text-align: center; font-weight: bold; }
-        .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 20px; }
-        .card { background-color: var(--card-bg); border-radius: 10px; padding: 25px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); border: 1px solid var(--border-color); }
-        .status-card { text-align: center; grid-column: 1 / -1; }
-        .status-title { font-size: 1.2rem; color: var(--text-muted); margin-bottom: 10px; }
-        .status-value { font-size: 2.5rem; font-weight: bold; margin: 10px 0; }
-        .status-sub { color: var(--text-muted); font-size: 0.95rem; }
-        .exposure-badge { display: inline-block; padding: 8px 16px; border-radius: 20px; font-size: 1.2rem; font-weight: bold; background-color: #f1f3f5; margin-top: 10px; }
-        .index-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 20px; }
-        .index-card h3 { margin-top: 0; border-bottom: 2px solid var(--accent-blue); padding-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-        .index-badge { font-size: 0.85rem; padding: 4px 10px; border-radius: 12px; color: #fff; font-weight: normal; }
-        .metric-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border-color); font-size: 0.95rem; }
-        .metric-row:last-child { border-bottom: none; }
-        .metric-help { font-size: 0.76rem; color: var(--text-muted); margin: -6px 0 6px 0; line-height: 1.35; }
-        .chart-mini { height: 260px; margin-top: 15px; }
-        .chart-container { background-color: var(--card-bg); border-radius: 10px; padding: 20px; height: 260px; margin-bottom: 20px; }
-        .section-title { font-size: 1rem; color: var(--text-muted); margin: 30px 0 10px 4px; }
-        .data-warning { background: #fff3cd; color: #664d03; border: 1px solid #ffecb5; border-radius: 7px; padding: 10px 12px; font-size: 0.84rem; line-height: 1.45; margin: 12px 0; }
-        .data-note { color: var(--text-muted); font-size: 0.82rem; line-height: 1.45; margin: 10px 0 0 0; }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#07111f">
+  <title>Market Pulse | US Equity Risk Monitor</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <style>
+    :root {
+      --bg: #07111f;
+      --surface: #0d1a2c;
+      --surface-2: #101f35;
+      --surface-3: #15263f;
+      --line: rgba(158, 185, 220, .14);
+      --line-strong: rgba(158, 185, 220, .26);
+      --text: #ecf4ff;
+      --muted: #9aabc1;
+      --faint: #657791;
+      --blue: #4ba3ff;
+      --teal: #29d6b1;
+      --green: #62d78b;
+      --amber: #ffc95c;
+      --red: #ff717d;
+      --violet: #a990ff;
+      --shadow: 0 20px 50px rgba(0, 0, 0, .24);
+      --radius: 16px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: radial-gradient(circle at 10% -10%, #163762 0, transparent 34rem), var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+    button, input, select { font: inherit; }
+    .app { max-width: 1440px; margin: 0 auto; padding: 0 22px 48px; }
+    .topbar {
+      position: sticky; top: 0; z-index: 10;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      min-height: 68px; margin: 0 -22px; padding: 0 22px;
+      background: rgba(7, 17, 31, .82); backdrop-filter: blur(18px);
+      border-bottom: 1px solid var(--line);
+    }
+    .brand { display: flex; align-items: center; gap: 11px; font-weight: 750; letter-spacing: -.02em; }
+    .brand-mark {
+      width: 28px; height: 28px; border-radius: 8px;
+      display: grid; place-items: center; color: #06121f;
+      background: linear-gradient(135deg, var(--teal), var(--blue));
+      font-size: 16px; font-weight: 900;
+    }
+    .brand small { display: block; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .12em; }
+    .update { text-align: right; color: var(--muted); font-size: 12px; }
+    .update strong { display: block; color: var(--text); font-size: 13px; font-variant-numeric: tabular-nums; }
+    .live-dot { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 10px var(--teal); }
+
+    .hero { padding: 34px 0 20px; }
+    .eyebrow { color: var(--teal); font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    h1 { margin: 6px 0 7px; font-size: clamp(28px, 4vw, 42px); letter-spacing: -.045em; line-height: 1.05; }
+    .hero > p { max-width: 720px; margin: 0; color: var(--muted); }
+    .alert {
+      display: none; margin-top: 18px; padding: 11px 14px; border: 1px solid rgba(255, 201, 92, .34);
+      border-radius: 10px; color: #ffe0a2; background: rgba(255, 201, 92, .08); font-size: 13px;
+    }
+
+    .grid { display: grid; gap: 16px; }
+    .overview { grid-template-columns: 1.4fr 1fr 1fr; margin-bottom: 16px; }
+    .two-col { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 16px; }
+    .three-col { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 16px; }
+    .panel {
+      min-width: 0; padding: 20px; background: linear-gradient(145deg, rgba(21, 38, 63, .92), rgba(13, 26, 44, .98));
+      border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow);
+    }
+    .panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+    .panel h2, .panel h3 { margin: 0; letter-spacing: -.02em; }
+    .panel h2 { font-size: 16px; }
+    .panel h3 { font-size: 15px; }
+    .panel-sub { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .compact-help { margin: 12px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+
+    .score-hero { display: flex; align-items: center; gap: 20px; min-height: 170px; }
+    .score-ring {
+      --score: 0; --score-color: var(--green);
+      position: relative; flex: 0 0 auto; width: 124px; height: 124px; border-radius: 50%;
+      display: grid; place-items: center;
+      background: conic-gradient(var(--score-color) calc(var(--score) * 1%), rgba(255,255,255,.08) 0);
+    }
+    .score-ring::before { content: ""; position: absolute; inset: 9px; border-radius: 50%; background: var(--surface); }
+    .score-ring span { position: relative; text-align: center; font-size: 30px; font-weight: 800; letter-spacing: -.05em; font-variant-numeric: tabular-nums; }
+    .score-ring small { display: block; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; }
+    .score-copy { min-width: 0; }
+    .score-copy .headline { margin: 5px 0 7px; font-size: 22px; font-weight: 750; letter-spacing: -.035em; }
+    .score-copy p { margin: 0; color: var(--muted); font-size: 12px; }
+    .coverage { margin-top: 10px; color: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums; }
+
+    .state-value { margin: 8px 0 5px; font-size: 23px; font-weight: 750; letter-spacing: -.04em; }
+    .state-meta { color: var(--muted); font-size: 12px; }
+    .exposure { display: inline-flex; align-items: center; gap: 7px; margin-top: 15px; padding: 7px 10px; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--text); font-size: 12px; }
+    .exposure strong { font-size: 15px; }
+    .health-list { display: grid; gap: 8px; margin-top: 10px; }
+    .health-item { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12px; }
+
+    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid currentColor; border-radius: 999px; font-size: 11px; font-weight: 750; white-space: nowrap; }
+    .tone-good { color: var(--green); }
+    .tone-info { color: var(--blue); }
+    .tone-warn { color: var(--amber); }
+    .tone-risk { color: var(--red); }
+    .tone-muted { color: var(--muted); }
+
+    .index-card { padding-bottom: 14px; }
+    .index-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .metric-list { display: grid; margin-top: 14px; }
+    .metric { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+    .metric:last-child { border-bottom: 0; }
+    .metric span { color: var(--muted); font-size: 12px; }
+    .metric strong { color: var(--text); font-size: 13px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+    .chart-box { position: relative; height: 205px; margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); }
+    .chart-box.tall { height: 270px; margin-top: 0; padding-top: 0; border-top: 0; }
+
+    .risk-table { width: 100%; border-collapse: collapse; }
+    .risk-table th { padding: 0 7px 9px; color: var(--faint); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-align: left; text-transform: uppercase; }
+    .risk-table th:last-child, .risk-table td:last-child { text-align: right; }
+    .risk-table td { padding: 10px 7px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; vertical-align: middle; }
+    .risk-table td:nth-child(2) { color: var(--text); font-weight: 650; }
+    .risk-table .points { font-variant-numeric: tabular-nums; font-weight: 750; white-space: nowrap; }
+    .risk-bar { width: 90px; height: 5px; margin-top: 5px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.08); }
+    .risk-bar > i { display: block; height: 100%; border-radius: inherit; }
+
+    .data-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .datum { min-width: 0; padding: 12px; background: rgba(3, 11, 22, .24); border: 1px solid var(--line); border-radius: 10px; }
+    .datum span { display: block; color: var(--muted); font-size: 11px; }
+    .datum strong { display: block; overflow: hidden; margin-top: 5px; color: var(--text); font-size: 17px; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .datum small { display: block; overflow: hidden; margin-top: 3px; color: var(--faint); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+
+    .table-wrap { overflow-x: auto; }
+    .sector-table { width: 100%; min-width: 500px; border-collapse: collapse; }
+    .sector-table th { padding: 0 7px 10px; color: var(--faint); font-size: 10px; letter-spacing: .08em; text-align: right; text-transform: uppercase; }
+    .sector-table th:first-child { text-align: left; }
+    .sector-table td { padding: 9px 7px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+    .sector-table td:first-child { color: var(--text); text-align: left; font-weight: 650; }
+    .symbol { margin-left: 4px; color: var(--faint); font-size: 10px; font-weight: 600; }
+
+    .empty { padding: 22px 6px; color: var(--muted); font-size: 12px; text-align: center; }
+    .footer { margin-top: 24px; color: var(--faint); font-size: 11px; text-align: center; }
+
+    @media (max-width: 1050px) { .overview { grid-template-columns: 1.25fr 1fr; } .overview > :last-child { grid-column: span 2; } .three-col { grid-template-columns: 1fr 1fr; } .three-col > :last-child { grid-column: span 2; } }
+    @media (max-width: 700px) {
+      .app { padding: 0 14px 32px; } .topbar { margin: 0 -14px; padding: 0 14px; } .brand small { display: none; }
+      .overview, .two-col, .three-col { grid-template-columns: 1fr; } .overview > :last-child, .three-col > :last-child { grid-column: auto; }
+      .hero { padding-top: 26px; } .panel { padding: 16px; } .score-hero { align-items: flex-start; } .score-ring { width: 104px; height: 104px; } .score-ring span { font-size: 26px; }
+      .risk-table th:nth-child(1), .risk-table td:nth-child(1), .risk-table th:nth-child(3), .risk-table td:nth-child(3) { display: none; }
+    }
+  </style>
 </head>
 <body>
-<div class="container">
-    <div class="header">
-        <h1>Market Pulse Dashboard</h1>
-        <p>最終更新 (JST): <span id="update-time">--</span></p>
-    </div>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">M</span><span>Market Pulse<small>US EQUITY RISK MONITOR</small></span></div>
+      <div class="update"><span><i class="live-dot"></i>END-OF-DAY DATA</span><strong id="update-time">Loading…</strong></div>
+    </header>
 
-    <div class="stale-banner" id="stale-banner">
-        ⚠ データが3日以上更新されていません。自動更新が失敗している可能性があります（GitHub Actionsのログを確認してください）。
-    </div>
+    <main>
+      <section class="hero">
+        <div class="eyebrow">Decision support · not investment advice</div>
+        <h1>市場のリスクを、先に読む。</h1>
+        <p>トレンド、値幅の広がり、ボラティリティ、信用、セクター、需給をまとめて確認する米国株ロング向けの地合いモニターです。</p>
+        <div class="alert" id="stale-banner">データが3日以上更新されていません。数値の鮮度を確認してください。</div>
+      </section>
 
-    <div class="dashboard-grid">
-        <div class="card status-card">
-            <div class="status-title">現在の市場ステータス（総合判定）</div>
-            <div class="status-value" id="market-status">--</div>
-            <div class="status-sub" id="market-status-jp">--</div>
-            <div class="exposure-badge">推奨 Exposure: <span id="exposure-val">--</span></div>
-            <div class="metric-help" style="text-align:center; margin-top:6px;">株式にどれくらいの比率で資金を投じるかの目安です。100%に近いほど積極的に買い、0%に近いほど現金比率を高めることを示唆します。</div>
-            <div class="status-sub" style="margin-top:10px;">判定根拠: <span id="driven-by">--</span></div>
-            <div class="metric-help" style="text-align:center;">S&P 500とNasdaq Compositeのうち、より弱い方（悲観的な方）の判定を採用する方式です（IBD Market Pulseと同じ考え方）。</div>
-        </div>
-    </div>
+      <section class="grid overview" aria-label="Market overview">
+        <article class="panel score-hero">
+          <div class="score-ring" id="risk-ring"><span id="risk-score">--<small>/ 100</small></span></div>
+          <div class="score-copy">
+            <div class="eyebrow">Composite risk score</div>
+            <div class="headline" id="risk-label">算出中</div>
+            <p>0に近いほどロングの地合いが良好。100に近いほど市場リスクが高い目安です。</p>
+            <div class="coverage" id="risk-coverage">データを確認中</div>
+          </div>
+        </article>
 
-    <div class="index-grid">
-        <div class="card index-card" id="card-sp500">
-            <h3>S&P 500（SPY） <span class="index-badge" id="badge-sp500">--</span></h3>
-            <div class="metric-row"><span>調整後終値</span><strong id="close-sp500">--</strong></div>
-            <div class="metric-row"><span>50日移動平均線</span><strong id="sma-sp500">--</strong></div>
-            <div class="metric-help">SPYの調整後終値を使用します。分配金・株式分割によるリターンの歪みを抑え、価格と移動平均線を比較します。</div>
-            <div class="metric-row"><span>52週高値からのドローダウン</span><strong id="drawdown-sp500">--</strong></div>
-            <div class="metric-help">過去1年の最高値から現在どれだけ下落しているか。押し目の深さの目安です。</div>
-            <div class="metric-row"><span>トレンド状態</span><strong id="trend-sp500">--</strong></div>
-            <div class="metric-help">「上昇トレンド確認済み」になるには、下落局面からの反発を裏付ける出来高急増日（フォロースルーデー）が必要です。単に50日線を上回っただけでは昇格しません。</div>
-            <div class="metric-row"><span>売り抜け日（有効カウント）</span><strong id="dist-sp500">--</strong></div>
-            <div class="metric-help">SPYの実取引出来高で判定します。直近25営業日以内で「下落率0.2%以上・前日より出来高が多い」日を数え、5%以上の反発があった日は無効化されます。</div>
-            <div class="metric-row"><span>売り抜け日の深刻さ（最大下落率）</span><strong id="worst-dd-sp500">--</strong></div>
-            <div class="metric-help">現在有効な売り抜け日の中で、下落率が最も大きかった日。同じ「5日」でも中身の深刻さが分かります。</div>
-            <div class="metric-row"><span>直近フォロースルーデー</span><strong id="ftd-sp500">--</strong></div>
-            <div class="metric-help">下落相場からの本格反発を裏付ける、出来高を伴う大幅上昇日（目安1.25%以上）。これが「上昇トレンド確認済み」への切り替えトリガーです。</div>
-            <div class="chart-mini"><canvas id="chart-sp500"></canvas></div>
-        </div>
-        <div class="card index-card" id="card-nasdaq">
-            <h3>Nasdaq-100（QQQ） <span class="index-badge" id="badge-nasdaq">--</span></h3>
-            <div class="metric-row"><span>調整後終値</span><strong id="close-nasdaq">--</strong></div>
-            <div class="metric-row"><span>50日移動平均線</span><strong id="sma-nasdaq">--</strong></div>
-            <div class="metric-help">QQQの調整後終値を使用します。分配金・株式分割によるリターンの歪みを抑え、価格と移動平均線を比較します。</div>
-            <div class="metric-row"><span>52週高値からのドローダウン</span><strong id="drawdown-nasdaq">--</strong></div>
-            <div class="metric-help">過去1年の最高値から現在どれだけ下落しているか。押し目の深さの目安です。</div>
-            <div class="metric-row"><span>トレンド状態</span><strong id="trend-nasdaq">--</strong></div>
-            <div class="metric-help">「上昇トレンド確認済み」になるには、下落局面からの反発を裏付ける出来高急増日（フォロースルーデー）が必要です。単に50日線を上回っただけでは昇格しません。</div>
-            <div class="metric-row"><span>売り抜け日（有効カウント）</span><strong id="dist-nasdaq">--</strong></div>
-            <div class="metric-help">QQQの実取引出来高で判定します。直近25営業日以内で「下落率0.2%以上・前日より出来高が多い」日を数え、5%以上の反発があった日は無効化されます。</div>
-            <div class="metric-row"><span>売り抜け日の深刻さ（最大下落率）</span><strong id="worst-dd-nasdaq">--</strong></div>
-            <div class="metric-help">現在有効な売り抜け日の中で、下落率が最も大きかった日。同じ「5日」でも中身の深刻さが分かります。</div>
-            <div class="metric-row"><span>直近フォロースルーデー</span><strong id="ftd-nasdaq">--</strong></div>
-            <div class="metric-help">下落相場からの本格反発を裏付ける、出来高を伴う大幅上昇日（目安1.25%以上）。これが「上昇トレンド確認済み」への切り替えトリガーです。</div>
-            <div class="chart-mini"><canvas id="chart-nasdaq"></canvas></div>
-        </div>
-    </div>
+        <article class="panel">
+          <div class="eyebrow">Market regime</div>
+          <div class="state-value" id="market-status">--</div>
+          <div class="state-meta" id="market-status-jp">--</div>
+          <div class="exposure">目安 Exposure <strong id="exposure-value">--</strong></div>
+          <p class="compact-help" id="market-driven-by">--</p>
+        </article>
 
-    <div class="data-warning">
-        Distribution Dayとフォロースルーデーは出来高が生命線です。このダッシュボードでは、出来高が不明確になりやすい指数そのものではなく、実際に取引されるSPY／QQQの出来高を使います。各判定は地合い確認用であり、個別銘柄のエントリーや損切り判断を置き換えるものではありません。
-    </div>
+        <article class="panel">
+          <div class="eyebrow">System health</div>
+          <h2 style="margin-top:7px;">データ状態</h2>
+          <div class="health-list" id="data-health"></div>
+          <p class="compact-help">取得できない項目はスコアを低く見せず、採点カバレッジを下げて表示します。</p>
+        </article>
+      </section>
 
-    <div class="section-title">Exposure 推移（過去180日）</div>
-    <div class="chart-container"><canvas id="historyChart"></canvas></div>
+      <section class="panel" aria-labelledby="risk-breakdown-title">
+        <div class="panel-head"><div><div class="eyebrow">Why this score</div><h2 id="risk-breakdown-title">リスク・スコアの内訳</h2><p class="panel-sub">高い点数ほど、慎重に見るべき要因が増えています。</p></div><span class="pill tone-info" id="risk-raw">--</span></div>
+        <div class="table-wrap"><table class="risk-table"><thead><tr><th>分類</th><th>指標</th><th>根拠</th><th>リスク点</th></tr></thead><tbody id="risk-metrics"></tbody></table></div>
+      </section>
 
-    <div class="section-title">Put/Call Ratio（自前算出・参考指標）</div>
-    <div class="dashboard-grid">
-        <div class="card" id="card-putcall">
-            <div id="putcall-ok" style="display:none;">
-                <div class="metric-row"><span>算出対象</span><strong id="pc-underlying">--</strong></div>
-                <div class="metric-row"><span>Put/Call Ratio（当日・出来高ベース）</span><strong id="pc-ratio" style="font-size:1.3rem;">--</strong></div>
-                <div class="metric-help">プット出来高÷コール出来高。1.0を超えるとプットの方が多く取引されたことを意味します（SPYは元々ヘッジ需要で1.0超えが常態なので、個別株の目安をそのまま当てはめないでください）。</div>
-                <div class="metric-row"><span>10日移動平均</span><strong id="pc-sma10">--</strong></div>
-                <div class="metric-row"><span>コール出来高</span><strong id="pc-call-vol">--</strong></div>
-                <div class="metric-row"><span>プット出来高</span><strong id="pc-put-vol">--</strong></div>
-                <div class="metric-row"><span>自己の過去分布での位置</span><strong id="pc-percentile">--</strong></div>
-                <div class="metric-help">このサイトが蓄積してきた過去の値と比べた順位（パーセンタイル）。80以上なら過去と比べてプットに偏っている、20以下ならコールに偏っている状態です。履歴が10日たまるまでは表示されません。</div>
-            </div>
-            <div id="putcall-unavailable" style="display:none; text-align:center; color: var(--text-muted); padding: 12px 0;">
-                <p style="font-size: 1.05rem; margin-bottom: 6px;">⚠ 本日はPut/Call Ratioを取得できませんでした</p>
-                <p style="font-size: 0.85rem;" id="pc-unavailable-note">--</p>
-            </div>
-            <p style="color: var(--text-muted); font-size: 0.82rem; margin: 12px 0 0 0;">
-                値が高いほどプット優勢（弱気/ヘッジ需要が強い）、低いほどコール優勢（強気）の目安です。
-                「過去分布での位置」はこのサイト自身が蓄積した履歴内での相対位置で、IBD/CBOEの一般的なしきい値（0.6〜1.2）とは基準が異なります。
-            </p>
-            <div class="data-warning">
-                この値はSPYの<strong>直近限月だけ</strong>の出来高です。0DTE、ヘッジ取引、限月構成の影響が大きいため、方向予想の主シグナルには使えません。極端な需給の補助確認に限定してください。
-            </div>
-            <div class="chart-mini" style="height: 220px; margin-top: 15px;"><canvas id="chart-putcall"></canvas></div>
-        </div>
-    </div>
+      <section class="grid two-col" aria-label="Index trend">
+        <article class="panel index-card">
+          <div class="index-title"><div><div class="eyebrow">Broad market</div><h2 id="index-spy-name">SPY</h2></div><span class="pill" id="index-spy-status">--</span></div>
+          <div class="metric-list" id="index-spy-metrics"></div>
+          <p class="compact-help">SPYの調整後終値と実取引出来高を使います。売り抜け日とFTDは、相場の勢いを測る補助材料です。</p>
+          <div class="chart-box"><canvas id="chart-spy"></canvas></div>
+        </article>
+        <article class="panel index-card">
+          <div class="index-title"><div><div class="eyebrow">Growth leadership</div><h2 id="index-qqq-name">QQQ</h2></div><span class="pill" id="index-qqq-status">--</span></div>
+          <div class="metric-list" id="index-qqq-metrics"></div>
+          <p class="compact-help">QQQは大型グロース株の地合いを映します。SPYと両方を見ることで、上昇の偏りも確認できます。</p>
+          <div class="chart-box"><canvas id="chart-qqq"></canvas></div>
+        </article>
+      </section>
 
-    <div class="section-title">セクターローテーション（自前算出・SPYに対する相対強度）</div>
-    <div class="dashboard-grid">
-        <div class="card" id="card-sector">
-            <div id="sector-ok" style="display:none;">
-                <p style="color: var(--text-muted); font-size: 0.85rem; margin-top:0;">
-                    SPDRセクターETF11銘柄の<strong>調整後終値</strong>による騰落率をSPY自体と比較し、3ヶ月の相対強度が高い順（＝資金が向かっているセクター）に並べています。CAN SLIMの「L(Leader)」の補助指標です。
-                </p>
-                <table style="width:100%; border-collapse: collapse; font-size: 0.88rem;">
-                    <thead>
-                        <tr style="border-bottom: 2px solid var(--accent-blue);">
-                            <th style="text-align:left; padding: 8px 4px;">セクター</th>
-                            <th style="text-align:right; padding: 8px 4px;">1ヶ月</th>
-                            <th style="text-align:right; padding: 8px 4px;">3ヶ月</th>
-                            <th style="text-align:right; padding: 8px 4px; border-bottom: 1px dotted var(--text-muted); cursor: help;" title="このセクターの3ヶ月リターンからSPY自体の3ヶ月リターンを引いた差。プラスが大きいほど市場平均より資金が集まっている（＝リーダーシップが強い）ことを示します。">対SPY(3ヶ月)</th>
-                        </tr>
-                    </thead>
-                    <tbody id="sector-table-body"></tbody>
-                </table>
-                <p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom:0;">SPY自体のリターン：1ヶ月 <span id="spy-return-1m">--</span> / 3ヶ月 <span id="spy-return-3m">--</span></p>
+      <section class="grid three-col" aria-label="Risk signals">
+        <article class="panel"><div class="panel-head"><div><div class="eyebrow">Market internals</div><h2>市場ブレッドス</h2><p class="panel-sub">上昇が広がっているか。</p></div><span class="pill" id="breadth-status">--</span></div><div class="data-grid" id="breadth-data"></div><p class="compact-help">Nasdaq-100の構成銘柄を等ウェイトで集計。指数だけが上がり、中身が弱い状況を見つけます。</p></article>
+        <article class="panel"><div class="panel-head"><div><div class="eyebrow">Volatility regime</div><h2>ボラティリティ</h2><p class="panel-sub">短期ヘッジ需要の強さ。</p></div><span class="pill" id="volatility-status">--</span></div><div class="data-grid" id="volatility-data"></div><p class="compact-help">VIXがVIX3Mを上回る逆転は警戒灯です。単独で売買を決める指標ではありません。</p></article>
+        <article class="panel"><div class="panel-head"><div><div class="eyebrow">Credit appetite</div><h2>信用リスク</h2><p class="panel-sub">低格付け債に資金が向かうか。</p></div><span class="pill" id="credit-status">--</span></div><div class="data-grid" id="credit-data"></div><p class="compact-help">HYGとLQDの比較で、金利差より信用リスクの変化を重視します。HY OASは取得遅延する場合があります。</p></article>
+      </section>
 
-                <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-color);">
-                    <h4 style="margin: 0 0 6px 0; font-size: 0.95rem;">市場の値幅代理指標（Breadth Proxies）</h4>
-                    <p style="color: var(--text-muted); font-size: 0.82rem; margin-top:0;">
-                        RSP・IWMは時価総額集中や小型株の強弱を見る<strong>代理指標</strong>です。真の市場ブレッドスではないため、下のNasdaq-100構成銘柄スキャンと併せて確認してください。マイナスが大きいほど、上昇が偏っている（集中リスクが高い）ことを示唆します。
-                    </p>
-                    <table style="width:100%; border-collapse: collapse; font-size: 0.88rem;">
-                        <thead>
-                            <tr style="border-bottom: 2px solid var(--accent-blue);">
-                                <th style="text-align:left; padding: 8px 4px;">指標</th>
-                                <th style="text-align:right; padding: 8px 4px;">1ヶ月</th>
-                                <th style="text-align:right; padding: 8px 4px;">3ヶ月</th>
-                                <th style="text-align:right; padding: 8px 4px;">対SPY(3ヶ月)</th>
-                            </tr>
-                        </thead>
-                        <tbody id="breadth-table-body"></tbody>
-                    </table>
-                </div>
-            </div>
-            <div id="sector-unavailable" style="display:none; text-align:center; color: var(--text-muted); padding: 12px 0;">
-                <p style="font-size: 1.05rem; margin-bottom: 6px;">⚠ 本日はセクターデータを取得できませんでした</p>
-                <p style="font-size: 0.85rem;" id="sector-unavailable-note">--</p>
-            </div>
-        </div>
-    </div>
+      <section class="grid two-col" aria-label="Leadership and sentiment">
+        <article class="panel">
+          <div class="panel-head"><div><div class="eyebrow">Leadership</div><h2>セクター・ローテーション</h2><p class="panel-sub">どこに相対的な強さがあるか。</p></div><span class="pill" id="sector-status">--</span></div>
+          <div class="table-wrap"><table class="sector-table"><thead><tr><th>セクター</th><th>1か月</th><th>3か月</th><th>対SPY</th></tr></thead><tbody id="sector-table"></tbody></table></div>
+          <p class="compact-help" id="sector-note">調整後終値で比較します。上位セクターは候補探しの出発点で、買い推奨ではありません。</p>
+          <div class="metric-list" id="proxy-metrics"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-head"><div><div class="eyebrow">Options sentiment</div><h2>SPY Put / Call</h2><p class="panel-sub">極端な需給だけを補助確認。</p></div><span class="pill" id="putcall-status">--</span></div>
+          <div class="data-grid" id="putcall-data"></div>
+          <p class="compact-help" id="putcall-note">直近限月のみの出来高です。0DTE・ヘッジ・満期構成の影響があるため、主シグナルには使いません。</p>
+          <div class="chart-box"><canvas id="chart-putcall"></canvas></div>
+        </article>
+      </section>
 
-    <div class="section-title">Credit Risk Appetite（信用リスクの警戒灯）</div>
-    <div class="dashboard-grid">
-        <div class="card" id="card-credit">
-            <div id="credit-ok" style="display:none;">
-                <p style="color: var(--text-muted); font-size: 0.85rem; margin-top:0;">
-                    ハイイールド社債ETF(HYG)と投資適格社債ETF(LQD)の調整後終値を比較し、信用リスクを取りに行く動きかを見ます。TLTとの比較は金利デュレーション差の影響が大きいため、信用不安の主指標には使いません。
-                </p>
-                <div class="metric-row"><span>HYG（ハイイールド社債）</span><strong id="credit-hyg">--</strong></div>
-                <div class="metric-row"><span>LQD（投資適格社債）</span><strong id="credit-lqd">--</strong></div>
-                <div class="metric-row"><span>HY対IG相対リターン（3ヶ月）</span><strong id="credit-spread-3m" style="font-size:1.15rem;">--</strong></div>
-                <div class="metric-help">HYGの3ヶ月リターン − LQDの3ヶ月リターン。プラスが大きいほど低格付け債を選好、マイナスが大きいほど信用リスク回避の目安です。</div>
-                <div class="metric-row"><span>リスク選好度スプレッド（1ヶ月）</span><strong id="credit-spread-1m">--</strong></div>
-                <div class="metric-row"><span>HY OAS（ハイイールド債スプレッド）</span><strong id="credit-hy-oas">--</strong></div>
-                <div class="metric-row"><span>HY OASの1か月変化</span><strong id="credit-hy-oas-change">--</strong></div>
-                <div class="metric-help">HY OASは米国債に対してハイイールド債がどれだけ上乗せ利回りを求められているかを示す信用スプレッドです。拡大は信用不安の警戒灯、縮小は改善の目安です。取得元の公表遅延によりETF価格より更新が遅れることがあります。</div>
-            </div>
-            <div id="credit-unavailable" style="display:none; text-align:center; color: var(--text-muted); padding: 12px 0;">
-                <p style="font-size: 1.05rem; margin-bottom: 6px;">⚠ 本日はCredit Risk Appetiteを取得できませんでした</p>
-                <p style="font-size: 0.85rem;" id="credit-unavailable-note">--</p>
-            </div>
-        </div>
-    </div>
+      <section class="grid two-col" aria-label="History charts">
+        <article class="panel"><div class="panel-head"><div><div class="eyebrow">Risk history</div><h2>Exposure の推移</h2><p class="panel-sub">日々の市場ステータスから導く目安。</p></div></div><div class="chart-box tall"><canvas id="chart-history"></canvas></div></article>
+        <article class="panel"><div class="panel-head"><div><div class="eyebrow">How to read this dashboard</div><h2>まず見る順番</h2><p class="panel-sub">迷ったら、上から下へ。</p></div></div><div class="metric-list"><div class="metric"><span>1. 総合スコア</span><strong>地合いの温度感</strong></div><div class="metric"><span>2. SPY / QQQ</span><strong>価格と売り圧力</strong></div><div class="metric"><span>3. ブレッドス</span><strong>上昇の広がり</strong></div><div class="metric"><span>4. VIX・信用</span><strong>急変リスク</strong></div><div class="metric"><span>5. セクター</span><strong>候補探しの方向</strong></div></div><p class="compact-help">この画面はポジション量や新規エントリーの慎重さを考える補助です。個別銘柄の決算、損切り水準、保有期間は別途判断してください。</p></article>
+      </section>
+    </main>
+    <footer class="footer">Market Pulse · End-of-day decision support · Data may be delayed or unavailable.</footer>
+  </div>
 
-    <div class="section-title">Volatility Regime（ボラティリティ警戒灯）</div>
-    <div class="dashboard-grid">
-        <div class="card" id="card-volatility">
-            <div id="volatility-ok" style="display:none;">
-                <p class="data-note" style="margin-top:0;">
-                    VIX（直近30日）とVIX3M（3か月先）のインプライド・ボラティリティを比べます。これはVIX先物カーブの無料データによる近似であり、完全な先物期限構造ではありません。
-                </p>
-                <div class="metric-row"><span>VIX</span><strong id="vol-vix">--</strong></div>
-                <div class="metric-row"><span>VIX 20日平均</span><strong id="vol-vix-sma20">--</strong></div>
-                <div class="metric-row"><span>VIX3M</span><strong id="vol-vix3m">--</strong></div>
-                <div class="metric-row"><span>期限構造</span><strong id="vol-term-structure">--</strong></div>
-                <div class="metric-row"><span>VIX対VIX3Mスロープ</span><strong id="vol-term-slope">--</strong></div>
-                <div class="metric-help">VIXがVIX3Mを上回るBackwardationは短期ヘッジ需要が高い警戒状態です。VIXの20日平均超えと同時に起きる場合は、新規ロングやレバレッジのリスク予算を見直す材料になります。単独で売買を決めないでください。</div>
-            </div>
-            <div id="volatility-unavailable" style="display:none; text-align:center; color: var(--text-muted); padding: 12px 0;">
-                <p style="font-size: 1.05rem; margin-bottom: 6px;">⚠ 本日はVIXデータを取得できませんでした</p>
-                <p style="font-size: 0.85rem;" id="volatility-unavailable-note">--</p>
-            </div>
-        </div>
-    </div>
-
-    <div class="section-title">Nasdaq-100 Market Breadth（構成銘柄による市場内部）</div>
-    <div class="dashboard-grid">
-        <div class="card" id="card-market-breadth">
-            <div id="market-breadth-ok" style="display:none;">
-                <p class="data-note" style="margin-top:0;">
-                    Nasdaq-100構成銘柄を等ウェイトで個別集計した真の市場ブレッドスです。指数だけが上昇していても、50日線上比率・新高値数・A/Dラインが悪化する場合は、上昇の広がり不足を確認できます。
-                </p>
-                <div class="metric-row"><span>データ取得カバレッジ</span><strong id="mb-coverage">--</strong></div>
-                <div class="metric-row"><span>50日線上の銘柄比率</span><strong id="mb-above-50">--</strong></div>
-                <div class="metric-row"><span>200日線上の銘柄比率</span><strong id="mb-above-200">--</strong></div>
-                <div class="metric-row"><span>52週新高値 / 新安値</span><strong id="mb-high-low">--</strong></div>
-                <div class="metric-row"><span>当日の騰落数（A/D）</span><strong id="mb-advance-decline">--</strong></div>
-                <div class="metric-row"><span>20日A/Dライン変化</span><strong id="mb-ad-line-20d">--</strong></div>
-                <div class="metric-help">A/Dラインは毎日の上昇銘柄数−下落銘柄数を累積する等ウェイト指標です。20日変化がマイナスで、かつ指数が高値圏なら、上昇が一部大型株に偏っていないかを再確認してください。</div>
-                <div class="data-warning" id="mb-partial-warning" style="display:none; margin-bottom:0;"></div>
-            </div>
-            <div id="market-breadth-unavailable" style="display:none; text-align:center; color: var(--text-muted); padding: 12px 0;">
-                <p style="font-size: 1.05rem; margin-bottom: 6px;">⚠ 本日は市場ブレッドスを算出できませんでした</p>
-                <p style="font-size: 0.85rem;" id="market-breadth-unavailable-note">--</p>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
+  <script>
     const statusMeta = {
-        'Correction': { en: 'Market in Correction', jp: '調整局面', exp: '0% - 20%', expMid: 10, color: 'var(--accent-red)', hex: '#e74c3c' },
-        'Pressure':   { en: 'Uptrend Under Pressure', jp: '警戒感のある上昇', exp: '20% - 60%', expMid: 40, color: 'var(--accent-yellow)', hex: '#f1c40f' },
-        'Uptrend':    { en: 'Confirmed Uptrend', jp: '上昇トレンド確実', exp: '80% - 100%', expMid: 90, color: 'var(--accent-green)', hex: '#2ecc71' }
+      Correction: { en: 'Market in Correction', jp: '調整局面', exposure: '0–20%', tone: 'risk' },
+      Pressure: { en: 'Uptrend Under Pressure', jp: '上昇トレンドだが警戒', exposure: '20–60%', tone: 'warn' },
+      Uptrend: { en: 'Confirmed Uptrend', jp: '上昇トレンドを確認', exposure: '80–100%', tone: 'good' }
     };
-    const trendJp = { 'Correction': '調整/未確認', 'RallyAttempt': 'ラリー・アテンプト中', 'ConfirmedUptrend': '上昇トレンド確認済み' };
-    const PUT_CALL_MIN_HISTORY = 10; // Program.cs側のPUT_CALL_MIN_HISTORY_FOR_PERCENTILEと合わせる
+    const trendLabel = { Correction: '調整 / 未確認', RallyAttempt: '反発を試す段階', ConfirmedUptrend: '上昇トレンド確認済み' };
+    const charts = new Map();
+    let lastLoadedAt = 0;
 
-    // Chart.jsは同じcanvasに対して2回目のnew Chart()を呼ぶとエラーになるため、
-    // 既存のグラフがあれば破棄してから作り直す（再取得のたびに呼ばれても安全にするため）
-    function createOrUpdateChart(canvasId, config) {
-        const canvas = document.getElementById(canvasId);
-        const existing = Chart.getChart(canvas);
-        if (existing) existing.destroy();
-        return new Chart(canvas.getContext('2d'), config);
+    const byId = id => document.getElementById(id);
+    const number = (value, digits = 2) => value == null || Number.isNaN(Number(value)) ? '--' : Number(value).toFixed(digits);
+    const pct = (value, digits = 2) => value == null || Number.isNaN(Number(value)) ? '--' : `${Number(value).toFixed(digits)}%`;
+    const signedPct = (value, digits = 2) => value == null || Number.isNaN(Number(value)) ? '--' : `${Number(value) > 0 ? '+' : ''}${Number(value).toFixed(digits)}%`;
+    const signed = value => Number(value) > 0 ? `+${value}` : String(value);
+    const toneClass = tone => `tone-${tone || 'muted'}`;
+    const isAvailable = block => block && (block.status === 'ok' || block.status === 'partial');
+
+    function setPill(id, text, tone = 'muted') {
+      const element = byId(id);
+      element.className = `pill ${toneClass(tone)}`;
+      element.textContent = text;
     }
 
-    function renderPutCallCard(pc) {
-        // 再取得時に状態が切り替わっても古い表示が残らないよう、まず両方を隠してから必要な方だけ出す
-        document.getElementById('putcall-ok').style.display = 'none';
-        document.getElementById('putcall-unavailable').style.display = 'none';
-
-        if (!pc || pc.status !== 'ok') {
-            document.getElementById('putcall-unavailable').style.display = 'block';
-            document.getElementById('pc-unavailable-note').innerText = (pc && pc.note) || '取得結果がありません。';
-            return;
-        }
-        document.getElementById('putcall-ok').style.display = 'block';
-        document.getElementById('pc-underlying').innerText = pc.underlying;
-        document.getElementById('pc-ratio').innerText = Number(pc.ratio).toFixed(3);
-        document.getElementById('pc-sma10').innerText = pc.sma10 != null ? Number(pc.sma10).toFixed(3) : '--';
-        document.getElementById('pc-call-vol').innerText = Number(pc.callVolume).toLocaleString();
-        document.getElementById('pc-put-vol').innerText = Number(pc.putVolume).toLocaleString();
-
-        const percentileEl = document.getElementById('pc-percentile');
-        if (pc.percentileRank != null) {
-            percentileEl.innerText = `${pc.percentileRank}パーセンタイル（直近${pc.historyDays}日中）`;
-            // 自己の履歴内での相対位置のみで色分け（絶対しきい値は未検証のため使わない）
-            percentileEl.style.color = pc.percentileRank >= 80 ? 'var(--accent-red)' : (pc.percentileRank <= 20 ? 'var(--accent-green)' : 'var(--text-main)');
-        } else {
-            const days = pc.historyDays || 0;
-            percentileEl.innerText = `統計を蓄積中（${days}/${PUT_CALL_MIN_HISTORY}日）`;
-            percentileEl.style.color = 'var(--text-muted)';
-        }
+    function createNode(tag, className, content) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (content != null) node.textContent = content;
+      return node;
     }
 
-    function renderIndexCard(key, data) {
-        const s = statusMeta[data.statusId];
-        document.getElementById(`badge-${key}`).innerText = s.en;
-        document.getElementById(`badge-${key}`).style.backgroundColor = s.hex;
-        document.getElementById(`close-${key}`).innerText = Number(data.latestClose).toFixed(2);
-        const smaEl = document.getElementById(`sma-${key}`);
-        smaEl.innerText = data.sma50 ? Number(data.sma50).toFixed(2) : '--';
-        smaEl.style.color = data.isAboveSma50 ? 'var(--accent-green)' : 'var(--accent-red)';
-
-        const drawdownEl = document.getElementById(`drawdown-${key}`);
-        drawdownEl.innerText = `${Number(data.drawdownFromHighPct).toFixed(2)}%`;
-        drawdownEl.style.color = data.drawdownFromHighPct <= -10 ? 'var(--accent-red)' : (data.drawdownFromHighPct <= -3 ? 'var(--accent-yellow)' : 'var(--accent-green)');
-
-        const trendEl = document.getElementById(`trend-${key}`);
-        trendEl.innerText = trendJp[data.trendState] || data.trendState;
-        trendEl.style.color = data.trendState === 'ConfirmedUptrend' ? 'var(--accent-green)' : 'var(--text-main)';
-
-        const distEl = document.getElementById(`dist-${key}`);
-        distEl.innerText = `${data.distributionDaysActive} 日`;
-        distEl.style.color = data.distributionDaysActive >= 6 ? 'var(--accent-red)' : (data.distributionDaysActive >= 3 ? 'var(--accent-yellow)' : 'var(--accent-green)');
-
-        const worstDdEl = document.getElementById(`worst-dd-${key}`);
-        worstDdEl.innerText = data.worstActiveDropPct != null ? `-${Math.abs(data.worstActiveDropPct).toFixed(2)}% (${data.worstActiveDropDate})` : 'なし';
-
-        document.getElementById(`ftd-${key}`).innerText = data.lastFollowThroughDate || '未発生';
-
-        createOrUpdateChart(`chart-${key}`, {
-            type: 'line',
-            data: {
-                labels: data.chart.labels,
-                datasets: [
-                    { label: '調整後終値', data: data.chart.closes, borderColor: '#2980b9', backgroundColor: 'rgba(41, 128, 185, 0.08)', borderWidth: 2, fill: true, tension: 0.1, pointRadius: 0 },
-                    { label: '50日移動平均線', data: data.chart.sma50, borderColor: '#e67e22', borderWidth: 2, borderDash: [5, 5], fill: false, pointRadius: 0 },
-                    { label: '売り抜け日(有効)', data: data.chart.distMarksActive, backgroundColor: '#e74c3c', borderColor: '#e74c3c', pointStyle: 'triangle', pointRadius: 6, pointHoverRadius: 8, showLine: false },
-                    { label: '売り抜け日(失効済み)', data: data.chart.distMarksExpired, backgroundColor: 'rgba(150, 150, 150, 0.5)', borderColor: 'rgba(120, 120, 120, 0.6)', pointStyle: 'triangle', pointRadius: 5, pointHoverRadius: 7, showLine: false }
-                ]
-            },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-        });
+    function replaceMetrics(id, rows) {
+      const container = byId(id);
+      const fragment = document.createDocumentFragment();
+      rows.forEach(([label, value, tone]) => {
+        const row = createNode('div', 'metric');
+        row.append(createNode('span', '', label));
+        const strong = createNode('strong', tone ? toneClass(tone) : '', value);
+        row.append(strong); fragment.append(row);
+      });
+      container.replaceChildren(fragment);
     }
 
-    function renderSectorTable(sr) {
-        document.getElementById('sector-ok').style.display = 'none';
-        document.getElementById('sector-unavailable').style.display = 'none';
-
-        if (!sr || sr.status !== 'ok' || !sr.sectors) {
-            document.getElementById('sector-unavailable').style.display = 'block';
-            document.getElementById('sector-unavailable-note').innerText = (sr && sr.note) || '取得結果がありません。';
-            return;
-        }
-        document.getElementById('sector-ok').style.display = 'block';
-        document.getElementById('spy-return-1m').innerText = `${sr.spyReturn1m.toFixed(2)}%`;
-        document.getElementById('spy-return-3m').innerText = `${sr.spyReturn3m.toFixed(2)}%`;
-
-        const tbody = document.getElementById('sector-table-body');
-        tbody.innerHTML = '';
-        sr.sectors.forEach(s => {
-            const relColor = s.relStrength3m > 0 ? 'var(--accent-green)' : (s.relStrength3m < 0 ? 'var(--accent-red)' : 'var(--text-main)');
-            const row = document.createElement('tr');
-            row.style.borderBottom = '1px solid var(--border-color)';
-            row.innerHTML = `
-                <td style="padding: 6px 4px;">${s.name}<span style="color:var(--text-muted); font-size:0.8em;"> (${s.symbol})</span></td>
-                <td style="text-align:right; padding: 6px 4px;">${s.return1m.toFixed(2)}%</td>
-                <td style="text-align:right; padding: 6px 4px;">${s.return3m.toFixed(2)}%</td>
-                <td style="text-align:right; padding: 6px 4px; color:${relColor}; font-weight:bold;">${s.relStrength3m > 0 ? '+' : ''}${s.relStrength3m.toFixed(2)}%</td>
-            `;
-            tbody.appendChild(row);
-        });
-
-        const breadthTbody = document.getElementById('breadth-table-body');
-        breadthTbody.innerHTML = '';
-        (sr.breadthProxies || []).forEach(s => {
-            // 値幅代理指標は「マイナス=偏り(集中リスク)」の解釈なので、セクター表とは色の意味が逆になる
-            const relColor = s.relStrength3m < 0 ? 'var(--accent-red)' : (s.relStrength3m > 0 ? 'var(--accent-green)' : 'var(--text-main)');
-            const row = document.createElement('tr');
-            row.style.borderBottom = '1px solid var(--border-color)';
-            row.innerHTML = `
-                <td style="padding: 6px 4px;">${s.name}<span style="color:var(--text-muted); font-size:0.8em;"> (${s.symbol})</span></td>
-                <td style="text-align:right; padding: 6px 4px;">${s.return1m.toFixed(2)}%</td>
-                <td style="text-align:right; padding: 6px 4px;">${s.return3m.toFixed(2)}%</td>
-                <td style="text-align:right; padding: 6px 4px; color:${relColor}; font-weight:bold;">${s.relStrength3m > 0 ? '+' : ''}${s.relStrength3m.toFixed(2)}%</td>
-            `;
-            breadthTbody.appendChild(row);
-        });
+    function replaceDataGrid(id, items) {
+      const container = byId(id);
+      const fragment = document.createDocumentFragment();
+      items.forEach(({ label, value, sub, tone }) => {
+        const card = createNode('div', 'datum');
+        card.append(createNode('span', '', label));
+        card.append(createNode('strong', tone ? toneClass(tone) : '', value));
+        if (sub) card.append(createNode('small', '', sub));
+        fragment.append(card);
+      });
+      container.replaceChildren(fragment);
     }
 
-    function renderCreditRiskCard(cr) {
-        document.getElementById('credit-ok').style.display = 'none';
-        document.getElementById('credit-unavailable').style.display = 'none';
-
-        if (!cr || cr.status !== 'ok') {
-            document.getElementById('credit-unavailable').style.display = 'block';
-            document.getElementById('credit-unavailable-note').innerText = (cr && cr.note) || '取得結果がありません。';
-            return;
-        }
-        document.getElementById('credit-ok').style.display = 'block';
-        document.getElementById('credit-hyg').innerText = `1ヶ月 ${cr.hygReturn1m.toFixed(2)}% / 3ヶ月 ${cr.hygReturn3m.toFixed(2)}%`;
-        document.getElementById('credit-lqd').innerText = `1ヶ月 ${cr.lqdReturn1m.toFixed(2)}% / 3ヶ月 ${cr.lqdReturn3m.toFixed(2)}%`;
-
-        const spread3mEl = document.getElementById('credit-spread-3m');
-        spread3mEl.innerText = `${cr.spread3m > 0 ? '+' : ''}${cr.spread3m.toFixed(2)}%`;
-        spread3mEl.style.color = cr.spread3m > 0 ? 'var(--accent-green)' : (cr.spread3m < 0 ? 'var(--accent-red)' : 'var(--text-main)');
-
-        const spread1mEl = document.getElementById('credit-spread-1m');
-        spread1mEl.innerText = `${cr.spread1m > 0 ? '+' : ''}${cr.spread1m.toFixed(2)}%`;
-        spread1mEl.style.color = cr.spread1m > 0 ? 'var(--accent-green)' : (cr.spread1m < 0 ? 'var(--accent-red)' : 'var(--text-main)');
-
-        const oasEl = document.getElementById('credit-hy-oas');
-        const oasChangeEl = document.getElementById('credit-hy-oas-change');
-        if (cr.hyOasPct != null) {
-            oasEl.innerText = `${Number(cr.hyOasPct).toFixed(2)}% (${cr.hyOasDate || '最新'})`;
-            const change = Number(cr.hyOasChange1mBps || 0);
-            oasChangeEl.innerText = `${change > 0 ? '+' : ''}${change.toFixed(0)}bp`;
-            oasChangeEl.style.color = change > 0 ? 'var(--accent-red)' : (change < 0 ? 'var(--accent-green)' : 'var(--text-main)');
-        } else {
-            oasEl.innerText = '取得不可';
-            oasEl.style.color = 'var(--text-muted)';
-            oasChangeEl.innerText = '--';
-            oasChangeEl.style.color = 'var(--text-muted)';
-        }
+    function chart(canvasId, config) {
+      const old = charts.get(canvasId);
+      if (old) old.destroy();
+      const instance = new Chart(byId(canvasId), config);
+      charts.set(canvasId, instance);
     }
 
-    function renderVolatilityCard(vr) {
-        document.getElementById('volatility-ok').style.display = 'none';
-        document.getElementById('volatility-unavailable').style.display = 'none';
-
-        if (!vr || vr.status !== 'ok') {
-            document.getElementById('volatility-unavailable').style.display = 'block';
-            document.getElementById('volatility-unavailable-note').innerText = (vr && vr.note) || '取得結果がありません。';
-            return;
-        }
-        document.getElementById('volatility-ok').style.display = 'block';
-        document.getElementById('vol-vix').innerText = Number(vr.vix).toFixed(2);
-        const vixSmaEl = document.getElementById('vol-vix-sma20');
-        vixSmaEl.innerText = Number(vr.vixSma20).toFixed(2);
-        vixSmaEl.style.color = vr.vix > vr.vixSma20 ? 'var(--accent-yellow)' : 'var(--text-main)';
-        document.getElementById('vol-vix3m').innerText = Number(vr.vix3m).toFixed(2);
-
-        const structureEl = document.getElementById('vol-term-structure');
-        structureEl.innerText = vr.termStructure === 'Backwardation' ? 'Backwardation（警戒）' : 'Contango（通常）';
-        structureEl.style.color = vr.termStructure === 'Backwardation' ? 'var(--accent-red)' : 'var(--accent-green)';
-
-        const slopeEl = document.getElementById('vol-term-slope');
-        const slope = Number(vr.termSlopePct);
-        slopeEl.innerText = `${slope > 0 ? '+' : ''}${slope.toFixed(2)}%`;
-        slopeEl.style.color = slope > 0 ? 'var(--accent-red)' : 'var(--accent-green)';
+    function chartOptions(extra = {}) {
+      return {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { intersect: false, mode: 'index' },
+        plugins: { legend: { display: false }, tooltip: { backgroundColor: '#07111f', titleColor: '#ecf4ff', bodyColor: '#cbd8eb', borderColor: 'rgba(158,185,220,.25)', borderWidth: 1, padding: 10 } },
+        scales: { x: { grid: { display: false }, ticks: { color: '#657791', maxTicksLimit: 7, font: { size: 10 } } }, y: { grid: { color: 'rgba(158,185,220,.10)' }, ticks: { color: '#657791', font: { size: 10 } } } },
+        ...extra
+      };
     }
 
-    function renderMarketBreadthCard(mb) {
-        document.getElementById('market-breadth-ok').style.display = 'none';
-        document.getElementById('market-breadth-unavailable').style.display = 'none';
-
-        if (!mb || (mb.status !== 'ok' && mb.status !== 'partial')) {
-            document.getElementById('market-breadth-unavailable').style.display = 'block';
-            document.getElementById('market-breadth-unavailable-note').innerText = (mb && mb.note) || '取得結果がありません。';
-            return;
-        }
-        document.getElementById('market-breadth-ok').style.display = 'block';
-        document.getElementById('mb-coverage').innerText = `${Number(mb.coveragePct).toFixed(1)}%（${mb.analyzedConstituents}/${mb.expectedConstituents}、構成時点 ${mb.universeAsOf}）`;
-
-        const setBreadthPct = (id, value) => {
-            const el = document.getElementById(id);
-            if (value == null) { el.innerText = '--'; return; }
-            const pct = Number(value);
-            el.innerText = `${pct.toFixed(1)}%`;
-            el.style.color = pct >= 60 ? 'var(--accent-green)' : (pct <= 40 ? 'var(--accent-red)' : 'var(--accent-yellow)');
-        };
-        setBreadthPct('mb-above-50', mb.aboveSma50Pct);
-        setBreadthPct('mb-above-200', mb.aboveSma200Pct);
-
-        const highLowEl = document.getElementById('mb-high-low');
-        highLowEl.innerText = `${mb.newHighs52Week} / ${mb.newLows52Week}`;
-        highLowEl.style.color = mb.newHighs52Week >= mb.newLows52Week ? 'var(--accent-green)' : 'var(--accent-red)';
-
-        const adEl = document.getElementById('mb-advance-decline');
-        const adNet = Number(mb.advanceDeclineNet);
-        adEl.innerText = `${mb.advances} / ${mb.declines}（ネット ${adNet > 0 ? '+' : ''}${adNet}）`;
-        adEl.style.color = adNet > 0 ? 'var(--accent-green)' : (adNet < 0 ? 'var(--accent-red)' : 'var(--text-main)');
-
-        const ad20El = document.getElementById('mb-ad-line-20d');
-        const ad20 = Number(mb.adLineChange20d);
-        ad20El.innerText = `${ad20 > 0 ? '+' : ''}${ad20}`;
-        ad20El.style.color = ad20 > 0 ? 'var(--accent-green)' : (ad20 < 0 ? 'var(--accent-red)' : 'var(--text-main)');
-
-        const partialWarning = document.getElementById('mb-partial-warning');
-        partialWarning.style.display = mb.status === 'partial' ? 'block' : 'none';
-        partialWarning.innerText = mb.status === 'partial' ? `カバレッジが十分ではありません（${Number(mb.coveragePct).toFixed(1)}%）。この日のブレッドスは参考値として扱ってください。` : '';
+    function renderOverview(data) {
+      const status = statusMeta[data.combinedStatus] || statusMeta.Correction;
+      byId('market-status').textContent = status.en;
+      byId('market-status').className = `state-value ${toneClass(status.tone)}`;
+      byId('market-status-jp').textContent = status.jp;
+      byId('exposure-value').textContent = status.exposure;
+      byId('exposure-value').className = toneClass(status.tone);
+      byId('market-driven-by').textContent = `判定根拠: ${data.combinedDrivenBy || '—'}`;
     }
 
-    let lastFetchTime = 0;
+    function renderRiskScore(score) {
+      if (!score || score.score == null) { byId('risk-label').textContent = '算出不可'; return; }
+      const value = Math.max(0, Math.min(100, Number(score.score)));
+      const tone = value <= 20 ? 'good' : value <= 40 ? 'info' : value <= 60 ? 'warn' : 'risk';
+      const color = tone === 'good' ? '#62d78b' : tone === 'info' ? '#4ba3ff' : tone === 'warn' ? '#ffc95c' : '#ff717d';
+      byId('risk-score').firstChild.nodeValue = value.toFixed(1);
+      byId('risk-label').textContent = score.label || '—';
+      byId('risk-label').className = `headline ${toneClass(tone)}`;
+      byId('risk-coverage').textContent = `採点カバレッジ ${number(score.dataCoveragePct, 0)}% · ${number(score.rawScore, 1)} / ${number(score.availableMaxPoints, 1)} 点を100点換算`;
+      byId('risk-ring').style.setProperty('--score', value);
+      byId('risk-ring').style.setProperty('--score-color', color);
+      setPill('risk-raw', `Risk ${value.toFixed(1)} / 100`, tone);
 
-    function loadData() {
-        // キャッシュバスター(?t=)とcache:no-storeの二重の対策で、
-        // ブラウザ/CDNが古いdata.jsonを返し続けて「更新されていないように見える」事故を防ぐ
-        fetch('data.json?t=' + Date.now(), { cache: 'no-store' })
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('update-time').innerText = data.lastUpdated;
-
-                // データ鮮度チェック（3日以上前なら警告）
-                const updated = new Date(data.lastUpdated.replace(' ', 'T') + '+09:00');
-                const ageDays = (Date.now() - updated.getTime()) / (1000 * 60 * 60 * 24);
-                document.getElementById('stale-banner').style.display = ageDays > 3 ? 'block' : 'none';
-
-                const cs = statusMeta[data.combinedStatus];
-                document.getElementById('market-status').innerText = cs.en;
-                document.getElementById('market-status').style.color = cs.color;
-                document.getElementById('market-status-jp').innerText = cs.jp;
-                document.getElementById('exposure-val').innerText = cs.exp;
-                document.getElementById('exposure-val').style.color = cs.color;
-                document.getElementById('driven-by').innerText = data.combinedDrivenBy;
-
-                // 各カードの描画は独立したtry/catchにし、1箇所の想定外エラーで
-                // ページ全体が「データ読込エラー」に巻き込まれないようにする
-                try { renderIndexCard('sp500', data.sp500); } catch (e) { console.error('sp500 card failed:', e); }
-                try { renderIndexCard('nasdaq', data.nasdaq); } catch (e) { console.error('nasdaq card failed:', e); }
-                try { renderPutCallCard(data.putCallRatio); } catch (e) { console.error('putcall card failed:', e); }
-                try { renderSectorTable(data.sectorRotation); } catch (e) { console.error('sector table failed:', e); }
-                try { renderCreditRiskCard(data.creditRiskAppetite); } catch (e) { console.error('credit risk card failed:', e); }
-                try { renderVolatilityCard(data.volatilityRegime); } catch (e) { console.error('volatility card failed:', e); }
-                try { renderMarketBreadthCard(data.marketBreadth); } catch (e) { console.error('market breadth card failed:', e); }
-            })
-            .catch(err => {
-                console.error(err);
-                document.getElementById('market-status').innerText = 'データ読込エラー';
-            });
+      const table = byId('risk-metrics');
+      const fragment = document.createDocumentFragment();
+      (score.metrics || []).forEach(metric => {
+        const ratio = Number(metric.maxPoints) ? Number(metric.score) / Number(metric.maxPoints) : 0;
+        const metricTone = ratio >= .6 ? 'risk' : ratio > 0 ? 'warn' : 'good';
+        const row = document.createElement('tr');
+        row.append(createNode('td', '', metric.group));
+        row.append(createNode('td', '', metric.name));
+        row.append(createNode('td', '', metric.detail));
+        const points = createNode('td', `points ${toneClass(metricTone)}`, `${number(metric.score, 1)} / ${number(metric.maxPoints, 1)}`);
+        const bar = createNode('div', 'risk-bar'); const fill = document.createElement('i');
+        fill.style.width = `${Math.min(100, ratio * 100)}%`; fill.style.backgroundColor = metricTone === 'risk' ? '#ff717d' : metricTone === 'warn' ? '#ffc95c' : '#62d78b';
+        bar.append(fill); points.append(bar); row.append(points); fragment.append(row);
+      });
+      table.replaceChildren(fragment);
     }
 
-    function loadHistory() {
-        fetch('history.json?t=' + Date.now(), { cache: 'no-store' })
-            .then(r => r.ok ? r.json() : [])
-            .then(history => {
-                if (!Array.isArray(history) || history.length === 0) return;
-                createOrUpdateChart('historyChart', {
-                    type: 'line',
-                    data: {
-                        labels: history.map(h => h.date),
-                        datasets: [{
-                            label: 'Exposure目安 (%)',
-                            data: history.map(h => statusMeta[h.combinedStatus]?.expMid ?? null),
-                            borderColor: '#8e44ad',
-                            backgroundColor: 'rgba(142, 68, 173, 0.1)',
-                            stepped: true,
-                            fill: true,
-                            pointRadius: 2
-                        }]
-                    },
-                    options: {
-                        responsive: true, maintainAspectRatio: false,
-                        scales: { y: { min: 0, max: 100, title: { display: true, text: 'Exposure (%)' } } }
-                    }
-                });
-
-                // Put/Call Ratio推移（値がある日だけプロット。当日分の取得成否とは独立して描画できるようにcanvasは常時表示にしてある）
-                const pcHistory = history.filter(h => h.putCallRatio != null);
-                if (pcHistory.length > 0) {
-                    createOrUpdateChart('chart-putcall', {
-                        type: 'line',
-                        data: {
-                            labels: pcHistory.map(h => h.date),
-                            datasets: [{
-                                label: 'Put/Call Ratio (SPY)',
-                                data: pcHistory.map(h => h.putCallRatio),
-                                borderColor: '#8e44ad',
-                                backgroundColor: 'rgba(142, 68, 173, 0.08)',
-                                borderWidth: 2,
-                                fill: true,
-                                tension: 0.1,
-                                pointRadius: 0
-                            }]
-                        },
-                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-                    });
-                }
-            })
-            .catch(() => { /* history.json未生成（初回実行前）は無視 */ });
+    function renderIndex(key, index) {
+      const status = statusMeta[index.statusId] || statusMeta.Correction;
+      byId(`index-${key}-name`).textContent = index.name;
+      setPill(`index-${key}-status`, status.jp, status.tone);
+      replaceMetrics(`index-${key}-metrics`, [
+        ['調整後終値', number(index.latestAdjustedClose), index.isAboveSma50 ? 'good' : 'risk'],
+        ['50日移動平均', number(index.sma50), index.isAboveSma50 ? 'good' : 'risk'],
+        ['52週高値からの下落', pct(index.drawdownFromHighPct), Number(index.drawdownFromHighPct) <= -10 ? 'risk' : Number(index.drawdownFromHighPct) <= -3 ? 'warn' : 'good'],
+        ['トレンド', trendLabel[index.trendState] || index.trendState || '—', index.trendState === 'ConfirmedUptrend' ? 'good' : 'warn'],
+        ['有効 Distribution Day', `${index.distributionDaysActive ?? '--'} 日`, Number(index.distributionDaysActive) >= 6 ? 'risk' : Number(index.distributionDaysActive) >= 3 ? 'warn' : 'good'],
+        ['最大の売り圧力', index.worstActiveDropPct != null ? `-${Math.abs(Number(index.worstActiveDropPct)).toFixed(2)}%` : 'なし', index.worstActiveDropPct != null ? 'warn' : 'good'],
+        ['直近 FTD', index.lastFollowThroughDate || '未発生', index.lastFollowThroughDate ? 'good' : 'muted']
+      ]);
+      chart(`chart-${key}`, {
+        type: 'line',
+        data: { labels: index.chart.labels, datasets: [
+          { data: index.chart.prices, borderColor: '#4ba3ff', backgroundColor: 'rgba(75,163,255,.10)', fill: true, tension: .18, borderWidth: 2, pointRadius: 0 },
+          { data: index.chart.sma50, borderColor: '#ffc95c', borderDash: [5, 5], tension: .18, borderWidth: 1.5, pointRadius: 0 },
+          { data: index.chart.distMarksActive, borderColor: '#ff717d', backgroundColor: '#ff717d', pointStyle: 'triangle', showLine: false, pointRadius: 5 },
+          { data: index.chart.distMarksExpired, borderColor: '#657791', backgroundColor: '#657791', pointStyle: 'triangle', showLine: false, pointRadius: 3 }
+        ]}, options: chartOptions()
+      });
     }
 
-    function loadAll() {
-        lastFetchTime = Date.now();
-        loadData();
-        loadHistory();
+    function renderBreadth(block) {
+      if (!isAvailable(block)) { setPill('breadth-status', '取得不可', 'muted'); replaceDataGrid('breadth-data', [{ label: '市場ブレッドス', value: '取得不可', sub: block?.note || '—' }]); return; }
+      const tone = block.status === 'partial' ? 'warn' : 'good';
+      setPill('breadth-status', block.status === 'partial' ? '一部取得' : '稼働中', tone);
+      replaceDataGrid('breadth-data', [
+        { label: '50日線上', value: pct(block.aboveSma50Pct, 1), tone: Number(block.aboveSma50Pct) >= 60 ? 'good' : Number(block.aboveSma50Pct) <= 40 ? 'risk' : 'warn' },
+        { label: '200日線上', value: pct(block.aboveSma200Pct, 1), tone: Number(block.aboveSma200Pct) >= 60 ? 'good' : Number(block.aboveSma200Pct) <= 40 ? 'risk' : 'warn' },
+        { label: '52週 新高値 / 新安値', value: `${block.newHighs52Week} / ${block.newLows52Week}`, tone: Number(block.newHighs52Week) >= Number(block.newLows52Week) ? 'good' : 'risk' },
+        { label: '20日 A/D変化', value: signed(block.adLineChange20d), sub: `${block.analyzedConstituents}/${block.expectedConstituents}銘柄・${number(block.coveragePct, 0)}%`, tone: Number(block.adLineChange20d) >= 0 ? 'good' : 'warn' }
+      ]);
     }
 
-    loadAll();
+    function renderVolatility(block) {
+      if (!isAvailable(block)) { setPill('volatility-status', '取得不可', 'muted'); replaceDataGrid('volatility-data', [{ label: 'VIX', value: '取得不可', sub: block?.note || '—' }]); return; }
+      const backwardation = block.termStructure === 'Backwardation';
+      setPill('volatility-status', backwardation ? '警戒' : '通常', backwardation ? 'risk' : 'good');
+      replaceDataGrid('volatility-data', [
+        { label: 'VIX', value: number(block.vix), sub: `20日平均 ${number(block.vixSma20)}`, tone: Number(block.vix) > Number(block.vixSma20) ? 'warn' : 'good' },
+        { label: 'VIX3M', value: number(block.vix3m), sub: '3か月先の予想変動率' },
+        { label: '期限構造', value: backwardation ? '逆転' : '順正常', sub: block.termStructure, tone: backwardation ? 'risk' : 'good' },
+        { label: 'VIX対VIX3M', value: signedPct(block.termSlopePct), tone: Number(block.termSlopePct) > 0 ? 'risk' : 'good' }
+      ]);
+    }
 
-    // タブを開きっぱなしにしていると、ページ読み込み時の1回きりのfetchでは
-    // 翌日以降の更新が反映されない（これが「自動更新されない」ように見える主因のひとつ）。
-    // タブに戻ってきたタイミングで、前回取得から5分以上経っていれば再取得する。
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible' && Date.now() - lastFetchTime > 5 * 60 * 1000) {
-            loadAll();
-        }
-    });
-</script>
+    function renderCredit(block) {
+      if (!isAvailable(block)) { setPill('credit-status', '取得不可', 'muted'); replaceDataGrid('credit-data', [{ label: '信用リスク', value: '取得不可', sub: block?.note || '—' }]); return; }
+      const spreadTone = Number(block.spread3m) < 0 ? 'risk' : 'good';
+      setPill('credit-status', Number(block.spread3m) < 0 ? '慎重' : '安定', spreadTone);
+      replaceDataGrid('credit-data', [
+        { label: 'HYG 3か月', value: pct(block.hygReturn3m), sub: 'ハイイールド債' },
+        { label: 'LQD 3か月', value: pct(block.lqdReturn3m), sub: '投資適格債' },
+        { label: 'HY 対 IG', value: signedPct(block.spread3m), sub: '3か月の相対リターン', tone: spreadTone },
+        { label: 'HY OAS', value: block.hyOasPct == null ? '未取得' : pct(block.hyOasPct), sub: block.hyOasChange1mBps == null ? '公表遅延または取得不可' : `1か月 ${Number(block.hyOasChange1mBps) > 0 ? '+' : ''}${number(block.hyOasChange1mBps, 0)}bp`, tone: block.hyOasChange1mBps == null ? 'muted' : Number(block.hyOasChange1mBps) > 0 ? 'risk' : 'good' }
+      ]);
+    }
+
+    function renderSector(block) {
+      const table = byId('sector-table');
+      const proxy = byId('proxy-metrics');
+      if (!isAvailable(block) || !Array.isArray(block.sectors)) { setPill('sector-status', '取得不可', 'muted'); table.replaceChildren(); proxy.replaceChildren(createNode('div', 'empty', block?.note || 'セクターデータを取得できませんでした。')); return; }
+      setPill('sector-status', '稼働中', 'good');
+      const fragment = document.createDocumentFragment();
+      block.sectors.forEach(item => {
+        const row = document.createElement('tr');
+        const name = document.createElement('td'); name.textContent = item.name; name.append(createNode('span', 'symbol', item.symbol));
+        row.append(name, createNode('td', '', pct(item.return1m)), createNode('td', '', pct(item.return3m)));
+        row.append(createNode('td', Number(item.relStrength3m) >= 0 ? 'tone-good' : 'tone-risk', signedPct(item.relStrength3m)));
+        fragment.append(row);
+      });
+      table.replaceChildren(fragment);
+      const proxies = block.breadthProxies || [];
+      replaceMetrics('proxy-metrics', proxies.map(item => [`${item.name} (${item.symbol})`, `${signedPct(item.relStrength3m)} 対SPY`, Number(item.relStrength3m) >= 0 ? 'good' : 'warn']));
+      byId('sector-note').textContent = `SPY: 1か月 ${pct(block.spyReturn1m)} / 3か月 ${pct(block.spyReturn3m)}。上位セクターは候補探しの出発点で、買い推奨ではありません。`;
+    }
+
+    function renderPutCall(block) {
+      if (!isAvailable(block)) { setPill('putcall-status', '取得不可', 'muted'); replaceDataGrid('putcall-data', [{ label: 'Put / Call', value: '取得不可', sub: block?.note || '—' }]); byId('putcall-note').textContent = 'この日はオプションデータを取得できませんでした。'; return; }
+      const percentile = block.percentileRank == null ? null : Number(block.percentileRank);
+      const extreme = percentile != null && (percentile <= 20 || percentile >= 80);
+      setPill('putcall-status', percentile == null ? '履歴蓄積中' : extreme ? '極端値を確認' : '中立', percentile == null ? 'muted' : extreme ? 'warn' : 'good');
+      replaceDataGrid('putcall-data', [
+        { label: 'Put / Call', value: number(block.ratio, 3), sub: '直近限月・出来高ベース' },
+        { label: '10日平均', value: number(block.sma10, 3), sub: '短期の基準線' },
+        { label: '履歴順位', value: percentile == null ? '蓄積中' : `${number(percentile, 1)}%`, sub: `${block.historyDays || 0}日分の自己履歴`, tone: extreme ? 'warn' : 'good' },
+        { label: '出来高', value: `${Number(block.putVolume || 0).toLocaleString()} / ${Number(block.callVolume || 0).toLocaleString()}`, sub: 'Put / Call' }
+      ]);
+      byId('putcall-note').textContent = block.note || '直近限月のみの参考指標です。';
+    }
+
+    function renderHealth(data) {
+      const sources = [
+        ['Put / Call', data.putCallRatio], ['セクター', data.sectorRotation], ['信用', data.creditRiskAppetite], ['VIX', data.volatilityRegime], ['ブレッドス', data.marketBreadth]
+      ];
+      const fragment = document.createDocumentFragment();
+      sources.forEach(([name, block]) => {
+        const row = createNode('div', 'health-item');
+        row.append(createNode('span', '', name));
+        const status = block?.status === 'ok' ? '正常' : block?.status === 'partial' ? '一部取得' : '未取得';
+        row.append(createNode('strong', toneClass(block?.status === 'ok' ? 'good' : block?.status === 'partial' ? 'warn' : 'muted'), status));
+        fragment.append(row);
+      });
+      byId('data-health').replaceChildren(fragment);
+    }
+
+    function renderHistory(history) {
+      if (!Array.isArray(history) || history.length === 0) return;
+      const values = { Correction: 10, Pressure: 40, Uptrend: 90 };
+      chart('chart-history', { type: 'line', data: { labels: history.map(item => item.date), datasets: [{ data: history.map(item => values[item.combinedStatus] ?? null), borderColor: '#a990ff', backgroundColor: 'rgba(169,144,255,.12)', stepped: true, fill: true, borderWidth: 2, pointRadius: 0 }] }, options: chartOptions({ scales: { x: { grid: { display: false }, ticks: { color: '#657791', maxTicksLimit: 7, font: { size: 10 } } }, y: { min: 0, max: 100, grid: { color: 'rgba(158,185,220,.10)' }, ticks: { color: '#657791', font: { size: 10 } } } } }) });
+      const pc = history.filter(item => item.putCallRatio != null);
+      if (pc.length) chart('chart-putcall', { type: 'line', data: { labels: pc.map(item => item.date), datasets: [{ data: pc.map(item => item.putCallRatio), borderColor: '#a990ff', backgroundColor: 'rgba(169,144,255,.10)', fill: true, tension: .18, borderWidth: 2, pointRadius: 0 }] }, options: chartOptions() });
+    }
+
+    function showStaleWarning(lastUpdated) {
+      const parsed = new Date(`${String(lastUpdated).replace(' ', 'T')}+09:00`);
+      byId('stale-banner').style.display = Number.isNaN(parsed.getTime()) || Date.now() - parsed.getTime() > 3 * 86400000 ? 'block' : 'none';
+    }
+
+    async function fetchJson(path, fallback) {
+      const response = await fetch(`${path}?t=${Date.now()}`, { cache: 'no-store' });
+      if (!response.ok) return fallback;
+      return response.json();
+    }
+
+    async function loadDashboard() {
+      try {
+        const [data, history] = await Promise.all([fetchJson('data.json'), fetchJson('history.json', [])]);
+        if (!data) throw new Error('data.json is unavailable');
+        lastLoadedAt = Date.now();
+        byId('update-time').textContent = `${data.lastUpdated || '—'} JST`;
+        showStaleWarning(data.lastUpdated);
+        renderOverview(data); renderRiskScore(data.marketRiskScore); renderHealth(data);
+        renderIndex('spy', data.sp500); renderIndex('qqq', data.nasdaq);
+        renderBreadth(data.marketBreadth); renderVolatility(data.volatilityRegime); renderCredit(data.creditRiskAppetite);
+        renderSector(data.sectorRotation); renderPutCall(data.putCallRatio); renderHistory(history);
+      } catch (error) {
+        console.error(error); byId('update-time').textContent = 'データ読込エラー'; byId('stale-banner').style.display = 'block'; byId('stale-banner').textContent = 'データを読み込めませんでした。data.json と更新ワークフローを確認してください。';
+      }
+    }
+
+    loadDashboard();
+    setInterval(loadDashboard, 5 * 60 * 1000);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - lastLoadedAt > 60000) loadDashboard(); });
+  </script>
 </body>
 </html>
