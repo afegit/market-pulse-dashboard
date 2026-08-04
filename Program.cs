@@ -2,8 +2,10 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Globalization;
@@ -78,8 +80,8 @@ class Program
     // ===== ボラティリティ警戒灯 =====
     // VIX3Mは3ヶ月先のS&P 500インプライド・ボラティリティ指数。
     // VIX先物そのものではないが、日次の無料データで期限構造を確認する実用的な近似として用いる。
-    const string VIX_SYMBOL = "%5EVIX";
-    const string VIX3M_SYMBOL = "%5EVIX3M";
+    const string VIX_SYMBOL = "^VIX";
+    const string VIX3M_SYMBOL = "^VIX3M";
     const int VIX_SMA_WINDOW = 20;
 
     // ===== Nasdaq-100 真の市場ブレッドス =====
@@ -87,8 +89,14 @@ class Program
     // 年次リバランスなどで構成が変わるため、nasdaq100-universe.txt を更新する運用にする。
     const string NASDAQ100_UNIVERSE_FILE = "nasdaq100-universe.txt";
     const int BREADTH_MIN_COVERAGE = 80;
+    const int MAX_YAHOO_RESPONSE_BYTES = 5 * 1024 * 1024;
+    const int MAX_FRED_RESPONSE_BYTES = 2 * 1024 * 1024;
+    const int MAX_MARKET_DATA_AGE_CALENDAR_DAYS = 5;
+    const int MAX_AUXILIARY_DATA_AGE_CALENDAR_DAYS = 7;
 
     static readonly TimeSpan JstOffset = TimeSpan.FromHours(9);
+    static readonly Regex YahooSymbolPattern = new("^[A-Za-z0-9.^-]{1,20}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    static readonly HashSet<string> AllowedYahooRanges = new(StringComparer.Ordinal) { "1y", "6mo" };
     static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -99,16 +107,35 @@ class Program
     // 通常データと遅延しても致命的ではないFREDデータでタイムアウトを分ける。
     static readonly HttpClient httpClient = CreateHttpClient(TimeSpan.FromSeconds(20));
     static readonly HttpClient fredHttpClient = CreateHttpClient(TimeSpan.FromSeconds(8));
+    static readonly string OutputDirectory = ResolveOutputDirectory();
 
     static HttpClient CreateHttpClient(TimeSpan timeout)
     {
-        var c = new HttpClient { Timeout = timeout };
+        var handler = new HttpClientHandler
+        {
+            AllowAutoRedirect = false,
+            MaxConnectionsPerServer = 10
+        };
+        var c = new HttpClient(handler, disposeHandler: true) { Timeout = timeout };
         // 単純な"Mozilla/5.0"だけだと逆に不自然でYahoo側にブロックされやすいため、実際のブラウザに近い文字列に強化
         c.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
         return c;
     }
 
     static DateTimeOffset JstNow() => DateTimeOffset.UtcNow.ToOffset(JstOffset);
+
+    static string ResolveOutputDirectory()
+    {
+        string currentDirectory = Path.GetFullPath(Directory.GetCurrentDirectory());
+        if (File.Exists(Path.Combine(currentDirectory, NASDAQ100_UNIVERSE_FILE))) return currentDirectory;
+
+        string applicationDirectory = Path.GetFullPath(AppContext.BaseDirectory);
+        if (File.Exists(Path.Combine(applicationDirectory, NASDAQ100_UNIVERSE_FILE))) return applicationDirectory;
+
+        throw new DirectoryNotFoundException("出力先を特定できません。nasdaq100-universe.txt と同じフォルダから実行してください。");
+    }
+
+    static string GetOutputPath(string fileName) => Path.Combine(OutputDirectory, fileName);
 
     static string ResolveContentPath(string fileName)
     {
@@ -121,6 +148,36 @@ class Program
         throw new FileNotFoundException($"必要なコンテンツファイルが見つかりません: {fileName}");
     }
 
+    static async Task<string> GetResponseTextWithLimitAsync(HttpClient client, string url, int maxBytes)
+    {
+        using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+        response.EnsureSuccessStatusCode();
+        return await ReadResponseTextWithLimitAsync(response, maxBytes);
+    }
+
+    static async Task<string> ReadResponseTextWithLimitAsync(HttpResponseMessage response, int maxBytes)
+    {
+        if (response.Content.Headers.ContentLength is long contentLength && contentLength > maxBytes)
+            throw new InvalidDataException($"応答サイズが上限の {maxBytes:N0} バイトを超えています。");
+
+        await using var stream = await response.Content.ReadAsStreamAsync();
+        using var buffer = new MemoryStream();
+        byte[] chunk = new byte[81920];
+        int totalBytes = 0;
+        while (true)
+        {
+            int read = await stream.ReadAsync(chunk.AsMemory(0, chunk.Length));
+            if (read == 0) break;
+
+            totalBytes += read;
+            if (totalBytes > maxBytes)
+                throw new InvalidDataException($"応答サイズが上限の {maxBytes:N0} バイトを超えています。");
+            buffer.Write(chunk, 0, read);
+        }
+
+        return Encoding.UTF8.GetString(buffer.ToArray()).TrimStart('\uFEFF');
+    }
+
     static async Task Main()
     {
         try
@@ -129,11 +186,14 @@ class Program
 
             // 売り抜け日/FTDは出来高が必要なため、指数ではなく実際に売買できる流動性の高いETFを使用する。
             // 判定価格には調整後終値を使い、分配金による相対リターンの歪みを避ける。
-            var sp500Data = await FetchYahooDataWithRetry("SPY", "1y");
-            var nasdaqData = await FetchYahooDataWithRetry("QQQ", "1y");
+            var sp500Data = await FetchYahooDataWithRetry("SPY", "1y", requirePositiveVolume: true);
+            var nasdaqData = await FetchYahooDataWithRetry("QQQ", "1y", requirePositiveVolume: true);
 
             var sp500 = AnalyzeIndex("S&P 500（SPY）", sp500Data);
             var nasdaq = AnalyzeIndex("Nasdaq-100（QQQ）", nasdaqData);
+            if (!string.Equals(sp500.DataAsOf, nasdaq.DataAsOf, StringComparison.Ordinal))
+                throw new InvalidDataException($"SPYとQQQの基準日が一致しません（SPY: {sp500.DataAsOf}, QQQ: {nasdaq.DataAsOf}）。");
+            string marketDataAsOf = sp500.DataAsOf;
 
             // 2指数のうち「悪い方（より弱気な方）」を採用するのがIBD Market Pulseの流儀
             // ※ 同順位（引き分け）のときに片方だけを「弱いから採用」と表示すると誤解を招くため、
@@ -279,6 +339,7 @@ class Program
             var output = new
             {
                 lastUpdated = JstNow().ToString("yyyy-MM-dd HH:mm:ss"),
+                marketDataAsOf,
                 combinedStatus,
                 combinedDrivenBy,
                 sp500,
@@ -292,7 +353,7 @@ class Program
             };
 
             var json = JsonSerializer.Serialize(output, JsonOptions);
-            WriteTextAtomically("data.json", json);
+            WriteTextAtomically(GetOutputPath("data.json"), json);
             Console.WriteLine("data.json has been generated successfully.");
         }
         catch (Exception ex)
@@ -318,14 +379,14 @@ class Program
 
     // ================= データ取得 =================
 
-    static async Task<List<DailyData>> FetchYahooDataWithRetry(string symbol, string range, int maxAttempts = 3)
+    static async Task<List<DailyData>> FetchYahooDataWithRetry(string symbol, string range, bool requirePositiveVolume = false, int maxAttempts = 3)
     {
         Exception? lastEx = null;
         for (int attempt = 1; attempt <= maxAttempts; attempt++)
         {
             try
             {
-                return await FetchYahooData(symbol, range);
+                return await FetchYahooData(symbol, range, requirePositiveVolume);
             }
             catch (Exception ex)
             {
@@ -338,11 +399,16 @@ class Program
         throw new Exception($"Failed to fetch {symbol} after {maxAttempts} attempts: {lastEx?.Message}");
     }
 
-    static async Task<List<DailyData>> FetchYahooData(string symbol, string range)
+    static async Task<List<DailyData>> FetchYahooData(string symbol, string range, bool requirePositiveVolume)
     {
-        var url = $"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range={range}";
+        if (!YahooSymbolPattern.IsMatch(symbol))
+            throw new ArgumentException($"許可されないYahooシンボルです: {symbol}", nameof(symbol));
+        if (!AllowedYahooRanges.Contains(range))
+            throw new ArgumentException($"許可されないYahoo取得期間です: {range}", nameof(range));
 
-        var responseString = await httpClient.GetStringAsync(url);
+        var url = $"https://query1.finance.yahoo.com/v8/finance/chart/{Uri.EscapeDataString(symbol)}?interval=1d&range={Uri.EscapeDataString(range)}";
+
+        var responseString = await GetResponseTextWithLimitAsync(httpClient, url, MAX_YAHOO_RESPONSE_BYTES);
         var yahooData = JsonSerializer.Deserialize<YahooResult>(responseString);
 
         var result = yahooData?.Chart?.Result?.FirstOrDefault();
@@ -363,12 +429,16 @@ class Program
         {
             if (i < closes.Length && i < volumes.Length && closes[i].HasValue && volumes[i].HasValue)
             {
-                var date = DateTimeOffset.FromUnixTimeSeconds(timestamps[i]).DateTime;
+                var date = DateTimeOffset.FromUnixTimeSeconds(timestamps[i]).UtcDateTime.Date;
                 // ETFでは分配金・権利落ちによるリターンの歪みを避けるため調整後終値を優先する。
                 // 指数などadjusted closeがない銘柄は通常終値へ安全にフォールバックする。
                 decimal adjustedClose = i < (adjustedCloses?.Length ?? 0) && adjustedCloses![i].HasValue
                     ? adjustedCloses[i]!.Value
                     : closes[i]!.Value;
+                if (adjustedClose <= 0m)
+                    throw new InvalidDataException($"0以下の終値を受信しました ({symbol}, {date:yyyy-MM-dd})。");
+                if (volumes[i]!.Value < 0)
+                    throw new InvalidDataException($"負の出来高を受信しました ({symbol}, {date:yyyy-MM-dd})。");
                 dailyData.Add(new DailyData(date, adjustedClose, volumes[i]!.Value));
             }
         }
@@ -378,6 +448,14 @@ class Program
         {
             throw new Exception($"計算に必要な100日分のデータが不足しています ({symbol})。");
         }
+        if (ordered.Select(d => d.Date).Distinct().Count() != ordered.Count)
+            throw new InvalidDataException($"重複した取引日を受信しました ({symbol})。");
+        if (ordered[^1].Date > DateTime.UtcNow.Date.AddDays(1))
+            throw new InvalidDataException($"未来日付の市場データを受信しました ({symbol})。");
+        if ((DateTime.UtcNow.Date - ordered[^1].Date).TotalDays > MAX_MARKET_DATA_AGE_CALENDAR_DAYS)
+            throw new InvalidDataException($"市場データが{MAX_MARKET_DATA_AGE_CALENDAR_DAYS}日超古いため更新を中止しました ({symbol}: {ordered[^1].Date:yyyy-MM-dd})。");
+        if (requirePositiveVolume && ordered.Any(d => d.Volume <= 0))
+            throw new InvalidDataException($"出来高が0以下の日を受信したため、出来高ベース判定を中止しました ({symbol})。");
         return ordered;
     }
 
@@ -429,11 +507,16 @@ class Program
 
             // 2. 発行されたCookieを使ってcrumb（認証トークン）を取得
             using var crumbResponse = await httpClient.GetAsync("https://query2.finance.yahoo.com/v1/test/getcrumb");
-            var crumb = await crumbResponse.Content.ReadAsStringAsync();
 
-            if (!crumbResponse.IsSuccessStatusCode || string.IsNullOrWhiteSpace(crumb) || crumb.Contains("<html", StringComparison.OrdinalIgnoreCase))
+            if (!crumbResponse.IsSuccessStatusCode)
             {
                 Console.WriteLine($"[PutCallRatio] crumb取得に失敗しました（status={(int)crumbResponse.StatusCode}）。");
+                return null;
+            }
+            var crumb = await ReadResponseTextWithLimitAsync(crumbResponse, 4096);
+            if (string.IsNullOrWhiteSpace(crumb) || crumb.Contains("<html", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine("[PutCallRatio] crumbの内容が無効です。");
                 return null;
             }
 
@@ -483,7 +566,7 @@ class Program
                     return null;
                 }
 
-                var responseString = await response.Content.ReadAsStringAsync();
+                var responseString = await ReadResponseTextWithLimitAsync(response, MAX_YAHOO_RESPONSE_BYTES);
                 var parsed = JsonSerializer.Deserialize<YahooOptionsResult>(responseString);
                 var result = parsed?.OptionChain?.Result?.FirstOrDefault();
                 var group = result?.Options?.FirstOrDefault();
@@ -655,7 +738,7 @@ class Program
     static async Task<HyOasResult?> FetchHyOas()
     {
         string url = $"https://fred.stlouisfed.org/graph/fredgraph.csv?id={HY_OAS_FRED_SERIES}";
-        string csv = await fredHttpClient.GetStringAsync(url);
+        string csv = await GetResponseTextWithLimitAsync(fredHttpClient, url, MAX_FRED_RESPONSE_BYTES);
         var observations = new List<(DateTime Date, decimal Value)>();
 
         foreach (string line in csv.Split('\n', StringSplitOptions.RemoveEmptyEntries).Skip(1))
@@ -672,6 +755,11 @@ class Program
         if (observations.Count == 0) return null;
         var ordered = observations.OrderBy(x => x.Date).ToList();
         var latest = ordered[^1];
+        if ((DateTime.UtcNow.Date - latest.Date.Date).TotalDays > MAX_AUXILIARY_DATA_AGE_CALENDAR_DAYS)
+        {
+            Console.WriteLine($"[CreditRiskAppetite] HY OASが{MAX_AUXILIARY_DATA_AGE_CALENDAR_DAYS}日超古いため採用しません ({latest.Date:yyyy-MM-dd})。");
+            return null;
+        }
         int lookbackIndex = Math.Max(0, ordered.Count - 1 - SECTOR_RETURN_1M_DAYS);
         decimal change1mBps = Math.Round((latest.Value - ordered[lookbackIndex].Value) * 100m, 0);
         return new HyOasResult
@@ -1126,6 +1214,7 @@ class Program
         return new IndexAnalysis
         {
             Name = name,
+            DataAsOf = data[n - 1].Date.ToString("yyyy-MM-dd"),
             LatestAdjustedClose = data[n - 1].AdjustedClose,
             Sma50 = sma50[n - 1],
             IsAboveSma50 = isAboveSma50,
@@ -1152,31 +1241,19 @@ class Program
 
     static PutCallStats AppendHistory(string combinedStatus, IndexAnalysis sp500, IndexAnalysis nasdaq, decimal? putCallRatio)
     {
-        const string historyPath = "history.json";
+        string historyPath = GetOutputPath("history.json");
 
         List<HistoryEntry> history = new();
         if (File.Exists(historyPath))
         {
-            try
-            {
-                var existing = JsonSerializer.Deserialize<List<HistoryEntry>>(File.ReadAllText(historyPath), JsonOptions);
-                if (existing != null)
-                {
-                    // 旧実装ではcamelCaseの履歴をケースセンシティブに読んでいたため、
-                    // 同日重複を含む可能性がある。日付ごとに最新の1件へ正規化する。
-                    history = existing
-                        .Where(h => !string.IsNullOrWhiteSpace(h.Date))
-                        .GroupBy(h => h.Date)
-                        .Select(group => group.Last())
-                        .OrderBy(h => h.Date)
-                        .ToList();
-                }
-            }
-            catch
-            {
-                // 壊れていた場合は履歴を作り直す
-                history = new();
-            }
+            var existing = JsonSerializer.Deserialize<List<HistoryEntry>>(File.ReadAllText(historyPath), JsonOptions)
+                ?? throw new InvalidDataException("history.json が空または配列ではありません。ファイルを確認してください。");
+            if (existing.Any(entry => !IsValidHistoryEntry(entry)))
+                throw new InvalidDataException("history.json に不正な日付・市場ステータス・数値が含まれています。更新を中止しました。");
+            if (existing.Select(entry => entry.Date).Distinct(StringComparer.Ordinal).Count() != existing.Count)
+                throw new InvalidDataException("history.json に同じ日付の重複があります。更新を中止しました。");
+
+            history = existing.OrderBy(entry => entry.Date).ToList();
         }
 
         string today = JstNow().ToString("yyyy-MM-dd");
@@ -1215,6 +1292,17 @@ class Program
         return new PutCallStats { Sma10 = sma, PercentileRank = percentile, HistoryDays = validRatios.Count };
     }
 
+    static bool IsValidHistoryEntry(HistoryEntry entry)
+    {
+        bool validDate = DateTime.TryParseExact(entry.Date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _);
+        bool validStatus = entry.CombinedStatus is "Correction" or "Pressure" or "Uptrend" &&
+            entry.Sp500Status is "Correction" or "Pressure" or "Uptrend" &&
+            entry.NasdaqStatus is "Correction" or "Pressure" or "Uptrend";
+        bool validNumbers = entry.Sp500DistDays >= 0 && entry.NasdaqDistDays >= 0 &&
+            (!entry.PutCallRatio.HasValue || (entry.PutCallRatio.Value > 0m && entry.PutCallRatio.Value <= 100m));
+        return validDate && validStatus && validNumbers;
+    }
+
     // ================= モデル =================
 
     // 分配金・株式分割を反映した終値と、実取引の出来高のみを保持する。
@@ -1223,6 +1311,7 @@ class Program
     class IndexAnalysis
     {
         public string Name { get; set; } = "";
+        public string DataAsOf { get; set; } = "";
         public decimal LatestAdjustedClose { get; set; }
         public decimal? Sma50 { get; set; }
         public bool IsAboveSma50 { get; set; }

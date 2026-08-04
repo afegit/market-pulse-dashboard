@@ -5,7 +5,7 @@
     "sp500Status": "Correction",
     "sp500DistDays": 7,
     "nasdaqStatus": "Correction",
-    "nasdaqDistDays": 8,
+    "nasdaqDistDays": 9,
     "putCallRatio": 0.909
   }
 ]
