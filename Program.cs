@@ -88,15 +88,37 @@ class Program
     const string NASDAQ100_UNIVERSE_FILE = "nasdaq100-universe.txt";
     const int BREADTH_MIN_COVERAGE = 80;
 
-    // HttpClientは使い回す（毎回newすると接続のオーバーヘッドやソケット枯渇のリスクが積み重なるため、プロセス内で1つを共有する）
-    static readonly HttpClient httpClient = CreateHttpClient();
-
-    static HttpClient CreateHttpClient()
+    static readonly TimeSpan JstOffset = TimeSpan.FromHours(9);
+    static readonly JsonSerializerOptions JsonOptions = new()
     {
-        var c = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true
+    };
+
+    // 通常データと遅延しても致命的ではないFREDデータでタイムアウトを分ける。
+    static readonly HttpClient httpClient = CreateHttpClient(TimeSpan.FromSeconds(20));
+    static readonly HttpClient fredHttpClient = CreateHttpClient(TimeSpan.FromSeconds(8));
+
+    static HttpClient CreateHttpClient(TimeSpan timeout)
+    {
+        var c = new HttpClient { Timeout = timeout };
         // 単純な"Mozilla/5.0"だけだと逆に不自然でYahoo側にブロックされやすいため、実際のブラウザに近い文字列に強化
         c.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
         return c;
+    }
+
+    static DateTimeOffset JstNow() => DateTimeOffset.UtcNow.ToOffset(JstOffset);
+
+    static string ResolveContentPath(string fileName)
+    {
+        string currentDirectoryPath = Path.Combine(Directory.GetCurrentDirectory(), fileName);
+        if (File.Exists(currentDirectoryPath)) return currentDirectoryPath;
+
+        string applicationPath = Path.Combine(AppContext.BaseDirectory, fileName);
+        if (File.Exists(applicationPath)) return applicationPath;
+
+        throw new FileNotFoundException($"必要なコンテンツファイルが見つかりません: {fileName}");
     }
 
     static async Task Main()
@@ -124,7 +146,7 @@ class Program
             if (rankSp == rankNq)
             {
                 combinedStatus = sp500.StatusId;
-                combinedDrivenBy = "S&P 500・Nasdaq Compositeともに同水準";
+                combinedDrivenBy = "SPYとQQQは同じ市場ステータス";
             }
             else if (rankSp < rankNq)
             {
@@ -248,9 +270,15 @@ class Program
                     Note = "Nasdaq-100構成銘柄を個別に集計した等ウェイトの市場内部指標です。指数上昇時でも50日線上比率やA/Dラインが悪化していれば、上昇の広がり不足を確認できます。"
                 };
 
+            // 0点に近いほどロング投資環境が良好、100点に近いほど市場リスクが高い。
+            // 取得できない指標は0点扱いせず、利用可能な配点で正規化してカバレッジを併記する。
+            var marketRiskScore = CalculateMarketRiskScore(
+                sp500, nasdaq, putCallOutput, sectorOutput,
+                creditRiskOutput, volatilityOutput, marketBreadthOutput);
+
             var output = new
             {
-                lastUpdated = DateTime.UtcNow.AddHours(9).ToString("yyyy-MM-dd HH:mm:ss"),
+                lastUpdated = JstNow().ToString("yyyy-MM-dd HH:mm:ss"),
                 combinedStatus,
                 combinedDrivenBy,
                 sp500,
@@ -259,23 +287,32 @@ class Program
                 sectorRotation = sectorOutput,
                 creditRiskAppetite = creditRiskOutput,
                 volatilityRegime = volatilityOutput,
-                marketBreadth = marketBreadthOutput
+                marketBreadth = marketBreadthOutput,
+                marketRiskScore
             };
 
-            var options = new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            };
-
-            var json = JsonSerializer.Serialize(output, options);
-            File.WriteAllText("data.json", json);
+            var json = JsonSerializer.Serialize(output, JsonOptions);
+            WriteTextAtomically("data.json", json);
             Console.WriteLine("data.json has been generated successfully.");
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error occurred: {ex.Message}");
             Environment.Exit(1); // GitHub Actions側に失敗を検知させる
+        }
+    }
+
+    static void WriteTextAtomically(string path, string content)
+    {
+        string tempPath = $"{path}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            File.WriteAllText(tempPath, content);
+            File.Move(tempPath, path, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(tempPath)) File.Delete(tempPath);
         }
     }
 
@@ -332,7 +369,7 @@ class Program
                 decimal adjustedClose = i < (adjustedCloses?.Length ?? 0) && adjustedCloses![i].HasValue
                     ? adjustedCloses[i]!.Value
                     : closes[i]!.Value;
-                dailyData.Add(new DailyData(date, closes[i]!.Value, adjustedClose, volumes[i]!.Value));
+                dailyData.Add(new DailyData(date, adjustedClose, volumes[i]!.Value));
             }
         }
 
@@ -344,113 +381,7 @@ class Program
         return ordered;
     }
 
-    // Yahooのsparkエンドポイントで複数銘柄をまとめて取得する。
-    // ブレッドス用に100超の銘柄を扱うため、1銘柄ずつの取得による遅延・レート制限を避ける。
-    static async Task<Dictionary<string, List<DailyData>>> FetchYahooSparkData(IEnumerable<string> symbols, string range)
-    {
-        var output = new Dictionary<string, List<DailyData>>(StringComparer.OrdinalIgnoreCase);
-        // Yahoo sparkは一度に10銘柄までしか受け付けないため、その上限に合わせる。
-        foreach (var batch in symbols.Distinct(StringComparer.OrdinalIgnoreCase).Chunk(10))
-        {
-            var batchResult = await FetchYahooSparkBatchWithRetry(batch, range);
-            foreach (var (symbol, data) in batchResult)
-            {
-                if (data.Count >= 100) output[symbol] = data;
-            }
-            await Task.Delay(250); // 無料エンドポイントへの連続アクセスを抑制
-        }
-        return output;
-    }
-
-    static async Task<Dictionary<string, List<DailyData>>> FetchYahooSparkBatchWithRetry(IEnumerable<string> symbols, string range)
-    {
-        Exception? lastEx = null;
-        var batch = symbols.ToArray();
-        for (int attempt = 1; attempt <= 3; attempt++)
-        {
-            try
-            {
-                string symbolQuery = string.Join("%2C", batch.Select(Uri.EscapeDataString));
-                string url = $"https://query1.finance.yahoo.com/v7/finance/spark?symbols={symbolQuery}&range={range}&interval=1d";
-                using var document = JsonDocument.Parse(await httpClient.GetStringAsync(url));
-                var output = new Dictionary<string, List<DailyData>>(StringComparer.OrdinalIgnoreCase);
-
-                if (!document.RootElement.TryGetProperty("spark", out var spark) ||
-                    !spark.TryGetProperty("result", out var results) || results.ValueKind != JsonValueKind.Array)
-                {
-                    throw new Exception("Yahoo sparkのデータ構造が無効です。");
-                }
-
-                foreach (var item in results.EnumerateArray())
-                {
-                    if (!item.TryGetProperty("symbol", out var symbolElement) ||
-                        !item.TryGetProperty("response", out var responses) || responses.GetArrayLength() == 0)
-                    {
-                        continue;
-                    }
-
-                    string? symbol = symbolElement.GetString();
-                    var response = responses[0];
-                    if (string.IsNullOrWhiteSpace(symbol) ||
-                        !response.TryGetProperty("timestamp", out var timestamps) ||
-                        !response.TryGetProperty("indicators", out var indicators) ||
-                        !indicators.TryGetProperty("quote", out var quotes) || quotes.GetArrayLength() == 0)
-                    {
-                        continue;
-                    }
-
-                    var quote = quotes[0];
-                    if (!quote.TryGetProperty("close", out var closes) || !quote.TryGetProperty("volume", out var volumes)) continue;
-
-                    JsonElement adjustedCloses = default;
-                    bool hasAdjustedCloses = indicators.TryGetProperty("adjclose", out var adjGroups) &&
-                                             adjGroups.GetArrayLength() > 0 &&
-                                             adjGroups[0].TryGetProperty("adjclose", out adjustedCloses);
-
-                    var dailyData = new List<DailyData>();
-                    int count = Math.Min(timestamps.GetArrayLength(), Math.Min(closes.GetArrayLength(), volumes.GetArrayLength()));
-                    for (int i = 0; i < count; i++)
-                    {
-                        var timestamp = timestamps[i];
-                        var close = closes[i];
-                        var volume = volumes[i];
-                        if (timestamp.ValueKind != JsonValueKind.Number || close.ValueKind != JsonValueKind.Number || volume.ValueKind != JsonValueKind.Number)
-                        {
-                            continue;
-                        }
-
-                        decimal closeValue = close.GetDecimal();
-                        decimal adjustedValue = closeValue;
-                        if (hasAdjustedCloses && i < adjustedCloses.GetArrayLength() && adjustedCloses[i].ValueKind == JsonValueKind.Number)
-                        {
-                            adjustedValue = adjustedCloses[i].GetDecimal();
-                        }
-
-                        dailyData.Add(new DailyData(
-                            DateTimeOffset.FromUnixTimeSeconds(timestamp.GetInt64()).DateTime,
-                            closeValue,
-                            adjustedValue,
-                            volume.GetInt64()));
-                    }
-
-                    if (dailyData.Count > 0) output[symbol] = dailyData.OrderBy(d => d.Date).ToList();
-                }
-                return output;
-            }
-            catch (Exception ex)
-            {
-                lastEx = ex;
-                Console.WriteLine($"[Breadth] Yahoo spark batch attempt {attempt}/3 failed: {ex.Message}");
-                if (attempt < 3) await Task.Delay(TimeSpan.FromSeconds(3 * attempt));
-            }
-        }
-
-        Console.WriteLine($"[Breadth] Yahoo spark batch skipped after retries: {lastEx?.Message}");
-        return new Dictionary<string, List<DailyData>>(StringComparer.OrdinalIgnoreCase);
-    }
-
-    // sparkエンドポイントは調整後終値・出来高を返さないため、真のブレッドスには使わない。
-    // chartエンドポイントを最大5並列で取得し、調整後終値ベースの計算品質を優先する。
+    // 調整後終値を必要とするため、chartエンドポイントを最大5並列で取得する。
     static async Task<Dictionary<string, List<DailyData>>> FetchYahooBreadthData(IEnumerable<string> symbols)
     {
         using var gate = new SemaphoreSlim(5);
@@ -724,7 +655,7 @@ class Program
     static async Task<HyOasResult?> FetchHyOas()
     {
         string url = $"https://fred.stlouisfed.org/graph/fredgraph.csv?id={HY_OAS_FRED_SERIES}";
-        string csv = await httpClient.GetStringAsync(url);
+        string csv = await fredHttpClient.GetStringAsync(url);
         var observations = new List<(DateTime Date, decimal Value)>();
 
         foreach (string line in csv.Split('\n', StringSplitOptions.RemoveEmptyEntries).Skip(1))
@@ -789,12 +720,7 @@ class Program
     {
         try
         {
-            string universePath = Path.Combine(Directory.GetCurrentDirectory(), NASDAQ100_UNIVERSE_FILE);
-            if (!File.Exists(universePath))
-            {
-                Console.WriteLine($"[Breadth] universe file not found: {universePath}");
-                return null;
-            }
+            string universePath = ResolveContentPath(NASDAQ100_UNIVERSE_FILE);
 
             var symbols = File.ReadLines(universePath)
                 .Select(line => line.Trim())
@@ -871,6 +797,159 @@ class Program
             return null;
         }
     }
+
+    // ================= 総合市場リスク・スコア =================
+
+    static MarketRiskScore CalculateMarketRiskScore(
+        IndexAnalysis sp500,
+        IndexAnalysis nasdaq,
+        PutCallOutput putCall,
+        SectorRotationOutput sector,
+        CreditRiskAppetiteOutput credit,
+        VolatilityOutput volatility,
+        MarketBreadthOutput breadth)
+    {
+        // 配点: トレンド30、ブレッドス25、ボラティリティ15、信用15、セクター10、Put/Call5。
+        // 欠損データを低リスク（0点）と誤認しないよう、利用可能な配点で100点換算する。
+        var metrics = new List<MarketRiskMetric>();
+        void Add(string group, string name, decimal score, decimal maxPoints, string detail)
+        {
+            metrics.Add(new MarketRiskMetric
+            {
+                Group = group,
+                Name = name,
+                Score = Math.Round(Math.Clamp(score, 0m, maxPoints), 1),
+                MaxPoints = maxPoints,
+                Detail = detail
+            });
+        }
+
+        decimal StatusRisk(IndexAnalysis index) => index.StatusId switch
+        {
+            "Correction" => 9m,
+            "Pressure" => 4m,
+            _ => 0m
+        };
+
+        decimal smaRisk = (sp500.IsAboveSma50 ? 0m : 3m) + (nasdaq.IsAboveSma50 ? 0m : 3m);
+        decimal ddRisk = Math.Min(3m, sp500.DistributionDaysActive / 2m) + Math.Min(3m, nasdaq.DistributionDaysActive / 2m);
+        Add("市場トレンド", "市場ステータス", StatusRisk(sp500) + StatusRisk(nasdaq), 18m,
+            $"SPY: {sp500.StatusId} / QQQ: {nasdaq.StatusId}");
+        Add("市場トレンド", "50日線", smaRisk, 6m,
+            $"SPY: {(sp500.IsAboveSma50 ? "上" : "下")} / QQQ: {(nasdaq.IsAboveSma50 ? "上" : "下")}");
+        Add("市場トレンド", "有効Distribution Day", ddRisk, 6m,
+            $"SPY: {sp500.DistributionDaysActive}日 / QQQ: {nasdaq.DistributionDaysActive}日");
+
+        if (breadth.Status is "ok" or "partial")
+        {
+            if (breadth.AboveSma50Pct.HasValue)
+            {
+                Add("市場ブレッドス", "50日線上比率", BreadthPctRisk(breadth.AboveSma50Pct.Value, 7m), 7m,
+                    $"{breadth.AboveSma50Pct.Value:F1}%");
+            }
+            if (breadth.AboveSma200Pct.HasValue)
+            {
+                Add("市場ブレッドス", "200日線上比率", BreadthPctRisk(breadth.AboveSma200Pct.Value, 7m), 7m,
+                    $"{breadth.AboveSma200Pct.Value:F1}%");
+            }
+
+            decimal highLowRisk = breadth.NewLows52Week > breadth.NewHighs52Week ? 5m :
+                breadth.NewLows52Week > 0 && breadth.NewHighs52Week < breadth.NewLows52Week * 2 ? 3m : 0m;
+            Add("市場ブレッドス", "52週新高値・新安値", highLowRisk, 5m,
+                $"新高値 {breadth.NewHighs52Week} / 新安値 {breadth.NewLows52Week}");
+
+            decimal adRisk = breadth.AdLineChange20d <= -150 ? 6m : breadth.AdLineChange20d < 0 ? 3m : 0m;
+            Add("市場ブレッドス", "20日A/Dライン", adRisk, 6m,
+                $"20日変化 {(breadth.AdLineChange20d > 0 ? "+" : "")}{breadth.AdLineChange20d}");
+        }
+
+        if (volatility.Status == "ok" && volatility.Vix.HasValue && volatility.VixSma20.HasValue && volatility.Vix3m.HasValue)
+        {
+            decimal vixRisk = volatility.Vix.Value > volatility.VixSma20.Value * 1.2m ? 5m :
+                volatility.Vix.Value > volatility.VixSma20.Value ? 3m : 0m;
+            Add("ボラティリティ", "VIX対20日平均", vixRisk, 5m,
+                $"VIX {volatility.Vix.Value:F2} / 20日平均 {volatility.VixSma20.Value:F2}");
+            Add("ボラティリティ", "VIX期限構造", volatility.TermStructure == "Backwardation" ? 10m : 0m, 10m,
+                $"{volatility.TermStructure}（VIX対VIX3M {volatility.TermSlopePct ?? 0m:+0.00;-0.00;0.00}%）");
+        }
+
+        if (credit.Status == "ok")
+        {
+            if (credit.Spread3m.HasValue)
+            {
+                decimal creditRisk = credit.Spread3m.Value <= -5m ? 7m : credit.Spread3m.Value < 0m ? 4m : 0m;
+                Add("クレジット", "HY対IG相対リターン", creditRisk, 7m,
+                    $"3か月 {credit.Spread3m.Value:+0.00;-0.00;0.00}%");
+            }
+            if (credit.HyOasPct.HasValue)
+            {
+                decimal oasLevelRisk = credit.HyOasPct.Value >= 6m ? 4m : credit.HyOasPct.Value >= 4.5m ? 2m : 0m;
+                Add("クレジット", "HY OAS水準", oasLevelRisk, 4m,
+                    $"{credit.HyOasPct.Value:F2}%");
+            }
+            if (credit.HyOasChange1mBps.HasValue)
+            {
+                decimal oasChangeRisk = credit.HyOasChange1mBps.Value >= 75m ? 4m : credit.HyOasChange1mBps.Value >= 25m ? 2m : 0m;
+                Add("クレジット", "HY OAS 1か月変化", oasChangeRisk, 4m,
+                    $"{credit.HyOasChange1mBps.Value:+0;-0;0}bp");
+            }
+        }
+
+        if (sector.Status == "ok" && sector.Sectors != null)
+        {
+            int positiveSectors = sector.Sectors.Count(s => s.RelStrength3m > 0m);
+            decimal sectorRisk = positiveSectors >= 7 ? 0m : positiveSectors >= 5 ? 2m : positiveSectors >= 3 ? 4m : 6m;
+            Add("セクター", "対SPYで優位なセクター数", sectorRisk, 6m,
+                $"{positiveSectors}/{sector.Sectors.Count}セクター");
+
+            if (sector.BreadthProxies != null && sector.BreadthProxies.Count > 0)
+            {
+                decimal proxyMax = sector.BreadthProxies.Count * 2m;
+                decimal proxyRisk = sector.BreadthProxies.Sum(proxy => proxy.RelStrength3m <= -3m ? 2m : proxy.RelStrength3m < 0m ? 1m : 0m);
+                Add("セクター", "RSP・IWMの相対強度", proxyRisk, proxyMax,
+                    string.Join(" / ", sector.BreadthProxies.Select(p => $"{p.Symbol} {p.RelStrength3m:+0.00;-0.00;0.00}%")));
+            }
+        }
+
+        if (putCall.Status == "ok" && putCall.PercentileRank.HasValue)
+        {
+            decimal percentile = (decimal)putCall.PercentileRank.Value;
+            decimal putCallRisk = percentile <= 10m || percentile >= 90m ? 5m :
+                percentile <= 20m || percentile >= 80m ? 3m : 0m;
+            Add("需給", "Put/Call極端値", putCallRisk, 5m,
+                $"自己履歴の{percentile:F1}パーセンタイル");
+        }
+
+        decimal availableMax = metrics.Sum(metric => metric.MaxPoints);
+        decimal rawScore = metrics.Sum(metric => metric.Score);
+        decimal normalizedScore = availableMax > 0m ? Math.Round(rawScore / availableMax * 100m, 1) : 0m;
+        string label = normalizedScore switch
+        {
+            <= 20m => "良好",
+            <= 40m => "概ね良好",
+            <= 60m => "注意",
+            <= 80m => "警戒",
+            _ => "高リスク"
+        };
+
+        return new MarketRiskScore
+        {
+            Score = normalizedScore,
+            RawScore = Math.Round(rawScore, 1),
+            AvailableMaxPoints = Math.Round(availableMax, 1),
+            DataCoveragePct = Math.Round(availableMax, 1),
+            Label = label,
+            Metrics = metrics
+        };
+    }
+
+    static decimal BreadthPctRisk(decimal pct, decimal maxPoints) => pct switch
+    {
+        < 30m => maxPoints,
+        < 45m => Math.Round(maxPoints * 0.7m, 1),
+        < 60m => Math.Round(maxPoints * 0.3m, 1),
+        _ => 0m
+    };
 
     // ================= 指数ごとの分析 =================
 
@@ -1026,7 +1105,7 @@ class Program
         // --- チャート表示用（直近100日） ---
         int chartStart = Math.Max(0, n - 100);
         var chartLabels = new List<string>();
-        var chartCloses = new List<decimal>();
+        var chartPrices = new List<decimal>();
         var chartSma50 = new List<decimal?>();
         var distMarksActive = new List<decimal?>();
         var distMarksExpired = new List<decimal?>();
@@ -1034,7 +1113,7 @@ class Program
         for (int i = chartStart; i < n; i++)
         {
             chartLabels.Add(data[i].Date.ToString("MM-dd"));
-            chartCloses.Add(data[i].AdjustedClose);
+            chartPrices.Add(data[i].AdjustedClose);
             chartSma50.Add(sma50[i]);
             // 同じ「売り抜け日」でも、最新日時点でまだアクティブなものと、
             // 25日経過または5%反発で既に失効したものを別データセットとして分ける
@@ -1047,10 +1126,10 @@ class Program
         return new IndexAnalysis
         {
             Name = name,
-            LatestClose = data[n - 1].AdjustedClose,
+            LatestAdjustedClose = data[n - 1].AdjustedClose,
             Sma50 = sma50[n - 1],
             IsAboveSma50 = isAboveSma50,
-            High52Week = high52Week,
+            High52WeekAdjusted = high52Week,
             DrawdownFromHighPct = drawdownFromHighPct,
             DistributionDaysActive = lastDistDays,
             WorstActiveDropPct = worstActiveDropPct,
@@ -1061,7 +1140,7 @@ class Program
             Chart = new ChartData
             {
                 Labels = chartLabels,
-                Closes = chartCloses,
+                Prices = chartPrices,
                 Sma50 = chartSma50,
                 DistMarksActive = distMarksActive,
                 DistMarksExpired = distMarksExpired
@@ -1074,15 +1153,24 @@ class Program
     static PutCallStats AppendHistory(string combinedStatus, IndexAnalysis sp500, IndexAnalysis nasdaq, decimal? putCallRatio)
     {
         const string historyPath = "history.json";
-        var options = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
         List<HistoryEntry> history = new();
         if (File.Exists(historyPath))
         {
             try
             {
-                var existing = JsonSerializer.Deserialize<List<HistoryEntry>>(File.ReadAllText(historyPath));
-                if (existing != null) history = existing;
+                var existing = JsonSerializer.Deserialize<List<HistoryEntry>>(File.ReadAllText(historyPath), JsonOptions);
+                if (existing != null)
+                {
+                    // 旧実装ではcamelCaseの履歴をケースセンシティブに読んでいたため、
+                    // 同日重複を含む可能性がある。日付ごとに最新の1件へ正規化する。
+                    history = existing
+                        .Where(h => !string.IsNullOrWhiteSpace(h.Date))
+                        .GroupBy(h => h.Date)
+                        .Select(group => group.Last())
+                        .OrderBy(h => h.Date)
+                        .ToList();
+                }
             }
             catch
             {
@@ -1091,7 +1179,7 @@ class Program
             }
         }
 
-        string today = DateTime.UtcNow.AddHours(9).ToString("yyyy-MM-dd");
+        string today = JstNow().ToString("yyyy-MM-dd");
         history.RemoveAll(h => h.Date == today); // 同日再実行時は上書き
 
         history.Add(new HistoryEntry
@@ -1107,7 +1195,7 @@ class Program
 
         // 直近180日分のみ保持
         var trimmed = history.OrderBy(h => h.Date).TakeLast(180).ToList();
-        File.WriteAllText(historyPath, JsonSerializer.Serialize(trimmed, options));
+        WriteTextAtomically(historyPath, JsonSerializer.Serialize(trimmed, JsonOptions));
 
         // --- Put/Call Ratioのトレンド統計（保存後の履歴から算出。今日の値自身も含めて計算する） ---
         var validRatios = trimmed.Where(h => h.PutCallRatio.HasValue).Select(h => h.PutCallRatio!.Value).ToList();
@@ -1129,17 +1217,16 @@ class Program
 
     // ================= モデル =================
 
-    // Closeは取得元の通常終値、AdjustedCloseは分配金・株式分割調整後の終値。
-    // トレンド・相対リターン計算は後者を使用し、出来高は実取引のETF出来高をそのまま使用する。
-    record DailyData(DateTime Date, decimal Close, decimal AdjustedClose, long Volume);
+    // 分配金・株式分割を反映した終値と、実取引の出来高のみを保持する。
+    record DailyData(DateTime Date, decimal AdjustedClose, long Volume);
 
     class IndexAnalysis
     {
         public string Name { get; set; } = "";
-        public decimal LatestClose { get; set; }
+        public decimal LatestAdjustedClose { get; set; }
         public decimal? Sma50 { get; set; }
         public bool IsAboveSma50 { get; set; }
-        public decimal High52Week { get; set; }
+        public decimal High52WeekAdjusted { get; set; }
         public decimal DrawdownFromHighPct { get; set; } // 0以下の値（52週高値からの下落率）
         public int DistributionDaysActive { get; set; }
         public decimal? WorstActiveDropPct { get; set; } // アクティブな売り抜け日の中での最大下落率
@@ -1153,7 +1240,7 @@ class Program
     class ChartData
     {
         public List<string> Labels { get; set; } = new();
-        public List<decimal> Closes { get; set; } = new();
+        public List<decimal> Prices { get; set; } = new();
         public List<decimal?> Sma50 { get; set; } = new();
         public List<decimal?> DistMarksActive { get; set; } = new();  // 現在も有効な売り抜け日
         public List<decimal?> DistMarksExpired { get; set; } = new(); // 25日経過/5%反発で失効した売り抜け日
@@ -1262,6 +1349,25 @@ class Program
     {
         public string Status { get; set; } = ""; // ok / partial / unavailable
         public string Note { get; set; } = "";
+    }
+
+    class MarketRiskMetric
+    {
+        public string Group { get; set; } = "";
+        public string Name { get; set; } = "";
+        public decimal Score { get; set; }
+        public decimal MaxPoints { get; set; }
+        public string Detail { get; set; } = "";
+    }
+
+    class MarketRiskScore
+    {
+        public decimal Score { get; set; }
+        public decimal RawScore { get; set; }
+        public decimal AvailableMaxPoints { get; set; }
+        public decimal DataCoveragePct { get; set; }
+        public string Label { get; set; } = "";
+        public List<MarketRiskMetric> Metrics { get; set; } = new();
     }
 
     class HistoryEntry

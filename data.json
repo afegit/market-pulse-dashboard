@@ -1,13 +1,13 @@
 {
-  "lastUpdated": "2026-08-04 07:31:25",
+  "lastUpdated": "2026-08-04 12:12:00",
   "combinedStatus": "Correction",
-  "combinedDrivenBy": "S\u0026P 500\u30FBNasdaq Composite\u3068\u3082\u306B\u540C\u6C34\u6E96",
+  "combinedDrivenBy": "SPY\u3068QQQ\u306F\u540C\u3058\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9",
   "sp500": {
     "name": "S\u0026P 500\uFF08SPY\uFF09",
-    "latestClose": 757.6699829101562,
+    "latestAdjustedClose": 757.6699829101562,
     "sma50": 744.59,
     "isAboveSma50": true,
-    "high52Week": 757.6699829101562,
+    "high52WeekAdjusted": 757.6699829101562,
     "drawdownFromHighPct": 0,
     "distributionDaysActive": 7,
     "worstActiveDropPct": 1.54,
@@ -118,7 +118,7 @@
         "07-31",
         "08-03"
       ],
-      "closes": [
+      "prices": [
         672.7548217773438,
         662.5390625,
         658.7890014648438,
@@ -530,10 +530,10 @@
   },
   "nasdaq": {
     "name": "Nasdaq-100\uFF08QQQ\uFF09",
-    "latestClose": 700.0700073242188,
+    "latestAdjustedClose": 700.0700073242188,
     "sma50": 714.51,
     "isAboveSma50": false,
-    "high52Week": 745.3408813476562,
+    "high52WeekAdjusted": 745.3408813476562,
     "drawdownFromHighPct": -6.07,
     "distributionDaysActive": 8,
     "worstActiveDropPct": 1.90,
@@ -644,9 +644,9 @@
         "07-31",
         "08-03"
       ],
-      "closes": [
-        606.2584228515625,
-        595.85302734375,
+      "prices": [
+        606.2584838867188,
+        595.8530883789062,
         592.3213500976562,
         598.9656982421875,
         601.8887939453125,
@@ -952,7 +952,7 @@
       ],
       "distMarksExpired": [
         null,
-        595.85302734375,
+        595.8530883789062,
         null,
         null,
         null,
@@ -1057,10 +1057,10 @@
   "putCallRatio": {
     "status": "ok",
     "underlying": "SPY",
-    "callVolume": 4598930,
-    "putVolume": 4205277,
-    "ratio": 0.914,
-    "sma10": 0.914,
+    "callVolume": 823187,
+    "putVolume": 748272,
+    "ratio": 0.909,
+    "sma10": 0.909,
     "percentileRank": null,
     "historyDays": 1,
     "note": "SPY\u306E\u76F4\u8FD1\u9650\u6708\u306E\u307F\u3092\u96C6\u8A08\u3057\u305F\u51FA\u6765\u9AD8\u30D9\u30FC\u30B9\u306E\u53C2\u8003\u6307\u6A19\u3067\u3059\u30020DTE\u30FB\u30D8\u30C3\u30B8\u30FB\u6E80\u671F\u69CB\u6210\u306E\u5F71\u97FF\u3092\u53D7\u3051\u308B\u305F\u3081\u3001\u65B9\u5411\u4E88\u60F3\u306E\u4E3B\u30B7\u30B0\u30CA\u30EB\u306B\u306F\u4F7F\u308F\u305A\u3001\u6975\u7AEF\u306A\u9700\u7D66\u306E\u88DC\u52A9\u78BA\u8A8D\u306B\u9650\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
@@ -1216,5 +1216,98 @@
     "declines": 36,
     "advanceDeclineNet": 29,
     "adLineChange20d": -46
+  },
+  "marketRiskScore": {
+    "score": 41.5,
+    "rawScore": 36.1,
+    "availableMaxPoints": 87,
+    "dataCoveragePct": 87,
+    "label": "\u6CE8\u610F",
+    "metrics": [
+      {
+        "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
+        "name": "\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9",
+        "score": 18,
+        "maxPoints": 18,
+        "detail": "SPY: Correction / QQQ: Correction"
+      },
+      {
+        "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
+        "name": "50\u65E5\u7DDA",
+        "score": 3,
+        "maxPoints": 6,
+        "detail": "SPY: \u4E0A / QQQ: \u4E0B"
+      },
+      {
+        "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
+        "name": "\u6709\u52B9Distribution Day",
+        "score": 6,
+        "maxPoints": 6,
+        "detail": "SPY: 7\u65E5 / QQQ: 8\u65E5"
+      },
+      {
+        "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
+        "name": "50\u65E5\u7DDA\u4E0A\u6BD4\u7387",
+        "score": 2.1,
+        "maxPoints": 7,
+        "detail": "53.5%"
+      },
+      {
+        "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
+        "name": "200\u65E5\u7DDA\u4E0A\u6BD4\u7387",
+        "score": 0,
+        "maxPoints": 7,
+        "detail": "62.4%"
+      },
+      {
+        "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
+        "name": "52\u9031\u65B0\u9AD8\u5024\u30FB\u65B0\u5B89\u5024",
+        "score": 0,
+        "maxPoints": 5,
+        "detail": "\u65B0\u9AD8\u5024 4 / \u65B0\u5B89\u5024 0"
+      },
+      {
+        "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
+        "name": "20\u65E5A/D\u30E9\u30A4\u30F3",
+        "score": 3,
+        "maxPoints": 6,
+        "detail": "20\u65E5\u5909\u5316 -46"
+      },
+      {
+        "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
+        "name": "VIX\u5BFE20\u65E5\u5E73\u5747",
+        "score": 0,
+        "maxPoints": 5,
+        "detail": "VIX 15.86 / 20\u65E5\u5E73\u5747 17.24"
+      },
+      {
+        "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
+        "name": "VIX\u671F\u9650\u69CB\u9020",
+        "score": 0,
+        "maxPoints": 10,
+        "detail": "Contango\uFF08VIX\u5BFEVIX3M -16.22%\uFF09"
+      },
+      {
+        "group": "\u30AF\u30EC\u30B8\u30C3\u30C8",
+        "name": "HY\u5BFEIG\u76F8\u5BFE\u30EA\u30BF\u30FC\u30F3",
+        "score": 0,
+        "maxPoints": 7,
+        "detail": "3\u304B\u6708 \u002B1.61%"
+      },
+      {
+        "group": "\u30BB\u30AF\u30BF\u30FC",
+        "name": "\u5BFESPY\u3067\u512A\u4F4D\u306A\u30BB\u30AF\u30BF\u30FC\u6570",
+        "score": 4,
+        "maxPoints": 6,
+        "detail": "4/11\u30BB\u30AF\u30BF\u30FC"
+      },
+      {
+        "group": "\u30BB\u30AF\u30BF\u30FC",
+        "name": "RSP\u30FBIWM\u306E\u76F8\u5BFE\u5F37\u5EA6",
+        "score": 0,
+        "maxPoints": 4,
+        "detail": "RSP \u002B2.05% / IWM \u002B0.91%"
+      }
+    ]
   }
 }
