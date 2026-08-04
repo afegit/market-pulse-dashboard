@@ -1,26 +1,24 @@
 {
-  "lastUpdated": "2026-08-04 17:53:21",
-  "marketDataAsOf": "2026-07-31",
+  "lastUpdated": "2026-08-05 07:30:53",
+  "marketDataAsOf": "2026-08-04",
   "combinedStatus": "Correction",
-  "combinedDrivenBy": "SPY\u3068QQQ\u306F\u540C\u3058\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9",
+  "combinedDrivenBy": "S\u0026P 500\uFF08SPY\uFF09\u306E\u72B6\u614B\u304C\u3088\u308A\u5F31\u3044\u305F\u3081\u63A1\u7528",
   "sp500": {
     "name": "S\u0026P 500\uFF08SPY\uFF09",
-    "dataAsOf": "2026-07-31",
-    "latestAdjustedClose": 747.030029296875,
-    "sma50": 744.22,
+    "dataAsOf": "2026-08-04",
+    "latestAdjustedClose": 771.3300170898438,
+    "sma50": 745.20,
     "isAboveSma50": true,
-    "high52WeekAdjusted": 757.6182250976562,
-    "drawdownFromHighPct": -1.40,
-    "distributionDaysActive": 7,
-    "worstActiveDropPct": 1.54,
-    "worstActiveDropDate": "2026-07-29",
+    "high52WeekAdjusted": 771.3300170898438,
+    "drawdownFromHighPct": 0,
+    "distributionDaysActive": 5,
+    "worstActiveDropPct": 1.23,
+    "worstActiveDropDate": "2026-07-23",
     "trendState": "RallyAttempt",
     "lastFollowThroughDate": "2026-04-08",
     "statusId": "Correction",
     "chart": {
       "labels": [
-        "03-10",
-        "03-11",
         "03-12",
         "03-13",
         "03-16",
@@ -118,11 +116,11 @@
         "07-28",
         "07-29",
         "07-30",
-        "07-31"
+        "07-31",
+        "08-03",
+        "08-04"
       ],
       "prices": [
-        673.6002807617188,
-        672.7548217773438,
         662.5390625,
         658.7890014648438,
         665.493408203125,
@@ -220,11 +218,11 @@
         740.8599853515625,
         729.4600219726562,
         741.6900024414062,
-        747.030029296875
+        747.030029296875,
+        757.6699829101562,
+        771.3300170898438
       ],
       "sma50": [
-        683.96,
-        683.68,
         683.25,
         682.75,
         682.50,
@@ -322,7 +320,9 @@
         743.98,
         743.82,
         743.92,
-        744.22
+        744.22,
+        744.59,
+        745.20
       ],
       "distMarksActive": [
         null,
@@ -400,8 +400,6 @@
         null,
         null,
         null,
-        728.989990234375,
-        null,
         null,
         null,
         null,
@@ -422,13 +420,13 @@
         null,
         null,
         null,
-        729.4600219726562,
+        null,
+        null,
+        null,
         null,
         null
       ],
       "distMarksExpired": [
-        null,
-        null,
         662.5390625,
         null,
         null,
@@ -502,6 +500,7 @@
         733.5800170898438,
         null,
         null,
+        728.989990234375,
         null,
         null,
         null,
@@ -523,6 +522,7 @@
         null,
         null,
         null,
+        729.4600219726562,
         null,
         null,
         null,
@@ -532,22 +532,20 @@
   },
   "nasdaq": {
     "name": "Nasdaq-100\uFF08QQQ\uFF09",
-    "dataAsOf": "2026-07-31",
-    "latestAdjustedClose": 687.989990234375,
-    "sma50": 714.75,
-    "isAboveSma50": false,
+    "dataAsOf": "2026-08-04",
+    "latestAdjustedClose": 723.8499755859375,
+    "sma50": 714.71,
+    "isAboveSma50": true,
     "high52WeekAdjusted": 745.3408813476562,
-    "drawdownFromHighPct": -7.69,
-    "distributionDaysActive": 9,
-    "worstActiveDropPct": 2.04,
-    "worstActiveDropDate": "2026-07-29",
-    "trendState": "RallyAttempt",
-    "lastFollowThroughDate": "2026-04-08",
-    "statusId": "Correction",
+    "drawdownFromHighPct": -2.88,
+    "distributionDaysActive": 7,
+    "worstActiveDropPct": 1.90,
+    "worstActiveDropDate": "2026-07-23",
+    "trendState": "ConfirmedUptrend",
+    "lastFollowThroughDate": "2026-08-04",
+    "statusId": "Pressure",
     "chart": {
       "labels": [
-        "03-10",
-        "03-11",
         "03-12",
         "03-13",
         "03-16",
@@ -645,11 +643,11 @@
         "07-28",
         "07-29",
         "07-30",
-        "07-31"
+        "07-31",
+        "08-03",
+        "08-04"
       ],
       "prices": [
-        606.3383178710938,
-        606.2584838867188,
         595.8530883789062,
         592.3213500976562,
         598.9656982421875,
@@ -747,11 +745,11 @@
         675.489990234375,
         661.72998046875,
         683.5499877929688,
-        687.989990234375
+        687.989990234375,
+        700.0700073242188,
+        723.8499755859375
       ],
       "sma50": [
-        613.19,
-        612.87,
         612.40,
         611.89,
         611.61,
@@ -849,11 +847,11 @@
         716.37,
         715.44,
         715.01,
-        714.75
+        714.75,
+        714.51,
+        714.71
       ],
       "distMarksActive": [
-        null,
-        null,
         null,
         null,
         null,
@@ -948,14 +946,14 @@
         691.9600219726562,
         null,
         null,
-        675.489990234375,
-        661.72998046875,
+        null,
+        null,
+        null,
+        null,
         null,
         null
       ],
       "distMarksExpired": [
-        null,
-        null,
         595.8530883789062,
         null,
         null,
@@ -1050,6 +1048,8 @@
         null,
         null,
         null,
+        675.489990234375,
+        661.72998046875,
         null,
         null,
         null,
@@ -1060,149 +1060,149 @@
   "putCallRatio": {
     "status": "ok",
     "underlying": "SPY",
-    "callVolume": 823187,
-    "putVolume": 748272,
-    "ratio": 0.909,
-    "sma10": 0.909,
+    "callVolume": 6891049,
+    "putVolume": 3844174,
+    "ratio": 0.558,
+    "sma10": 0.734,
     "percentileRank": null,
-    "historyDays": 1,
+    "historyDays": 2,
     "note": "SPY\u306E\u76F4\u8FD1\u9650\u6708\u306E\u307F\u3092\u96C6\u8A08\u3057\u305F\u51FA\u6765\u9AD8\u30D9\u30FC\u30B9\u306E\u53C2\u8003\u6307\u6A19\u3067\u3059\u30020DTE\u30FB\u30D8\u30C3\u30B8\u30FB\u6E80\u671F\u69CB\u6210\u306E\u5F71\u97FF\u3092\u53D7\u3051\u308B\u305F\u3081\u3001\u65B9\u5411\u4E88\u60F3\u306E\u4E3B\u30B7\u30B0\u30CA\u30EB\u306B\u306F\u4F7F\u308F\u305A\u3001\u6975\u7AEF\u306A\u9700\u7D66\u306E\u88DC\u52A9\u78BA\u8A8D\u306B\u9650\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
   },
   "sectorRotation": {
     "status": "ok",
-    "spyReturn1m": 0.17,
-    "spyReturn3m": 4.22,
+    "spyReturn1m": 2.67,
+    "spyReturn3m": 7.70,
     "sectors": [
-      {
-        "symbol": "XLV",
-        "name": "\u30D8\u30EB\u30B9\u30B1\u30A2",
-        "return1m": 1.89,
-        "return3m": 11.83,
-        "relStrength1m": 1.72,
-        "relStrength3m": 7.61
-      },
       {
         "symbol": "XLK",
         "name": "\u30C6\u30AF\u30CE\u30ED\u30B8\u30FC",
-        "return1m": -5.53,
-        "return3m": 10.07,
-        "relStrength1m": -5.70,
-        "relStrength3m": 5.85
+        "return1m": 1.81,
+        "return3m": 15.47,
+        "relStrength1m": -0.86,
+        "relStrength3m": 7.77
       },
       {
         "symbol": "XLF",
         "name": "\u91D1\u878D",
-        "return1m": 3.94,
-        "return3m": 9.61,
-        "relStrength1m": 3.77,
-        "relStrength3m": 5.39
+        "return1m": 3.10,
+        "return3m": 12.61,
+        "relStrength1m": 0.43,
+        "relStrength3m": 4.91
+      },
+      {
+        "symbol": "XLV",
+        "name": "\u30D8\u30EB\u30B9\u30B1\u30A2",
+        "return1m": 0.09,
+        "return3m": 12.50,
+        "relStrength1m": -2.58,
+        "relStrength3m": 4.80
       },
       {
         "symbol": "XLI",
         "name": "\u8CC7\u672C\u8CA1",
-        "return1m": -1.92,
-        "return3m": 3.27,
-        "relStrength1m": -2.09,
-        "relStrength3m": -0.95
+        "return1m": 0.45,
+        "return3m": 9.29,
+        "relStrength1m": -2.22,
+        "relStrength3m": 1.59
       },
       {
         "symbol": "XLRE",
         "name": "\u4E0D\u52D5\u7523",
-        "return1m": 2.01,
-        "return3m": 2.40,
-        "relStrength1m": 1.84,
-        "relStrength3m": -1.82
-      },
-      {
-        "symbol": "XLP",
-        "name": "\u751F\u6D3B\u5FC5\u9700\u54C1",
-        "return1m": 2.10,
-        "return3m": 1.58,
-        "relStrength1m": 1.93,
-        "relStrength3m": -2.64
-      },
-      {
-        "symbol": "XLE",
-        "name": "\u30A8\u30CD\u30EB\u30AE\u30FC",
-        "return1m": 12.76,
-        "return3m": 0.55,
-        "relStrength1m": 12.59,
-        "relStrength3m": -3.67
+        "return1m": 1.99,
+        "return3m": 3.37,
+        "relStrength1m": -0.68,
+        "relStrength3m": -4.33
       },
       {
         "symbol": "XLB",
         "name": "\u7D20\u6750",
-        "return1m": -1.16,
-        "return3m": -1.65,
-        "relStrength1m": -1.33,
-        "relStrength3m": -5.87
+        "return1m": 0.04,
+        "return3m": 3.05,
+        "relStrength1m": -2.63,
+        "relStrength3m": -4.65
+      },
+      {
+        "symbol": "XLP",
+        "name": "\u751F\u6D3B\u5FC5\u9700\u54C1",
+        "return1m": 1.51,
+        "return3m": 2.90,
+        "relStrength1m": -1.16,
+        "relStrength3m": -4.80
       },
       {
         "symbol": "XLY",
         "name": "\u4E00\u822C\u6D88\u8CBB\u8CA1",
-        "return1m": -1.69,
-        "return3m": -1.71,
-        "relStrength1m": -1.86,
-        "relStrength3m": -5.93
+        "return1m": 0.24,
+        "return3m": 0.68,
+        "relStrength1m": -2.43,
+        "relStrength3m": -7.02
       },
       {
-        "symbol": "XLU",
-        "name": "\u516C\u76CA\u4E8B\u696D",
-        "return1m": -0.94,
-        "return3m": -4.73,
-        "relStrength1m": -1.11,
-        "relStrength3m": -8.95
+        "symbol": "XLE",
+        "name": "\u30A8\u30CD\u30EB\u30AE\u30FC",
+        "return1m": 10.14,
+        "return3m": -0.75,
+        "relStrength1m": 7.47,
+        "relStrength3m": -8.45
       },
       {
         "symbol": "XLC",
         "name": "\u901A\u4FE1\u30B5\u30FC\u30D3\u30B9",
-        "return1m": -1.37,
-        "return3m": -6.86,
-        "relStrength1m": -1.54,
-        "relStrength3m": -11.08
+        "return1m": 1.66,
+        "return3m": -3.25,
+        "relStrength1m": -1.01,
+        "relStrength3m": -10.95
+      },
+      {
+        "symbol": "XLU",
+        "name": "\u516C\u76CA\u4E8B\u696D",
+        "return1m": -2.63,
+        "return3m": -4.27,
+        "relStrength1m": -5.30,
+        "relStrength3m": -11.97
       }
     ],
     "breadthProxies": [
       {
         "symbol": "RSP",
         "name": "S\u0026P500\u5747\u7B49\u52A0\u91CD",
-        "return1m": 0.75,
-        "return3m": 6.10,
-        "relStrength1m": 0.58,
-        "relStrength3m": 1.88
+        "return1m": 2.43,
+        "return3m": 9.64,
+        "relStrength1m": -0.24,
+        "relStrength3m": 1.94
       },
       {
         "symbol": "IWM",
         "name": "\u5C0F\u578B\u682A(Russell 2000)",
-        "return1m": -2.71,
-        "return3m": 5.01,
-        "relStrength1m": -2.88,
-        "relStrength3m": 0.79
+        "return1m": 0.94,
+        "return3m": 8.83,
+        "relStrength1m": -1.73,
+        "relStrength3m": 1.13
       }
     ],
     "note": "SPDR\u30BB\u30AF\u30BF\u30FCETF11\u9298\u67C4\u306ESPY\u306B\u5BFE\u3059\u308B\u76F8\u5BFE\u30EA\u30BF\u30FC\u30F3(\u81EA\u524D\u7B97\u51FA)\u3002CAN SLIM\u306E\u300CL(Leader)\u300D\u306B\u5BFE\u5FDC\u3059\u308B\u88DC\u52A9\u6307\u6A19\u3067\u3059\u3002"
   },
   "creditRiskAppetite": {
     "status": "ok",
-    "hygReturn1m": -0.14,
-    "hygReturn3m": 0.37,
-    "lqdReturn1m": -2.04,
-    "lqdReturn3m": -1.29,
-    "spread1m": 1.90,
-    "spread3m": 1.66,
+    "hygReturn1m": 0.08,
+    "hygReturn3m": 1.15,
+    "lqdReturn1m": -1.33,
+    "lqdReturn3m": -0.22,
+    "spread1m": 1.41,
+    "spread3m": 1.37,
     "hyOasPct": null,
     "hyOasChange1mBps": null,
     "hyOasDate": null,
     "note": "HYG\u3068\u6295\u8CC7\u9069\u683C\u793E\u50B5ETF(LQD)\u306E\u76F8\u5BFE\u30EA\u30BF\u30FC\u30F3\u306B\u3001ICE BofA US High Yield OAS\u3092\u8FFD\u52A0\u3057\u307E\u3057\u305F\u3002TLT\u6BD4\u8F03\u3088\u308A\u91D1\u5229\u30C7\u30E5\u30EC\u30FC\u30B7\u30E7\u30F3\u5DEE\u306E\u5F71\u97FF\u3092\u6291\u3048\u3001\u4FE1\u7528\u30EA\u30B9\u30AF\u3092\u8AAD\u307F\u53D6\u308A\u3084\u3059\u304F\u3057\u307E\u3059\u3002"
   },
   "volatilityRegime": {
-    "status": "unavailable",
-    "vix": null,
-    "vixSma20": null,
-    "vix3m": null,
-    "termSlopePct": null,
-    "termStructure": null,
-    "note": "VIX/VIX3M\u30C7\u30FC\u30BF\u306E\u53D6\u5F97\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002"
+    "status": "ok",
+    "vix": 16.5,
+    "vixSma20": 17.26,
+    "vix3m": 19.34000015258789,
+    "termSlopePct": -14.68,
+    "termStructure": "Contango",
+    "note": "VIX\u3068VIX3M\u306E\u6BD4\u8F03\u306B\u3088\u308B\u671F\u9650\u69CB\u9020\u306E\u8FD1\u4F3C\u3067\u3059\u3002\u9006\u8EE2\uFF08Backwardation\uFF09\u306F\u5E02\u5834\u30B9\u30C8\u30EC\u30B9\u306E\u8B66\u6212\u706F\u3068\u3057\u3066\u6271\u3044\u3001\u5358\u72EC\u306E\u58F2\u8CB7\u30B7\u30B0\u30CA\u30EB\u306B\u306F\u4F7F\u3044\u307E\u305B\u3093\u3002"
   },
   "marketBreadth": {
     "status": "ok",
@@ -1211,106 +1211,149 @@
     "expectedConstituents": 101,
     "analyzedConstituents": 101,
     "coveragePct": 100,
-    "aboveSma50Pct": 51.5,
-    "aboveSma200Pct": 61.4,
-    "newHighs52Week": 2,
+    "aboveSma50Pct": 59.4,
+    "aboveSma200Pct": 66.3,
+    "newHighs52Week": 5,
     "newLows52Week": 0,
-    "advances": 50,
-    "declines": 51,
-    "advanceDeclineNet": -1,
-    "adLineChange20d": -68
+    "advances": 80,
+    "declines": 21,
+    "advanceDeclineNet": 59,
+    "adLineChange20d": 9
   },
   "marketRiskScore": {
-    "score": 50.1,
-    "rawScore": 36.1,
-    "availableMaxPoints": 72,
-    "dataCoveragePct": 72,
-    "label": "\u6CE8\u610F",
+    "score": 28.3,
+    "rawScore": 24.6,
+    "availableMaxPoints": 87,
+    "dataCoveragePct": 87,
+    "label": "\u6982\u306D\u826F\u597D",
     "metrics": [
       {
         "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
         "name": "\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9",
-        "score": 18,
+        "score": 13,
         "maxPoints": 18,
-        "detail": "SPY: Correction / QQQ: Correction"
+        "detail": "SPY: Correction / QQQ: Pressure"
       },
       {
         "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
         "name": "50\u65E5\u7DDA",
-        "score": 3,
+        "score": 0,
         "maxPoints": 6,
-        "detail": "SPY: \u4E0A / QQQ: \u4E0B"
+        "detail": "SPY: \u4E0A / QQQ: \u4E0A"
       },
       {
         "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
         "name": "\u6709\u52B9Distribution Day",
-        "score": 6,
+        "score": 5.5,
         "maxPoints": 6,
-        "detail": "SPY: 7\u65E5 / QQQ: 9\u65E5"
+        "detail": "SPY: 5\u65E5 / QQQ: 7\u65E5"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
         "name": "50\u65E5\u7DDA\u4E0A\u6BD4\u7387",
         "score": 2.1,
         "maxPoints": 7,
-        "detail": "51.5%"
+        "detail": "59.4%"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
         "name": "200\u65E5\u7DDA\u4E0A\u6BD4\u7387",
         "score": 0,
         "maxPoints": 7,
-        "detail": "61.4%"
+        "detail": "66.3%"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
         "name": "52\u9031\u65B0\u9AD8\u5024\u30FB\u65B0\u5B89\u5024",
         "score": 0,
         "maxPoints": 5,
-        "detail": "\u65B0\u9AD8\u5024 2 / \u65B0\u5B89\u5024 0"
+        "detail": "\u65B0\u9AD8\u5024 5 / \u65B0\u5B89\u5024 0"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
         "name": "20\u65E5A/D\u30E9\u30A4\u30F3",
-        "score": 3,
+        "score": 0,
         "maxPoints": 6,
-        "detail": "20\u65E5\u5909\u5316 -68"
+        "detail": "20\u65E5\u5909\u5316 \u002B9"
+      },
+      {
+        "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
+        "name": "VIX\u5BFE20\u65E5\u5E73\u5747",
+        "score": 0,
+        "maxPoints": 5,
+        "detail": "VIX 16.50 / 20\u65E5\u5E73\u5747 17.26"
+      },
+      {
+        "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
+        "name": "VIX\u671F\u9650\u69CB\u9020",
+        "score": 0,
+        "maxPoints": 10,
+        "detail": "Contango\uFF08VIX\u5BFEVIX3M -14.68%\uFF09"
       },
       {
         "group": "\u30AF\u30EC\u30B8\u30C3\u30C8",
         "name": "HY\u5BFEIG\u76F8\u5BFE\u30EA\u30BF\u30FC\u30F3",
         "score": 0,
         "maxPoints": 7,
-        "detail": "3\u304B\u6708 \u002B1.66%"
+        "detail": "3\u304B\u6708 \u002B1.37%"
       },
       {
         "group": "\u30BB\u30AF\u30BF\u30FC",
         "name": "\u5BFESPY\u3067\u512A\u4F4D\u306A\u30BB\u30AF\u30BF\u30FC\u6570",
         "score": 4,
         "maxPoints": 6,
-        "detail": "3/11\u30BB\u30AF\u30BF\u30FC"
+        "detail": "4/11\u30BB\u30AF\u30BF\u30FC"
       },
       {
         "group": "\u30BB\u30AF\u30BF\u30FC",
         "name": "RSP\u30FBIWM\u306E\u76F8\u5BFE\u5F37\u5EA6",
         "score": 0,
         "maxPoints": 4,
-        "detail": "RSP \u002B1.88% / IWM \u002B0.79%"
+        "detail": "RSP \u002B1.94% / IWM \u002B1.13%"
       }
     ]
   },
   "marketRiskChange": {
-    "status": "collecting",
-    "previousDate": null,
-    "previousScore": null,
-    "scoreChange": null,
-    "coverageChange": null,
-    "factors": [],
-    "note": "\u524D\u56DE\u5206\u306E\u63A1\u70B9\u5185\u8A33\u304C\u305D\u308D\u3046\u3068\u3001\u524D\u56DE\u304B\u3089\u306E\u5909\u52D5\u7406\u7531\u3092\u8868\u793A\u3057\u307E\u3059\u3002"
+    "status": "ok",
+    "previousDate": "2026-08-04",
+    "previousScore": 50.1,
+    "scoreChange": -21.8,
+    "coverageChange": 15,
+    "factors": [
+      {
+        "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
+        "name": "\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9",
+        "changeInRiskPoints": -10.1,
+        "currentDetail": "SPY: Correction / QQQ: Pressure",
+        "previousDetail": "SPY: Correction / QQQ: Correction"
+      },
+      {
+        "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
+        "name": "50\u65E5\u7DDA",
+        "changeInRiskPoints": -4.2,
+        "currentDetail": "SPY: \u4E0A / QQQ: \u4E0A",
+        "previousDetail": "SPY: \u4E0A / QQQ: \u4E0B"
+      },
+      {
+        "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
+        "name": "20\u65E5A/D\u30E9\u30A4\u30F3",
+        "changeInRiskPoints": -4.2,
+        "currentDetail": "20\u65E5\u5909\u5316 \u002B9",
+        "previousDetail": "20\u65E5\u5909\u5316 -68"
+      },
+      {
+        "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
+        "name": "\u6709\u52B9Distribution Day",
+        "changeInRiskPoints": -2.0,
+        "currentDetail": "SPY: 5\u65E5 / QQQ: 7\u65E5",
+        "previousDetail": "SPY: 7\u65E5 / QQQ: 9\u65E5"
+      }
+    ],
+    "note": "\u63A1\u70B9\u30AB\u30D0\u30EC\u30C3\u30B8\u3082\u524D\u56DE\u304B\u3089\u002B15.0\u30DD\u30A4\u30F3\u30C8\u5909\u5316\u3057\u3066\u3044\u307E\u3059\u3002\u6B20\u640D\u9805\u76EE\u306B\u3088\u308B\u5358\u7D14\u6BD4\u8F03\u306B\u306F\u6CE8\u610F\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
   },
   "scoreValidation": {
     "status": "collecting",
-    "observationCount": 1,
+    "observationCount": 2,
     "oneMonthMaturedCount": 0,
     "threeMonthMaturedCount": 0,
     "recommendedMinSamples": 10,
@@ -1335,7 +1378,7 @@
       },
       {
         "label": "21\u201340",
-        "observationCount": 0,
+        "observationCount": 1,
         "oneMonthSampleSize": 0,
         "threeMonthSampleSize": 0,
         "spyAverageReturn1m": null,
