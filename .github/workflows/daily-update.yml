@@ -6,33 +6,70 @@ on:
     - cron: '17 22 * * 1-5'
   workflow_dispatch:
 
+# デフォルトは読み取り専用。書き込みは、任意コードを実行しない publish-data ジョブだけに限定する。
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: market-pulse-daily-update
   cancel-in-progress: false
 
 jobs:
-  update-data:
+  generate-data:
+    name: Generate market data
     runs-on: ubuntu-latest
     timeout-minutes: 12
+    permissions:
+      contents: read
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up .NET 8
-        uses: actions/setup-dotnet@v6
+      - name: Check out repository without persisting credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
         with:
-          dotnet-version: '8.0.x'
+          persist-credentials: false
+
+      - name: Set up .NET 10 LTS
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
 
       - name: Generate dashboard data
         run: dotnet run --configuration Release
+
+      - name: Hand off generated data
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: refreshed-market-data
+          path: |
+            data.json
+            history.json
+          if-no-files-found: error
+          retention-days: 1
+
+  publish-data:
+    name: Commit generated data
+    needs: generate-data
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    # このジョブは固定したGitHub公式Actionと固定シェルだけを実行する。
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the triggering revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+
+      - name: Retrieve generated data
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: refreshed-market-data
+          path: .
 
       - name: Commit refreshed data when it changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data.json history.json
+          git add -- data.json history.json
           git diff --cached --quiet || git commit -m "chore: refresh market pulse data"
-          git push
+          git push origin "HEAD:${{ github.event.repository.default_branch }}"
