@@ -1,35 +1,38 @@
-name: Daily .NET Market Pulse Update
+name: Update Market Pulse
 
 on:
   schedule:
-    # 【注意】GitHub Actions純正のscheduleトリガーは「ベストエフォート」であり、
-    # 高負荷時には遅延するだけでなく実行自体がドロップ（消失）することが公式にも認められている。
-    # このため、確実な自動実行は外部サービスからworkflow_dispatch APIを叩く方式に移行した
-    # （設定手順は RELIABLE_SCHEDULING_GUIDE.md を参照）。
-    # これはあくまで「動けば儲けもの」の無料の保険であり、これ単体には依存しない。
-    # 分の値を:00/:30から外し、他の大量のワークフローと混雑するタイミングを避けている。
+    # 米国市場の引け後（JST 07:17、夏時間/冬時間とも米国東部の引け後）に実行する。
     - cron: '17 22 * * 1-5'
-  workflow_dispatch: # 手動実行ボタン（外部cronサービスもこのイベントを呼び出す）
+  workflow_dispatch:
 
 permissions:
   contents: write
 
-jobs:
-  build-and-update:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
+concurrency:
+  group: market-pulse-daily-update
+  cancel-in-progress: false
 
-      - name: Setup .NET
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up .NET 8
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '8.0.x'
 
-      - name: Run .NET App (Generate data.json / history.json)
-        run: dotnet run
+      - name: Generate dashboard data
+        run: dotnet run --configuration Release
 
-      - name: Commit and Push data.json / history.json
-        uses: stefanzweifel/git-auto-commit-action@v7
-        with:
-          commit_message: "Automated daily update of Market Pulse data"
-          file_pattern: 'data.json history.json'
+      - name: Commit refreshed data when it changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data.json history.json
+          git diff --cached --quiet || git commit -m "chore: refresh market pulse data"
+          git push
