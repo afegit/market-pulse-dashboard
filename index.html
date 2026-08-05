@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#07111f">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ' 'sha256-5gJ2BfGbHTxx3uMIU/cKIkrnmN7yj1dcWNCeJWY4ank='; style-src 'self' 'sha256-dUOIJZX7rW2rml9NfiSk/RPzhw+NMIivvZaEsLNVjio='; connect-src 'self'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ' 'sha256-5gJ2BfGbHTxx3uMIU/cKIkrnmN7yj1dcWNCeJWY4ank='; style-src 'self' 'sha256-WXXKiCoUAH89z/A15CccdT0xOBj8I/k1SLuTpv3Cuns='; connect-src 'self'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Market Pulse | US Equity Risk Monitor</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <style>
@@ -75,6 +75,7 @@
       min-width: 0; padding: 20px; background: linear-gradient(145deg, rgba(21, 38, 63, .92), rgba(13, 26, 44, .98));
       border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow);
     }
+    .section-panel { margin-top: 16px; }
     .panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
     .panel h2, .panel h3 { margin: 0; letter-spacing: -.02em; }
     .panel h2 { font-size: 20px; }
@@ -219,7 +220,7 @@
         <div class="table-wrap"><table class="risk-table"><thead><tr><th>分類</th><th>指標</th><th>根拠</th><th>リスク点</th></tr></thead><tbody id="risk-metrics"></tbody></table></div>
       </section>
 
-      <section class="panel" aria-labelledby="risk-change-title">
+      <section class="panel section-panel" aria-labelledby="risk-change-title">
         <div class="panel-head"><div><h2 id="risk-change-title">今日のスコア変動理由</h2><p class="panel-sub">前回保存したスコアと比べ、何が市場リスクを動かしたかを示します。</p></div><span class="pill" id="risk-change-status">--</span></div>
         <div class="score-change-summary" id="risk-change-summary"><span>比較データを確認中</span></div>
         <div class="change-list" id="risk-change-factors"></div>
@@ -267,7 +268,7 @@
         <article class="panel"><div class="panel-head"><div><div class="eyebrow">How to read this dashboard</div><h2>見る順番</h2><p class="panel-sub">迷ったら、上から下へ。</p></div></div><div class="metric-list"><div class="metric"><span>1. 総合スコア</span><strong>地合いの温度感</strong></div><div class="metric"><span>2. SPY / QQQ</span><strong>価格と売り圧力</strong></div><div class="metric"><span>3. ブレッドス</span><strong>上昇の広がり</strong></div><div class="metric"><span>4. VIX・信用</span><strong>急変リスク</strong></div><div class="metric"><span>5. セクター</span><strong>候補探しの方向</strong></div></div><p class="compact-help">この画面はポジション量や新規エントリーの慎重さを考える補助です。個別銘柄の決算、損切り水準、保有期間は別途判断してください。</p></article>
       </section>
 
-      <section class="panel" aria-labelledby="score-validation-title">
+      <section class="panel section-panel" aria-labelledby="score-validation-title">
         <div class="panel-head"><div><h2 id="score-validation-title">スコアの過去実績検証</h2><p class="panel-sub">スコア帯ごとに、その後の市場成績と保有中の最大下落を確認します。</p></div><span class="pill" id="score-validation-status">--</span></div>
         <div class="data-grid validation-summary" id="score-validation-summary"></div>
         <div class="table-wrap"><table class="validation-table"><thead><tr><th>スコア帯</th><th>標本数<br>1M / 3M</th><th>1か月後<br>SPY / QQQ</th><th>1か月中の平均最大下落<br>SPY / QQQ</th><th>3か月後<br>SPY / QQQ</th><th>3か月中の平均最大下落<br>SPY / QQQ</th></tr></thead><tbody id="score-validation-table"></tbody></table></div>
