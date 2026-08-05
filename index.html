@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#07111f">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ' 'sha256-Se+9/fwbDueZvxV5iIeOErjwhUmfLOvHlcxhvax+McY='; style-src 'self' 'sha256-yiwnZHUi+tK38fYLs9raHb7RUVT2ohhOv1fQ8TqOVjA='; connect-src 'self'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ' 'sha256-5gJ2BfGbHTxx3uMIU/cKIkrnmN7yj1dcWNCeJWY4ank='; style-src 'self' 'sha256-yiwnZHUi+tK38fYLs9raHb7RUVT2ohhOv1fQ8TqOVjA='; connect-src 'self'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Market Pulse | US Equity Risk Monitor</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <style>
@@ -199,7 +199,7 @@
     </header>
 
     <main>
-        <div class="alert" id="stale-banner">データが3日以上更新されていません。数値の鮮度を確認してください。</div>
+        <div class="alert" id="stale-banner">最終更新から米国市場の営業日が3日以上経過しています。</div>
 
       <section class="read-order" aria-label="&#x307E;&#x305A;&#x898B;&#x308B;&#x9806;&#x756A;">
         <div class="read-order-title">&#x307E;&#x305A;&#x898B;&#x308B;&#x9806;&#x756A;</div>
@@ -608,9 +608,45 @@
       if (pc.length) chart('chart-putcall', { type: 'line', data: { labels: pc.map(item => item.date), datasets: [{ data: pc.map(item => item.putCallRatio), borderColor: '#a990ff', backgroundColor: 'rgba(169,144,255,.10)', fill: true, tension: .18, borderWidth: 2, pointRadius: 0 }] }, options: chartOptions() });
     }
 
-    function showStaleWarning(dataAsOf) {
-      const parsed = new Date(`${String(dataAsOf).replace(' ', 'T')}+09:00`);
-      byId('stale-banner').style.display = Number.isNaN(parsed.getTime()) || Date.now() - parsed.getTime() > 3 * 86400000 ? 'block' : 'none';
+    function jstCalendarDate(value) {
+      const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (!match) return null;
+      const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    function jstToday() {
+      const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+      const get = type => Number(parts.find(part => part.type === type)?.value);
+      return new Date(Date.UTC(get('year'), get('month') - 1, get('day')));
+    }
+
+    function completedWeekdaysSince(value) {
+      const start = jstCalendarDate(value);
+      const today = jstToday();
+      if (!start || start > today) return null;
+      let count = 0;
+      const cursor = new Date(start);
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+      // 当日はまだ米国市場の終値が確定していない可能性があるため数えない。
+      while (cursor < today) {
+        const day = cursor.getUTCDay();
+        if (day !== 0 && day !== 6) count += 1;
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+      return count;
+    }
+
+    function showStaleWarning(lastUpdated) {
+      // 市場基準日ではなく、生成時刻で更新停止を判定する。
+      // 金曜終値を月曜の日本時間に表示するような週末またぎを、古いデータとして誤判定しないため。
+      const elapsedBusinessDays = completedWeekdaysSince(lastUpdated);
+      const stale = elapsedBusinessDays == null || elapsedBusinessDays >= 3;
+      const banner = byId('stale-banner');
+      banner.style.display = stale ? 'block' : 'none';
+      if (stale) banner.textContent = elapsedBusinessDays == null
+        ? '最終更新日時を確認できません。数値の鮮度を確認してください。'
+        : `最終更新から米国市場の営業日が${elapsedBusinessDays}日経過しています。数値の鮮度を確認してください。`;
     }
 
     async function fetchJson(path, fallback) {
@@ -627,7 +663,7 @@
         const sourceAsOf = data.marketDataAsOf || data.sp500?.dataAsOf;
         const generatedAt = data.lastUpdated || '—';
         byId('update-time').textContent = sourceAsOf ? `${sourceAsOf} 時点 · 更新 ${generatedAt} JST` : `更新 ${generatedAt} JST`;
-        showStaleWarning(sourceAsOf || data.lastUpdated);
+        showStaleWarning(data.lastUpdated);
         renderOverview(data); renderRiskScore(data.marketRiskScore); renderRiskChange(data.marketRiskChange); renderHealth(data);
         renderIndex('spy', data.sp500); renderIndex('qqq', data.nasdaq);
         renderBreadth(data.marketBreadth); renderVolatility(data.volatilityRegime); renderCredit(data.creditRiskAppetite);
