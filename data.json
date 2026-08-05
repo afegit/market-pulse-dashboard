@@ -1,8 +1,8 @@
 {
-  "lastUpdated": "2026-08-05 07:30:53",
+  "lastUpdated": "2026-08-05 17:02:49",
   "marketDataAsOf": "2026-08-04",
-  "combinedStatus": "Correction",
-  "combinedDrivenBy": "S\u0026P 500\uFF08SPY\uFF09\u306E\u72B6\u614B\u304C\u3088\u308A\u5F31\u3044\u305F\u3081\u63A1\u7528",
+  "combinedStatus": "Pressure",
+  "combinedDrivenBy": "SPY\u3068QQQ\u306F\u540C\u3058\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9",
   "sp500": {
     "name": "S\u0026P 500\uFF08SPY\uFF09",
     "dataAsOf": "2026-08-04",
@@ -14,9 +14,9 @@
     "distributionDaysActive": 5,
     "worstActiveDropPct": 1.23,
     "worstActiveDropDate": "2026-07-23",
-    "trendState": "RallyAttempt",
-    "lastFollowThroughDate": "2026-04-08",
-    "statusId": "Correction",
+    "trendState": "ConfirmedUptrend",
+    "lastFollowThroughDate": "2026-08-04",
+    "statusId": "Pressure",
     "chart": {
       "labels": [
         "03-12",
@@ -126,7 +126,7 @@
         665.493408203125,
         667.2440185546875,
         657.9335327148438,
-        656.3121948242188,
+        656.3121337890625,
         646.9034423828125,
         653.6959228515625,
         651.5015869140625,
@@ -432,7 +432,7 @@
         null,
         null,
         null,
-        656.3121948242188,
+        656.3121337890625,
         646.9034423828125,
         null,
         null,
@@ -1060,10 +1060,10 @@
   "putCallRatio": {
     "status": "ok",
     "underlying": "SPY",
-    "callVolume": 6891049,
-    "putVolume": 3844174,
-    "ratio": 0.558,
-    "sma10": 0.734,
+    "callVolume": 1210850,
+    "putVolume": 566653,
+    "ratio": 0.468,
+    "sma10": 0.688,
     "percentileRank": null,
     "historyDays": 2,
     "note": "SPY\u306E\u76F4\u8FD1\u9650\u6708\u306E\u307F\u3092\u96C6\u8A08\u3057\u305F\u51FA\u6765\u9AD8\u30D9\u30FC\u30B9\u306E\u53C2\u8003\u6307\u6A19\u3067\u3059\u30020DTE\u30FB\u30D8\u30C3\u30B8\u30FB\u6E80\u671F\u69CB\u6210\u306E\u5F71\u97FF\u3092\u53D7\u3051\u308B\u305F\u3081\u3001\u65B9\u5411\u4E88\u60F3\u306E\u4E3B\u30B7\u30B0\u30CA\u30EB\u306B\u306F\u4F7F\u308F\u305A\u3001\u6975\u7AEF\u306A\u9700\u7D66\u306E\u88DC\u52A9\u78BA\u8A8D\u306B\u9650\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
@@ -1196,13 +1196,13 @@
     "note": "HYG\u3068\u6295\u8CC7\u9069\u683C\u793E\u50B5ETF(LQD)\u306E\u76F8\u5BFE\u30EA\u30BF\u30FC\u30F3\u306B\u3001ICE BofA US High Yield OAS\u3092\u8FFD\u52A0\u3057\u307E\u3057\u305F\u3002TLT\u6BD4\u8F03\u3088\u308A\u91D1\u5229\u30C7\u30E5\u30EC\u30FC\u30B7\u30E7\u30F3\u5DEE\u306E\u5F71\u97FF\u3092\u6291\u3048\u3001\u4FE1\u7528\u30EA\u30B9\u30AF\u3092\u8AAD\u307F\u53D6\u308A\u3084\u3059\u304F\u3057\u307E\u3059\u3002"
   },
   "volatilityRegime": {
-    "status": "ok",
-    "vix": 16.5,
-    "vixSma20": 17.26,
-    "vix3m": 19.34000015258789,
-    "termSlopePct": -14.68,
-    "termStructure": "Contango",
-    "note": "VIX\u3068VIX3M\u306E\u6BD4\u8F03\u306B\u3088\u308B\u671F\u9650\u69CB\u9020\u306E\u8FD1\u4F3C\u3067\u3059\u3002\u9006\u8EE2\uFF08Backwardation\uFF09\u306F\u5E02\u5834\u30B9\u30C8\u30EC\u30B9\u306E\u8B66\u6212\u706F\u3068\u3057\u3066\u6271\u3044\u3001\u5358\u72EC\u306E\u58F2\u8CB7\u30B7\u30B0\u30CA\u30EB\u306B\u306F\u4F7F\u3044\u307E\u305B\u3093\u3002"
+    "status": "unavailable",
+    "vix": null,
+    "vixSma20": null,
+    "vix3m": null,
+    "termSlopePct": null,
+    "termStructure": null,
+    "note": "VIX/VIX3M\u30C7\u30FC\u30BF\u306E\u53D6\u5F97\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002"
   },
   "marketBreadth": {
     "status": "ok",
@@ -1221,18 +1221,18 @@
     "adLineChange20d": 9
   },
   "marketRiskScore": {
-    "score": 28.3,
-    "rawScore": 24.6,
-    "availableMaxPoints": 87,
-    "dataCoveragePct": 87,
+    "score": 27.2,
+    "rawScore": 19.6,
+    "availableMaxPoints": 72,
+    "dataCoveragePct": 72,
     "label": "\u6982\u306D\u826F\u597D",
     "metrics": [
       {
         "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
         "name": "\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9",
-        "score": 13,
+        "score": 8,
         "maxPoints": 18,
-        "detail": "SPY: Correction / QQQ: Pressure"
+        "detail": "SPY: Pressure / QQQ: Pressure"
       },
       {
         "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
@@ -1277,20 +1277,6 @@
         "detail": "20\u65E5\u5909\u5316 \u002B9"
       },
       {
-        "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
-        "name": "VIX\u5BFE20\u65E5\u5E73\u5747",
-        "score": 0,
-        "maxPoints": 5,
-        "detail": "VIX 16.50 / 20\u65E5\u5E73\u5747 17.26"
-      },
-      {
-        "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
-        "name": "VIX\u671F\u9650\u69CB\u9020",
-        "score": 0,
-        "maxPoints": 10,
-        "detail": "Contango\uFF08VIX\u5BFEVIX3M -14.68%\uFF09"
-      },
-      {
         "group": "\u30AF\u30EC\u30B8\u30C3\u30C8",
         "name": "HY\u5BFEIG\u76F8\u5BFE\u30EA\u30BF\u30FC\u30F3",
         "score": 0,
@@ -1317,14 +1303,14 @@
     "status": "ok",
     "previousDate": "2026-08-04",
     "previousScore": 50.1,
-    "scoreChange": -21.8,
-    "coverageChange": 15,
+    "scoreChange": -22.9,
+    "coverageChange": 0,
     "factors": [
       {
         "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
         "name": "\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9",
-        "changeInRiskPoints": -10.1,
-        "currentDetail": "SPY: Correction / QQQ: Pressure",
+        "changeInRiskPoints": -13.9,
+        "currentDetail": "SPY: Pressure / QQQ: Pressure",
         "previousDetail": "SPY: Correction / QQQ: Correction"
       },
       {
@@ -1344,12 +1330,12 @@
       {
         "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
         "name": "\u6709\u52B9Distribution Day",
-        "changeInRiskPoints": -2.0,
+        "changeInRiskPoints": -0.7,
         "currentDetail": "SPY: 5\u65E5 / QQQ: 7\u65E5",
         "previousDetail": "SPY: 7\u65E5 / QQQ: 9\u65E5"
       }
     ],
-    "note": "\u63A1\u70B9\u30AB\u30D0\u30EC\u30C3\u30B8\u3082\u524D\u56DE\u304B\u3089\u002B15.0\u30DD\u30A4\u30F3\u30C8\u5909\u5316\u3057\u3066\u3044\u307E\u3059\u3002\u6B20\u640D\u9805\u76EE\u306B\u3088\u308B\u5358\u7D14\u6BD4\u8F03\u306B\u306F\u6CE8\u610F\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
+    "note": "\u524D\u56DE\u3068\u5171\u901A\u3059\u308B\u63A1\u70B9\u9805\u76EE\u3092\u3001100\u70B9\u63DB\u7B97\u3067\u6BD4\u8F03\u3057\u3066\u3044\u307E\u3059\u3002"
   },
   "scoreValidation": {
     "status": "collecting",

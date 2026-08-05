@@ -96,21 +96,21 @@
   {
     "date": "2026-08-05",
     "marketDataAsOf": "2026-08-04",
-    "combinedStatus": "Correction",
-    "sp500Status": "Correction",
+    "combinedStatus": "Pressure",
+    "sp500Status": "Pressure",
     "sp500DistDays": 5,
     "nasdaqStatus": "Pressure",
     "nasdaqDistDays": 7,
-    "putCallRatio": 0.558,
-    "marketRiskScore": 28.3,
-    "marketRiskAvailableMaxPoints": 87,
+    "putCallRatio": 0.468,
+    "marketRiskScore": 27.2,
+    "marketRiskAvailableMaxPoints": 72,
     "marketRiskMetrics": [
       {
         "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
         "name": "\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9",
-        "score": 13,
+        "score": 8,
         "maxPoints": 18,
-        "detail": "SPY: Correction / QQQ: Pressure"
+        "detail": "SPY: Pressure / QQQ: Pressure"
       },
       {
         "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
@@ -153,20 +153,6 @@
         "score": 0,
         "maxPoints": 6,
         "detail": "20\u65E5\u5909\u5316 \u002B9"
-      },
-      {
-        "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
-        "name": "VIX\u5BFE20\u65E5\u5E73\u5747",
-        "score": 0,
-        "maxPoints": 5,
-        "detail": "VIX 16.50 / 20\u65E5\u5E73\u5747 17.26"
-      },
-      {
-        "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
-        "name": "VIX\u671F\u9650\u69CB\u9020",
-        "score": 0,
-        "maxPoints": 10,
-        "detail": "Contango\uFF08VIX\u5BFEVIX3M -14.68%\uFF09"
       },
       {
         "group": "\u30AF\u30EC\u30B8\u30C3\u30C8",
