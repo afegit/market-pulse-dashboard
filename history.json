@@ -195,9 +195,9 @@
     "sp500DistDays": 5,
     "nasdaqStatus": "Pressure",
     "nasdaqDistDays": 7,
-    "putCallRatio": 0.404,
-    "marketRiskScore": 23.7,
-    "marketRiskAvailableMaxPoints": 87,
+    "putCallRatio": 0.628,
+    "marketRiskScore": 28.6,
+    "marketRiskAvailableMaxPoints": 72,
     "marketRiskMetrics": [
       {
         "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
@@ -239,28 +239,14 @@
         "name": "52\u9031\u65B0\u9AD8\u5024\u30FB\u65B0\u5B89\u5024",
         "score": 0,
         "maxPoints": 5,
-        "detail": "\u65B0\u9AD8\u5024 3 / \u65B0\u5B89\u5024 0"
+        "detail": "\u65B0\u9AD8\u5024 4 / \u65B0\u5B89\u5024 0"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
         "name": "20\u65E5A/D\u30E9\u30A4\u30F3",
         "score": 0,
         "maxPoints": 6,
-        "detail": "20\u65E5\u5909\u5316 \u002B18"
-      },
-      {
-        "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
-        "name": "VIX\u5BFE20\u65E5\u5E73\u5747",
-        "score": 0,
-        "maxPoints": 5,
-        "detail": "VIX 15.81 / 20\u65E5\u5E73\u5747 17.21"
-      },
-      {
-        "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
-        "name": "VIX\u671F\u9650\u69CB\u9020",
-        "score": 0,
-        "maxPoints": 10,
-        "detail": "Contango\uFF08VIX\u5BFEVIX3M -16.57%\uFF09"
+        "detail": "20\u65E5\u5909\u5316 \u002B15"
       },
       {
         "group": "\u30AF\u30EC\u30B8\u30C3\u30C8",
