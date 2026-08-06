@@ -280,5 +280,113 @@
     "qqqReturn3m": null,
     "spyMaxDrawdown3m": null,
     "qqqMaxDrawdown3m": null
+  },
+  {
+    "date": "2026-08-07",
+    "marketDataAsOf": "2026-08-06",
+    "combinedStatus": "Pressure",
+    "sp500Status": "Pressure",
+    "sp500DistDays": 5,
+    "nasdaqStatus": "Pressure",
+    "nasdaqDistDays": 7,
+    "putCallRatio": 0.374,
+    "marketRiskScore": 27.1,
+    "marketRiskAvailableMaxPoints": 87,
+    "marketRiskMetrics": [
+      {
+        "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
+        "name": "\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9",
+        "score": 8,
+        "maxPoints": 18,
+        "detail": "SPY: Pressure / QQQ: Pressure"
+      },
+      {
+        "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
+        "name": "50\u65E5\u7DDA",
+        "score": 0,
+        "maxPoints": 6,
+        "detail": "SPY: \u4E0A / QQQ: \u4E0A"
+      },
+      {
+        "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
+        "name": "\u6709\u52B9Distribution Day",
+        "score": 5.5,
+        "maxPoints": 6,
+        "detail": "SPY: 5\u65E5 / QQQ: 7\u65E5"
+      },
+      {
+        "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
+        "name": "50\u65E5\u7DDA\u4E0A\u6BD4\u7387",
+        "score": 2.1,
+        "maxPoints": 7,
+        "detail": "54.5%"
+      },
+      {
+        "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
+        "name": "200\u65E5\u7DDA\u4E0A\u6BD4\u7387",
+        "score": 0,
+        "maxPoints": 7,
+        "detail": "63.4%"
+      },
+      {
+        "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
+        "name": "52\u9031\u65B0\u9AD8\u5024\u30FB\u65B0\u5B89\u5024",
+        "score": 0,
+        "maxPoints": 5,
+        "detail": "\u65B0\u9AD8\u5024 3 / \u65B0\u5B89\u5024 1"
+      },
+      {
+        "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
+        "name": "20\u65E5A/D\u30E9\u30A4\u30F3",
+        "score": 3,
+        "maxPoints": 6,
+        "detail": "20\u65E5\u5909\u5316 -24"
+      },
+      {
+        "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
+        "name": "VIX\u5BFE20\u65E5\u5E73\u5747",
+        "score": 0,
+        "maxPoints": 5,
+        "detail": "VIX 15.15 / 20\u65E5\u5E73\u5747 17.17"
+      },
+      {
+        "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
+        "name": "VIX\u671F\u9650\u69CB\u9020",
+        "score": 0,
+        "maxPoints": 10,
+        "detail": "Contango\uFF08VIX\u5BFEVIX3M -18.94%\uFF09"
+      },
+      {
+        "group": "\u30AF\u30EC\u30B8\u30C3\u30C8",
+        "name": "HY\u5BFEIG\u76F8\u5BFE\u30EA\u30BF\u30FC\u30F3",
+        "score": 0,
+        "maxPoints": 7,
+        "detail": "3\u304B\u6708 \u002B2.03%"
+      },
+      {
+        "group": "\u30BB\u30AF\u30BF\u30FC",
+        "name": "\u5BFESPY\u3067\u512A\u4F4D\u306A\u30BB\u30AF\u30BF\u30FC\u6570",
+        "score": 4,
+        "maxPoints": 6,
+        "detail": "3/11\u30BB\u30AF\u30BF\u30FC"
+      },
+      {
+        "group": "\u30BB\u30AF\u30BF\u30FC",
+        "name": "RSP\u30FBIWM\u306E\u76F8\u5BFE\u5F37\u5EA6",
+        "score": 1,
+        "maxPoints": 4,
+        "detail": "RSP \u002B2.12% / IWM -0.76%"
+      }
+    ],
+    "spyAdjustedClose": 768.5599975585938,
+    "qqqAdjustedClose": 714.6500244140625,
+    "spyReturn1m": null,
+    "qqqReturn1m": null,
+    "spyMaxDrawdown1m": null,
+    "qqqMaxDrawdown1m": null,
+    "spyReturn3m": null,
+    "qqqReturn3m": null,
+    "spyMaxDrawdown3m": null,
+    "qqqMaxDrawdown3m": null
   }
 ]
