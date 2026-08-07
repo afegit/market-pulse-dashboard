@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-08-07 14:03:38",
+  "lastUpdated": "2026-08-07 15:07:40",
   "marketDataAsOf": "2026-08-06",
   "combinedStatus": "Pressure",
   "combinedDrivenBy": "SPY\u3068QQQ\u306F\u540C\u3058\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9",
@@ -12,6 +12,7 @@
     "high52WeekAdjusted": 771.3300170898438,
     "drawdownFromHighPct": -0.36,
     "distributionDaysActive": 5,
+    "distributionIntensity": 3.79,
     "worstActiveDropPct": 1.23,
     "worstActiveDropDate": "2026-07-23",
     "trendState": "ConfirmedUptrend",
@@ -539,6 +540,7 @@
     "high52WeekAdjusted": 745.3408813476562,
     "drawdownFromHighPct": -4.12,
     "distributionDaysActive": 7,
+    "distributionIntensity": 10.68,
     "worstActiveDropPct": 1.90,
     "worstActiveDropDate": "2026-07-23",
     "trendState": "ConfirmedUptrend",
@@ -1063,7 +1065,7 @@
     "callVolume": 807838,
     "putVolume": 1021281,
     "ratio": 1.264,
-    "sma10": 0.817,
+    "sma10": null,
     "percentileRank": null,
     "historyDays": 4,
     "note": "SPY\u306E\u76F4\u8FD1\u9650\u6708\u306E\u307F\u3092\u96C6\u8A08\u3057\u305F\u51FA\u6765\u9AD8\u30D9\u30FC\u30B9\u306E\u53C2\u8003\u6307\u6A19\u3067\u3059\u30020DTE\u30FB\u30D8\u30C3\u30B8\u30FB\u6E80\u671F\u69CB\u6210\u306E\u5F71\u97FF\u3092\u53D7\u3051\u308B\u305F\u3081\u3001\u65B9\u5411\u4E88\u60F3\u306E\u4E3B\u30B7\u30B0\u30CA\u30EB\u306B\u306F\u4F7F\u308F\u305A\u3001\u6975\u7AEF\u306A\u9700\u7D66\u306E\u88DC\u52A9\u78BA\u8A8D\u306B\u9650\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
@@ -1072,6 +1074,10 @@
     "status": "ok",
     "spyReturn1m": 3.11,
     "spyReturn3m": 5.00,
+    "defensiveReturn1m": -0.73,
+    "cyclicalReturn1m": 2.34,
+    "rotationSpread1m": -3.07,
+    "rotationSpread3m": -0.58,
     "sectors": [
       {
         "symbol": "XLV",
@@ -1196,106 +1202,179 @@
     "note": "HYG\u3068\u6295\u8CC7\u9069\u683C\u793E\u50B5ETF(LQD)\u306E\u76F8\u5BFE\u30EA\u30BF\u30FC\u30F3\u306B\u3001ICE BofA US High Yield OAS\u3092\u8FFD\u52A0\u3057\u307E\u3057\u305F\u3002TLT\u6BD4\u8F03\u3088\u308A\u91D1\u5229\u30C7\u30E5\u30EC\u30FC\u30B7\u30E7\u30F3\u5DEE\u306E\u5F71\u97FF\u3092\u6291\u3048\u3001\u4FE1\u7528\u30EA\u30B9\u30AF\u3092\u8AAD\u307F\u53D6\u308A\u3084\u3059\u304F\u3057\u307E\u3059\u3002"
   },
   "volatilityRegime": {
-    "status": "unavailable",
-    "vix": null,
-    "vixSma20": null,
+    "status": "partial",
+    "vix": 15.149999618530273,
+    "vixSma20": 17.17,
     "vix3m": null,
-    "termSlopePct": null,
-    "termStructure": null,
-    "note": "VIX/VIX3M\u30C7\u30FC\u30BF\u306E\u53D6\u5F97\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002"
+    "realizedVolShortPct": 16.21,
+    "realizedVolLongPct": 14.01,
+    "realizedVol21Pct": 14.15,
+    "varianceRiskPremium": 1.00,
+    "termSlopePct": 15.70,
+    "termStructure": "Backwardation",
+    "termSource": "RealizedVol",
+    "note": "^VIX3M\u306E\u914D\u4FE1\u304C\u505C\u6B62\u3057\u3066\u3044\u308B\u305F\u3081\u3001SPY\u306E10\u65E5\uFF0F63\u65E5\u5B9F\u73FE\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3\u6BD4\u3067\u671F\u9650\u69CB\u9020\u3092\u4EE3\u66FF\u3057\u3066\u3044\u307E\u3059\u3002\u5B9F\u73FE\u30DC\u30E9\u306E\u77ED\u671F\u512A\u52E2\u306F\u672C\u7269\u306EVIX\u9006\u8EE2\u3088\u308A\u9AD8\u983B\u5EA6\u3067\u8D77\u304D\u308B\u305F\u3081\u3001\u4E56\u96E2\u5E45\u306B\u5FDC\u3058\u3066\u6BB5\u968E\u7684\u306B\u8B66\u6212\u5EA6\u3092\u5224\u5B9A\u3057\u307E\u3059\u3002"
   },
   "marketBreadth": {
     "status": "ok",
     "note": "Nasdaq-100\u69CB\u6210\u9298\u67C4\u3092\u500B\u5225\u306B\u96C6\u8A08\u3057\u305F\u7B49\u30A6\u30A7\u30A4\u30C8\u306E\u5E02\u5834\u5185\u90E8\u6307\u6A19\u3067\u3059\u3002\u6307\u6570\u4E0A\u6607\u6642\u3067\u308250\u65E5\u7DDA\u4E0A\u6BD4\u7387\u3084A/D\u30E9\u30A4\u30F3\u304C\u60AA\u5316\u3057\u3066\u3044\u308C\u3070\u3001\u4E0A\u6607\u306E\u5E83\u304C\u308A\u4E0D\u8DB3\u3092\u78BA\u8A8D\u3067\u304D\u307E\u3059\u3002",
     "universeAsOf": "2026-05-01",
     "expectedConstituents": 101,
-    "analyzedConstituents": 101,
-    "coveragePct": 100,
-    "aboveSma50Pct": 54.5,
-    "aboveSma200Pct": 63.4,
-    "newHighs52Week": 3,
+    "analyzedConstituents": 100,
+    "coveragePct": 99.0,
+    "aboveSma50Pct": 54.0,
+    "aboveSma200Pct": 63.0,
+    "newHighs52Week": 2,
     "newLows52Week": 1,
     "advances": 45,
     "declines": 55,
     "advanceDeclineNet": -10,
-    "adLineChange20d": -24
+    "adLineChange20d": -27,
+    "avgPairwiseCorrelation": 0.071,
+    "accumulationPct": 51.0,
+    "stealthDistributionPct": 27.8,
+    "advanceRatioSma10": 0.552,
+    "breadthThrustDetected": false
   },
   "marketRiskScore": {
-    "score": 32.8,
-    "rawScore": 23.6,
-    "availableMaxPoints": 72,
-    "dataCoveragePct": 72,
+    "score": 28.5,
+    "rawScore": 25.4,
+    "availableMaxPoints": 89.0,
+    "dataCoveragePct": 89.0,
     "label": "\u6982\u306D\u826F\u597D",
     "metrics": [
       {
         "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
         "name": "\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9",
-        "score": 8,
-        "maxPoints": 18,
+        "score": 6,
+        "maxPoints": 14,
         "detail": "SPY: Pressure / QQQ: Pressure"
       },
       {
         "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
         "name": "50\u65E5\u7DDA",
         "score": 0,
-        "maxPoints": 6,
+        "maxPoints": 4,
         "detail": "SPY: \u4E0A / QQQ: \u4E0A"
       },
       {
         "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
         "name": "\u6709\u52B9Distribution Day",
-        "score": 5.5,
-        "maxPoints": 6,
+        "score": 2.8,
+        "maxPoints": 3,
         "detail": "SPY: 5\u65E5 / QQQ: 7\u65E5"
+      },
+      {
+        "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
+        "name": "\u58F2\u308A\u629C\u3051\u5F37\u5EA6",
+        "score": 2.0,
+        "maxPoints": 3,
+        "detail": "SPY: 3.8 / QQQ: 10.7\uFF08\u4E0B\u843D\u7387\u00D7\u51FA\u6765\u9AD8\u6BD4\u306E\u5408\u8A08\uFF09"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
         "name": "50\u65E5\u7DDA\u4E0A\u6BD4\u7387",
-        "score": 2.1,
-        "maxPoints": 7,
-        "detail": "54.5%"
+        "score": 1.8,
+        "maxPoints": 6,
+        "detail": "54.0%"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
         "name": "200\u65E5\u7DDA\u4E0A\u6BD4\u7387",
         "score": 0,
-        "maxPoints": 7,
-        "detail": "63.4%"
+        "maxPoints": 5,
+        "detail": "63.0%"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
         "name": "52\u9031\u65B0\u9AD8\u5024\u30FB\u65B0\u5B89\u5024",
         "score": 0,
-        "maxPoints": 5,
-        "detail": "\u65B0\u9AD8\u5024 3 / \u65B0\u5B89\u5024 1"
+        "maxPoints": 4,
+        "detail": "\u65B0\u9AD8\u5024 2 / \u65B0\u5B89\u5024 1"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
         "name": "20\u65E5A/D\u30E9\u30A4\u30F3",
-        "score": 3,
-        "maxPoints": 6,
-        "detail": "20\u65E5\u5909\u5316 -24"
+        "score": 1.5,
+        "maxPoints": 3,
+        "detail": "20\u65E5\u5909\u5316 -27"
+      },
+      {
+        "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
+        "name": "10\u65E5\u9A30\u843D\u30EC\u30B7\u30AA",
+        "score": 0,
+        "maxPoints": 3,
+        "detail": "0.552"
+      },
+      {
+        "group": "\u6A5F\u95A2\u9700\u7D66",
+        "name": "\u30A2\u30AD\u30E5\u30E0\u30EC\u30FC\u30B7\u30E7\u30F3\u9298\u67C4\u6BD4\u7387",
+        "score": 2,
+        "maxPoints": 5,
+        "detail": "51.0%\uFF0850\u65E5\u306E\u51FA\u6765\u9AD8\u304C\u4E0A\u6607\u65E5\u306B\u504F\u308B\u9298\u67C4\uFF09"
+      },
+      {
+        "group": "\u6A5F\u95A2\u9700\u7D66",
+        "name": "\u30B9\u30C6\u30EB\u30B9\u914D\u5206",
+        "score": 2.5,
+        "maxPoints": 4,
+        "detail": "27.8%\uFF0850\u65E5\u7DDA\u4E0A\u3060\u304C\u58F2\u308A\u512A\u52E2\uFF09"
+      },
+      {
+        "group": "\u5E02\u5834\u69CB\u9020",
+        "name": "\u9298\u67C4\u9593\u76F8\u95A2",
+        "score": 0,
+        "maxPoints": 7,
+        "detail": "\u5E73\u5747\u30DA\u30A2\u76F8\u95A2 0.071\uFF0821\u65E5\uFF09"
+      },
+      {
+        "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
+        "name": "VIX\u5BFE20\u65E5\u5E73\u5747",
+        "score": 0,
+        "maxPoints": 4,
+        "detail": "VIX 15.15 / 20\u65E5\u5E73\u5747 17.17"
+      },
+      {
+        "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
+        "name": "VIX\u671F\u9650\u69CB\u9020",
+        "score": 2.5,
+        "maxPoints": 5,
+        "detail": "Backwardation\uFF08SPY\u5B9F\u73FE\u30DC\u30E9 \u77ED\u671F\u5BFE\u9577\u671F \u002B15.70%\uFF09"
+      },
+      {
+        "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
+        "name": "\u5206\u6563\u30EA\u30B9\u30AF\u30D7\u30EC\u30DF\u30A2\u30E0",
+        "score": 1,
+        "maxPoints": 3,
+        "detail": "\u002B1.00\uFF08VIX 15.15 \u2212 \u5B9F\u73FE\u30DC\u30E9 14.15\uFF09"
       },
       {
         "group": "\u30AF\u30EC\u30B8\u30C3\u30C8",
         "name": "HY\u5BFEIG\u76F8\u5BFE\u30EA\u30BF\u30FC\u30F3",
         "score": 0,
-        "maxPoints": 7,
+        "maxPoints": 6,
         "detail": "3\u304B\u6708 \u002B2.03%"
       },
       {
         "group": "\u30BB\u30AF\u30BF\u30FC",
         "name": "\u5BFESPY\u3067\u512A\u4F4D\u306A\u30BB\u30AF\u30BF\u30FC\u6570",
-        "score": 4,
-        "maxPoints": 6,
+        "score": 2.5,
+        "maxPoints": 4,
         "detail": "3/11\u30BB\u30AF\u30BF\u30FC"
       },
       {
         "group": "\u30BB\u30AF\u30BF\u30FC",
         "name": "RSP\u30FBIWM\u306E\u76F8\u5BFE\u5F37\u5EA6",
-        "score": 1,
-        "maxPoints": 4,
+        "score": 0.8,
+        "maxPoints": 3.0,
         "detail": "RSP \u002B2.12% / IWM -0.76%"
+      },
+      {
+        "group": "\u30BB\u30AF\u30BF\u30FC",
+        "name": "\u30C7\u30A3\u30D5\u30A7\u30F3\u30B7\u30D6\u512A\u4F4D\u5EA6",
+        "score": 0,
+        "maxPoints": 3,
+        "detail": "1\u304B\u6708 -3.07%\uFF08\u5B88\u308A -0.73% \u5BFE \u653B\u3081 2.34%\uFF09"
       }
     ]
   },
@@ -1303,18 +1382,39 @@
     "status": "ok",
     "previousDate": "2026-08-06",
     "previousScore": 28.6,
-    "scoreChange": 4.2,
-    "coverageChange": 0,
+    "scoreChange": -0.1,
+    "coverageChange": 17.0,
     "factors": [
       {
-        "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
-        "name": "20\u65E5A/D\u30E9\u30A4\u30F3",
-        "changeInRiskPoints": 4.2,
-        "currentDetail": "20\u65E5\u5909\u5316 -24",
-        "previousDetail": "20\u65E5\u5909\u5316 \u002B15"
+        "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
+        "name": "\u6709\u52B9Distribution Day",
+        "changeInRiskPoints": -4.5,
+        "currentDetail": "SPY: 5\u65E5 / QQQ: 7\u65E5",
+        "previousDetail": "SPY: 5\u65E5 / QQQ: 7\u65E5"
+      },
+      {
+        "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
+        "name": "\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9",
+        "changeInRiskPoints": -4.4,
+        "currentDetail": "SPY: Pressure / QQQ: Pressure",
+        "previousDetail": "SPY: Pressure / QQQ: Pressure"
+      },
+      {
+        "group": "\u6A5F\u95A2\u9700\u7D66",
+        "name": "\u30B9\u30C6\u30EB\u30B9\u914D\u5206",
+        "changeInRiskPoints": 2.8,
+        "currentDetail": "27.8%\uFF0850\u65E5\u7DDA\u4E0A\u3060\u304C\u58F2\u308A\u512A\u52E2\uFF09",
+        "previousDetail": "\u524D\u56DE\u306F\u672A\u53D6\u5F97"
+      },
+      {
+        "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
+        "name": "VIX\u671F\u9650\u69CB\u9020",
+        "changeInRiskPoints": 2.8,
+        "currentDetail": "Backwardation\uFF08SPY\u5B9F\u73FE\u30DC\u30E9 \u77ED\u671F\u5BFE\u9577\u671F \u002B15.70%\uFF09",
+        "previousDetail": "\u524D\u56DE\u306F\u672A\u53D6\u5F97"
       }
     ],
-    "note": "\u524D\u56DE\u3068\u5171\u901A\u3059\u308B\u63A1\u70B9\u9805\u76EE\u3092\u3001100\u70B9\u63DB\u7B97\u3067\u6BD4\u8F03\u3057\u3066\u3044\u307E\u3059\u3002"
+    "note": "\u63A1\u70B9\u30AB\u30D0\u30EC\u30C3\u30B8\u3082\u524D\u56DE\u304B\u3089\u002B17.0\u30DD\u30A4\u30F3\u30C8\u5909\u5316\u3057\u3066\u3044\u307E\u3059\u3002\u6B20\u640D\u9805\u76EE\u306B\u3088\u308B\u5358\u7D14\u6BD4\u8F03\u306B\u306F\u6CE8\u610F\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
   },
   "scoreValidation": {
     "status": "collecting",
