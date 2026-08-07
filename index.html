@@ -47,7 +47,12 @@
 
       <section class="panel" aria-labelledby="risk-breakdown-title">
         <div class="panel-head"><div><div class="eyebrow">Why this score</div><h2 id="risk-breakdown-title">リスク・スコアの内訳</h2><p class="panel-sub">各指標がスコアをどれだけ押し上げているかを確認できます。</p></div><span class="pill tone-info" id="risk-raw">--</span></div>
-        <div class="table-wrap"><table class="risk-table"><thead><tr><th>分類</th><th>指標</th><th>根拠</th><th>リスク点</th></tr></thead><tbody id="risk-metrics"></tbody></table></div>
+        <div class="table-wrap"><table class="risk-table"><thead><tr>
+          <th class="term" tabindex="0" data-tip="この指標がどのグループ（市場トレンド、市場ブレッドスなど）に属するかです。">分類</th>
+          <th class="term" tabindex="0" data-tip="具体的に何を測定しているかです。用語自体にマウスを乗せる（またはタップする）と詳しい説明が出ます。">指標</th>
+          <th class="term" tabindex="0" data-tip="その判定のもとになった、実際の数値です。">根拠</th>
+          <th class="term" tabindex="0" data-tip="この項目が加算しているリスク点数です（右側が満点）。全項目の合計が市場リスクスコアになります。">リスク点</th>
+        </tr></thead><tbody id="risk-metrics"></tbody></table></div>
       </section>
 
       <section class="panel section-panel" aria-labelledby="risk-change-title">
@@ -94,7 +99,12 @@
       <section class="grid two-col" aria-label="Leadership and sentiment">
         <article class="panel">
           <div class="panel-head"><div><div class="eyebrow">Leadership</div><h2>セクター・ローテーション</h2><p class="panel-sub">市場平均より強い資金の向かう先を探します。</p></div><span class="pill" id="sector-status">--</span></div>
-          <div class="table-wrap"><table class="sector-table"><thead><tr><th>セクター</th><th>1か月</th><th>3か月</th><th>対SPY</th></tr></thead><tbody id="sector-table"></tbody></table></div>
+          <div class="table-wrap"><table class="sector-table"><thead><tr>
+            <th>セクター</th>
+            <th class="term" tabindex="0" data-tip="直近21営業日（約1か月）のリターンです。">1か月</th>
+            <th class="term" tabindex="0" data-tip="直近63営業日（約3か月）のリターンです。">3か月</th>
+            <th class="term" tabindex="0" data-tip="市場平均（SPY）と比べた3か月リターンの差です。プラスならSPYより強い、マイナスなら弱いことを示します。">対SPY</th>
+          </tr></thead><tbody id="sector-table"></tbody></table></div>
           <p class="compact-help" id="sector-note">調整後終値でSPYと比較します。強いセクターは銘柄選びの出発点であり、購入推奨ではありません。</p>
           <div class="metric-list" id="proxy-metrics"></div>
         </article>
@@ -114,7 +124,14 @@
       <section class="panel section-panel" aria-labelledby="score-validation-title">
         <div class="panel-head"><div><h2 id="score-validation-title">スコアの過去実績検証</h2><p class="panel-sub">スコア帯ごとに、その後のリターンと途中で耐えた最大下落を確認します。</p></div><span class="pill" id="score-validation-status">--</span></div>
         <div class="data-grid validation-summary" id="score-validation-summary"></div>
-        <div class="table-wrap"><table class="validation-table"><thead><tr><th>スコア帯</th><th>標本数<br>1M / 3M</th><th>1か月後<br>SPY / QQQ</th><th>1か月中の平均最大下落<br>SPY / QQQ</th><th>3か月後<br>SPY / QQQ</th><th>3か月中の平均最大下落<br>SPY / QQQ</th></tr></thead><tbody id="score-validation-table"></tbody></table></div>
+        <div class="table-wrap"><table class="validation-table"><thead><tr>
+          <th class="term" tabindex="0" data-tip="その日算出された市場リスクスコアが、どの点数帯（0〜20点、21〜40点など）に入っていたかです。">スコア帯</th>
+          <th class="term" tabindex="0" data-tip="そのスコア帯を記録した回数のうち、1か月後・3か月後の結果がすでに確定している件数です（1M＝1か月、3M＝3か月）。">標本数<br>1M / 3M</th>
+          <th class="term" tabindex="0" data-tip="そのスコア帯を記録してから1か月（21営業日）後に、SPY・QQQがどれだけ値上がり・値下がりしたかの平均です。">1か月後<br>SPY / QQQ</th>
+          <th class="term" tabindex="0" data-tip="記録した日から1か月の間に、株価が最大でどれだけ下落したかの平均です。最終的にプラスで終わっていても、途中で大きく下がっていないかを確認できます。">1か月中の平均最大下落<br>SPY / QQQ</th>
+          <th class="term" tabindex="0" data-tip="そのスコア帯を記録してから3か月（63営業日）後に、SPY・QQQがどれだけ値上がり・値下がりしたかの平均です。">3か月後<br>SPY / QQQ</th>
+          <th class="term" tabindex="0" data-tip="記録した日から3か月の間に、株価が最大でどれだけ下落したかの平均です。">3か月中の平均最大下落<br>SPY / QQQ</th>
+        </tr></thead><tbody id="score-validation-table"></tbody></table></div>
         <p class="compact-help" id="score-validation-note">検証データを蓄積中です。</p>
       </section>
     </main>

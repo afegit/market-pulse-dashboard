@@ -7,6 +7,80 @@ const trendLabel = { Correction: '調整 / 未確認', RallyAttempt: '反発を�
 const charts = new Map();
 let lastLoadedAt = 0;
 
+// 用語の説明辞書。キーは表示ラベルから空白を除いたもの（normalizeTerm参照）。
+// 初心者にも伝わるよう、専門用語はできるだけ言い換えて説明する。
+const glossary = {
+  '市場トレンド': '株価が今どちらの方向を向いているかを示す分類です。上昇・警戒・調整のどれに近いかをまとめています。',
+  '市場ブレッドス': '指数（SPYやQQQ）だけでなく、個別銘柄がどれだけ幅広く上昇・下落しているかを示す分類です。指数が上がっていても多くの銘柄が弱いと危険信号になります。',
+  '機関需給': '出来高（売買された株数）の偏りから、大口投資家（機関投資家）が買っているか売っているかを推測する分類です。',
+  '市場構造': '銘柄同士が同じ方向に動きやすいか、それぞれ別の理由でバラバラに動きやすいかを示す分類です。',
+  'ボラティリティ': '株価の変動の激しさです。高いほど値動きが荒く、市場が不安定になっているサインとされます。',
+  'クレジット': '社債（企業の借金）市場の動きから、投資家がどれだけリスクを取りたがっているかを見る分類です。',
+  'セクター': '業種別の株価グループ（テクノロジー、金融など）の強弱を見る分類です。',
+  '需給': 'オプション取引（株を将来売買する権利の取引）の状況から、投資家心理の偏りを見る分類です。',
+
+  '市場ステータス': 'SPYとQQQが「上昇トレンド」「上昇トレンドだが警戒」「調整局面」のどれに該当するかの判定です。両方のうち悪い方の判定が採用されます。',
+  '50日線': '直近50営業日の株価の平均値（50日移動平均線）です。株価がこの線より上にあると、短中期的に上向きの流れが続いているとされます。',
+  '有効DistributionDay': '「売り抜け日」と呼ばれる、機関投資家が売っていると見られる日のうち、直近25営業日以内でまだ有効な件数です。多いほど下落圧力が強いサインです。',
+  '売り抜け強度': '売り抜け日それぞれの下落率と出来高の大きさを掛け合わせて合計した値です。件数だけでなく、売りの「本気度」の大きさを測ります。',
+  '50日線上比率': '構成銘柄のうち、株価が50日移動平均線より上にある銘柄の割合です。高いほど多くの銘柄が上昇基調にあります。',
+  '200日線上比率': '構成銘柄のうち、株価が200日移動平均線（長期トレンドの目安）より上にある銘柄の割合です。',
+  '52週新高値・新安値': '直近52週間（約1年）で最高値・最安値を更新した銘柄の数です。新高値の方が多いほど強い相場とされます。',
+  '20日A/Dライン': '直近20営業日について「上昇した銘柄数−下落した銘柄数」を毎日積み上げた合計値です。プラスが続くほど値上がりが幅広い銘柄に広がっています。',
+  '10日騰落レシオ': '上昇した銘柄の割合（上昇銘柄数 ÷ (上昇銘柄数+下落銘柄数)）の10日平均です。0.5を大きく下回る状態が続くと、下落銘柄が優勢な地合いが長引いていることを示します。',
+  'アキュムレーション銘柄比率': '株価が上がった日の出来高が、下がった日の出来高を上回っている銘柄の割合です。高いほど「買い」が優勢な銘柄が多いことを示します。',
+  'ステルス配分': '株価は50日移動平均線より上（一見好調）なのに、出来高は下落した日の方が多い銘柄の割合です。チャートの値上がりだけを見ていると気づきにくい、隠れた売り圧力のサインです。',
+  '銘柄間相関': '銘柄同士の値動きの連動度合いです。高いほど「個別の材料に関係なく、みんな同じ方向に動く」相場で、銘柄選びや分散投資の効果が薄れます。',
+  'VIX対20日平均': '「恐怖指数」と呼ばれるVIX（株価の変動予想の大きさ）が、直近20日間の平均より高いか低いかです。高いほど市場が警戒しています。',
+  'VIX期限構造': '短期（VIX）と3か月先（VIX3M）、どちらの変動予想が大きいかの関係です。通常は先の方が高く出ますが、逆転すると強い警戒信号とされます。',
+  '分散リスクプレミアム': '事前に予想されていた変動の大きさ（VIX）と、実際に起きた変動の大きさ（実現ボラティリティ）の差です。マイナスは「市場の警戒が現実の値動きに追いついていない」状態を示します。',
+  'HY対IG相対リターン': '信用力の低い社債（ハイイールド債）と、信用力の高い社債（投資適格債）の値動きの差です。ハイイールド債の方が弱いと、投資家がリスクを避け始めているサインです。',
+  'HYOAS水準': 'ハイイールド債（信用力の低い社債）の、国債に対する上乗せ金利（信用スプレッド）の水準です。高いほど社債市場が警戒しています。',
+  'HYOAS1か月変化': '上記の信用スプレッドが、1か月でどれだけ変化したかです。急拡大は信用不安の高まりを示します。',
+  '対SPYで優位なセクター数': '市場平均（SPY）より値動きが強い業種セクターの数です。少ないほど、上昇が一部の業種に偏っています。',
+  'RSP・IWMの相対強度': '時価総額に関係なく全銘柄を均等に扱う指数（RSP）と、小型株の指数（IWM）が、SPYと比べてどれだけ強いか弱いかです。',
+  'ディフェンシブ優位度': '生活必需品・公益・ヘルスケアなど「守りのセクター」が、消費財・テック・資本財など「攻めのセクター」よりどれだけ強いかです。プラスが大きいほど、資金が守りに回っています。',
+  'Put/Call極端値': '弱気に賭けるPutオプションと、強気に賭けるCallオプションの出来高比率が、過去の記録と比べて極端な水準にあるかどうかです。',
+
+  'データ基準日': 'この画面のデータが計算された、米国市場の取引日です。',
+  '調整後終値': '配当や株式分割の影響を調整した終値です。長期の値動きを正しく比較するために使います。',
+  '50日移動平均': '直近50営業日の終値の平均値です。短中期の値動きの流れを見る目安になります。',
+  '52週高値からの下落': '直近52週間（約1年）の最高値から、現在どれだけ下落しているかです。',
+  'トレンド': '株価が「調整局面」「反発を試す段階」「上昇トレンド確認済み」のどこにあるかの判定です。',
+  '直近FTD': 'フォロースルーデー（Follow-Through Day）の略。下落相場からの反発が本物である可能性が高いことを示す、出来高を伴った大幅上昇日です。',
+  '最大の売り圧力': '直近の売り抜け日の中で、最も下落率が大きかった日の下落幅です。',
+  '50日線上': '構成銘柄のうち、株価が50日移動平均線より上にある銘柄の割合です。',
+  '200日線上': '構成銘柄のうち、株価が200日移動平均線（長期トレンドの目安）より上にある銘柄の割合です。',
+  '52週新高値/新安値': '直近52週間で最高値・最安値を更新した銘柄数です。',
+  '20日A/D変化': '直近20営業日の「上昇銘柄数−下落銘柄数」の積み上げです。プラスが続くほど値上がりの広がりが強いことを示します。',
+  'VIX3M': '3か月先を対象にした、株価の変動予想の大きさ（インプライド・ボラティリティ）です。',
+  'SPY実現ボラ': 'SPYで実際に起きた値動きの大きさ（実現ボラティリティ）を年率換算した値です。予想値であるVIXと違い、実際の結果に基づきます。',
+  '短期ボラの優勢度': '短期の実現ボラティリティが、長期の実現ボラティリティをどれだけ上回っているかです。VIX3Mが取得できないときの代替指標として使います。',
+  '期限構造': '短期と長期、どちらの変動予想が大きいかの関係です。',
+  '短期対長期': '短期の変動の大きさと、長期の変動の大きさを比べた差です。',
+  'VIX対VIX3M': '現在のVIXと、3か月先の予想変動率（VIX3M）を比べた差です。',
+  'HYG3か月': 'ハイイールド債（信用力の低い社債）ETFであるHYGの、直近3か月のリターンです。',
+  'LQD3か月': '投資適格社債（信用力の高い社債）ETFであるLQDの、直近3か月のリターンです。',
+  'HY対IG': 'ハイイールド債と投資適格債の、3か月リターンの差です。',
+  'HYOAS': 'ハイイールド債の、国債に対する上乗せ金利（信用スプレッド）です。',
+  'アキュムレーション比率': '直近50日について、株価が上がった日の出来高が下がった日の出来高を上回っている銘柄の割合です。',
+  'SPY売り抜け強度': 'SPYの売り抜け日について、下落率と出来高の大きさを掛け合わせて合計した値です。',
+  'QQQ売り抜け強度': 'QQQの売り抜け日について、下落率と出来高の大きさを掛け合わせて合計した値です。',
+  '銘柄間平均ペア相関': '構成銘柄どうしの値動きの連動度合いの平均です。高いほど、個別の材料に関係なく全体が同じ方向に動く相場です。',
+  'BreadthThrust': '弱気相場から強気相場への転換を示す、歴史的に的中率が高いとされるシグナルです。10日騰落レシオが短期間で急速に改善すると点灯します。',
+  'Put/Call': 'Putオプション（弱気に賭ける取引）の出来高を、Callオプション（強気に賭ける取引）の出来高で割った比率です。高いほど弱気（Put優勢）です。',
+  '10日平均': 'Put/Call比率の直近10日間の平均値です。日々のブレを均して短期のトレンドを見ます。',
+  '履歴順位': '今日のPut/Call比率が、これまでの記録の中で高い方から数えて何パーセントに位置するかです。',
+  '出来高': 'その日に売買されたオプションの枚数です。',
+  'スコア記録': '市場リスクスコアが記録された日数です。',
+  '1か月後の確定実績': 'そのスコア帯を記録してから1か月（21営業日）後に、実際にSPY・QQQがどう動いたかの実績データです。',
+  '3か月後の確定実績': 'そのスコア帯を記録してから3か月（63営業日）後に、実際にSPY・QQQがどう動いたかの実績データです。',
+  'S&P500均等加重(RSP)': '時価総額の大小に関係なく、S&P500の全銘柄を均等な比率で保有する指数です。大型株だけに支えられた相場でないかを確認する目安になります。',
+  '小型株(Russell2000)(IWM)': '小型株中心の指数（Russell 2000）です。景気に敏感でリスク選好度合いの目安になります。'
+};
+
+const normalizeTerm = text => String(text ?? '').replace(/\s+/g, '');
+
 const byId = id => document.getElementById(id);
 const number = (value, digits = 2) => value == null || Number.isNaN(Number(value)) ? '--' : Number(value).toFixed(digits);
 const pct = (value, digits = 2) => value == null || Number.isNaN(Number(value)) ? '--' : `${Number(value).toFixed(digits)}%`;
@@ -28,12 +102,24 @@ function createNode(tag, className, content) {
   return node;
 }
 
+// createNodeと同じだが、glossaryに一致する用語には点線下線とツールチップを付与する。
+function termNode(tag, className, content) {
+  const node = createNode(tag, className, content);
+  const tip = glossary[normalizeTerm(content)];
+  if (tip) {
+    node.classList.add('term');
+    node.setAttribute('data-tip', tip);
+    node.setAttribute('tabindex', '0');
+  }
+  return node;
+}
+
 function replaceMetrics(id, rows) {
   const container = byId(id);
   const fragment = document.createDocumentFragment();
   rows.forEach(([label, value, tone]) => {
     const row = createNode('div', 'metric');
-    row.append(createNode('span', '', label));
+    row.append(termNode('span', '', label));
     const strong = createNode('strong', tone ? toneClass(tone) : '', value);
     row.append(strong); fragment.append(row);
   });
@@ -45,7 +131,7 @@ function replaceDataGrid(id, items) {
   const fragment = document.createDocumentFragment();
   items.forEach(({ label, value, sub, tone }) => {
     const card = createNode('div', 'datum');
-    card.append(createNode('span', '', label));
+    card.append(termNode('span', '', label));
     card.append(createNode('strong', tone ? toneClass(tone) : '', value));
     if (sub) card.append(createNode('small', '', sub));
     fragment.append(card);
@@ -111,8 +197,8 @@ function renderRiskScore(score) {
     const ratio = Number(metric.maxPoints) ? Number(metric.score) / Number(metric.maxPoints) : 0;
     const metricTone = ratio >= .6 ? 'risk' : ratio > 0 ? 'warn' : 'good';
     const row = document.createElement('tr');
-    row.append(createNode('td', '', metric.group));
-    row.append(createNode('td', '', metric.name));
+    row.append(termNode('td', '', metric.group));
+    row.append(termNode('td', '', metric.name));
     row.append(createNode('td', '', metric.detail));
     const points = createNode('td', `points ${toneClass(metricTone)}`, `${number(metric.score, 1)} / ${number(metric.maxPoints, 1)}`);
     const bar = createNode('div', 'risk-bar'); const fill = document.createElement('i');
@@ -152,7 +238,9 @@ function renderRiskChange(change) {
     items.forEach(factor => {
       const deltaPoints = Number(factor.changeInRiskPoints || 0);
       const item = createNode('div', 'change-item');
-      item.append(createNode('strong', '', `${factor.group}｜${factor.name}`));
+      const label = document.createElement('strong');
+      label.append(termNode('span', '', factor.group), document.createTextNode('｜'), termNode('span', '', factor.name));
+      item.append(label);
       item.append(createNode('span', `change-points ${deltaPoints > 0 ? 'tone-risk' : 'tone-good'}`, `${deltaPoints > 0 ? '+' : ''}${deltaPoints.toFixed(1)}点`));
       item.append(createNode('small', '', `${factor.previousDetail || '前回値なし'} → ${factor.currentDetail || '今回値なし'}`));
       fragment.append(item);
@@ -419,6 +507,66 @@ function showStaleWarning(lastUpdated) {
     : `最終更新から米国市場の営業日が${elapsedBusinessDays}日経過しています。数値の鮮度を確認してください。`;
 }
 
+// 用語ツールチップ：ホバー・キーボードフォーカスに加え、タッチ端末はタップで開閉できるようにする。
+// data-tipを持つ要素は5分ごとの再描画で作り直されるため、個別バインドせずdocument委譲で処理する。
+function initTooltips() {
+  const tip = createNode('div', 'md-tooltip', null);
+  tip.id = 'md-tooltip';
+  tip.setAttribute('role', 'tooltip');
+  document.body.append(tip);
+  let pinned = false;
+
+  function position(target) {
+    const rect = target.getBoundingClientRect();
+    const tipRect = tip.getBoundingClientRect();
+    let top = rect.top - tipRect.height - 10;
+    if (top < 8) top = rect.bottom + 10;
+    let left = rect.left + rect.width / 2 - tipRect.width / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - tipRect.width - 8));
+    tip.style.top = `${top}px`;
+    tip.style.left = `${left}px`;
+  }
+
+  function show(target) {
+    const text = target.getAttribute('data-tip');
+    if (!text) return;
+    tip.textContent = text;
+    tip.classList.add('visible');
+    position(target);
+  }
+
+  function hide() {
+    tip.classList.remove('visible');
+    pinned = false;
+  }
+
+  // mouseenter/leaveはバブリングしないため、documentへのキャプチャ登録で委譲する。
+  document.addEventListener('mouseenter', event => {
+    const target = event.target.closest?.('[data-tip]');
+    if (target) show(target);
+  }, true);
+  document.addEventListener('mouseleave', event => {
+    const target = event.target.closest?.('[data-tip]');
+    if (target && !pinned) hide();
+  }, true);
+  document.addEventListener('focusin', event => {
+    const target = event.target.closest?.('[data-tip]');
+    if (target) show(target);
+  });
+  document.addEventListener('focusout', event => {
+    const target = event.target.closest?.('[data-tip]');
+    if (target && !pinned) hide();
+  });
+  document.addEventListener('click', event => {
+    const target = event.target.closest?.('[data-tip]');
+    if (!target) { hide(); return; }
+    if (pinned) { hide(); } else { pinned = true; show(target); }
+  });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') hide(); });
+  window.addEventListener('scroll', hide, true);
+  window.addEventListener('resize', hide);
+}
+
 async function fetchJson(path, fallback) {
   const response = await fetch(`${path}?t=${Date.now()}`, { cache: 'no-store' });
   if (!response.ok) return fallback;
@@ -444,6 +592,7 @@ async function loadDashboard() {
   }
 }
 
+initTooltips();
 loadDashboard();
 setInterval(loadDashboard, 5 * 60 * 1000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - lastLoadedAt > 60000) loadDashboard(); });
