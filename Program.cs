@@ -60,6 +60,11 @@ class Program
     const int SECTOR_RETURN_1M_DAYS = 21; // 約1ヶ月分の営業日
     const int SECTOR_RETURN_3M_DAYS = 63; // 約3ヶ月分の営業日
 
+    // ===== ディフェンシブ／シクリカル・ローテーション =====
+    // 11本のセクター表を睨まなくても、資金が守りに回ったかを1つの差分で読む。
+    static readonly string[] DEFENSIVE_SECTORS = { "XLP", "XLU", "XLV" };
+    static readonly string[] CYCLICAL_SECTORS = { "XLY", "XLK", "XLI" };
+
     // ===== 市場リスクスコアの事後検証 =====
     // スコアが記録された21/63営業日後の実績を確定値として保存する。
     // 当日の終値からの途中経過ではなく、指定営業日後の終値を使うことで検証値が後から変わらないようにする。
@@ -90,12 +95,33 @@ class Program
     const string VIX_SYMBOL = "^VIX";
     const string VIX3M_SYMBOL = "^VIX3M";
     const int VIX_SMA_WINDOW = 20;
+    // Yahooの^VIX3M/^VIX9D/^VIX6Mは配信が数週間止まることがある（^VIXと^VVIXは継続配信）。
+    // 期限構造が取れないだけでボラティリティ配点15点を丸ごと欠落させないよう、
+    // SPY自身の短期／長期実現ボラティリティ比を代替の期限構造として使う。
+    const int REALIZED_VOL_SHORT_WINDOW = 10;
+    const int REALIZED_VOL_LONG_WINDOW = 63;
+    const int TRADING_DAYS_PER_YEAR = 252;
 
     // ===== Nasdaq-100 真の市場ブレッドス =====
     // 構成銘柄スナップショットは公式Nasdaq資料（2026-05-01時点）に基づく。
     // 年次リバランスなどで構成が変わるため、nasdaq100-universe.txt を更新する運用にする。
     const string NASDAQ100_UNIVERSE_FILE = "nasdaq100-universe.txt";
     const int BREADTH_MIN_COVERAGE = 80;
+    // 出来高加重のアキュムレーション/ディストリビューション判定に使う期間（IBDのA/D Rating相当）。
+    const int AD_VOLUME_WINDOW = 50;
+    // 銘柄間の平均ペア相関（ディスパージョン）の観測期間。
+    const int CORRELATION_WINDOW = 21;
+    const int CORRELATION_MIN_SYMBOLS = 20;
+    // Zweig Breadth Thrust：10日騰落レシオが10営業日以内に0.40以下→0.615以上へ切り上がる。
+    const int THRUST_MA_WINDOW = 10;
+    const int THRUST_LOOKBACK_DAYS = 40;
+    const decimal THRUST_LOWER_TRIGGER = 0.40m;
+    const decimal THRUST_UPPER_TRIGGER = 0.615m;
+    // 分散リスクプレミアム（VIX − 実現ボラ）に使う実現ボラの期間。VIXの30日インプライドと対応させる。
+    const int REALIZED_VOL_VRP_WINDOW = 21;
+    // 全指標が取得できたときの満点。採点カバレッジ率の分母として使う。
+    // 配点を変更したときはここも必ず合わせる（トレンド30＋ブレッドス25＋ボラ15＋信用15＋セクター10＋需給5）。
+    const decimal MARKET_RISK_TOTAL_POINTS = 100m;
     const int MAX_YAHOO_RESPONSE_BYTES = 5 * 1024 * 1024;
     const int MAX_FRED_RESPONSE_BYTES = 2 * 1024 * 1024;
     const int MAX_MARKET_DATA_AGE_CALENDAR_DAYS = 5;
@@ -113,8 +139,12 @@ class Program
 
     // 通常データと遅延しても致命的ではないFREDデータでタイムアウトを分ける。
     static readonly HttpClient httpClient = CreateHttpClient(TimeSpan.FromSeconds(20));
-    static readonly HttpClient fredHttpClient = CreateHttpClient(TimeSpan.FromSeconds(8));
-    static readonly string OutputDirectory = ResolveOutputDirectory();
+    // FREDのfredgraph.csvは平常時でも応答が遅いことがあるため、短すぎるタイムアウトにしない。
+    static readonly HttpClient fredHttpClient = CreateHttpClient(TimeSpan.FromSeconds(20));
+    // 静的フィールド初期化子で例外を投げるとMainのtry/catchより先にTypeInitializationExceptionになり、
+    // 原因が分からないスタックトレースだけが出る。遅延評価にしてMain内で捕捉できるようにする。
+    static readonly Lazy<string> LazyOutputDirectory = new(ResolveOutputDirectory);
+    static string OutputDirectory => LazyOutputDirectory.Value;
 
     static HttpClient CreateHttpClient(TimeSpan timeout)
     {
@@ -267,6 +297,10 @@ class Program
                     Status = "ok",
                     SpyReturn1m = sectorRotation.SpyReturn1m,
                     SpyReturn3m = sectorRotation.SpyReturn3m,
+                    DefensiveReturn1m = sectorRotation.DefensiveReturn1m,
+                    CyclicalReturn1m = sectorRotation.CyclicalReturn1m,
+                    RotationSpread1m = sectorRotation.RotationSpread1m,
+                    RotationSpread3m = sectorRotation.RotationSpread3m,
                     Sectors = sectorRotation.Sectors,
                     BreadthProxies = sectorRotation.BreadthProxies,
                     Note = "SPDRセクターETF11銘柄のSPYに対する相対リターン(自前算出)。CAN SLIMの「L(Leader)」に対応する補助指標です。"
@@ -295,25 +329,33 @@ class Program
                     Note = "HYGと投資適格社債ETF(LQD)の相対リターンに、ICE BofA US High Yield OASを追加しました。TLT比較より金利デュレーション差の影響を抑え、信用リスクを読み取りやすくします。"
                 };
 
-            var volatility = await FetchVolatilityRegime();
+            var volatility = await FetchVolatilityRegime(sp500Data);
             var volatilityOutput = volatility == null
                 ? new VolatilityOutput
                 {
                     Status = "unavailable",
-                    Note = "VIX/VIX3Mデータの取得に失敗しました。"
+                    Note = "VIXデータの取得に失敗しました。"
                 }
                 : new VolatilityOutput
                 {
-                    Status = "ok",
+                    // VIX3Mで期限構造が取れたときだけ ok。実現ボラティリティ代替は partial として明示する。
+                    Status = volatility.TermSource == "VIX3M" ? "ok" : "partial",
                     Vix = volatility.Vix,
                     VixSma20 = volatility.VixSma20,
                     Vix3m = volatility.Vix3m,
+                    RealizedVolShortPct = volatility.RealizedVolShortPct,
+                    RealizedVolLongPct = volatility.RealizedVolLongPct,
+                    RealizedVol21Pct = volatility.RealizedVol21Pct,
+                    VarianceRiskPremium = volatility.VarianceRiskPremium,
                     TermSlopePct = volatility.TermSlopePct,
                     TermStructure = volatility.TermStructure,
-                    Note = "VIXとVIX3Mの比較による期限構造の近似です。逆転（Backwardation）は市場ストレスの警戒灯として扱い、単独の売買シグナルには使いません。"
+                    TermSource = volatility.TermSource,
+                    Note = volatility.TermSource == "VIX3M"
+                        ? "VIXとVIX3Mの比較による期限構造の近似です。逆転（Backwardation）は市場ストレスの警戒灯として扱い、単独の売買シグナルには使いません。"
+                        : $"^VIX3Mの配信が停止しているため、SPYの{REALIZED_VOL_SHORT_WINDOW}日／{REALIZED_VOL_LONG_WINDOW}日実現ボラティリティ比で期限構造を代替しています。実現ボラの短期優勢は本物のVIX逆転より高頻度で起きるため、乖離幅に応じて段階的に警戒度を判定します。"
                 };
 
-            var marketBreadth = await FetchNasdaq100Breadth();
+            var marketBreadth = await FetchNasdaq100Breadth(marketDataAsOf);
             var marketBreadthOutput = marketBreadth == null
                 ? new MarketBreadthOutput
                 {
@@ -335,6 +377,11 @@ class Program
                     Declines = marketBreadth.Declines,
                     AdvanceDeclineNet = marketBreadth.AdvanceDeclineNet,
                     AdLineChange20d = marketBreadth.AdLineChange20d,
+                    AvgPairwiseCorrelation = marketBreadth.AvgPairwiseCorrelation,
+                    AccumulationPct = marketBreadth.AccumulationPct,
+                    StealthDistributionPct = marketBreadth.StealthDistributionPct,
+                    AdvanceRatioSma10 = marketBreadth.AdvanceRatioSma10,
+                    BreadthThrustDetected = marketBreadth.BreadthThrustDetected,
                     Note = "Nasdaq-100構成銘柄を個別に集計した等ウェイトの市場内部指標です。指数上昇時でも50日線上比率やA/Dラインが悪化していれば、上昇の広がり不足を確認できます。"
                 };
 
@@ -683,10 +730,31 @@ class Program
                 return null;
             }
 
+            // ディフェンシブ（生活必需品・公益・ヘルスケア）とシクリカル（一般消費財・テクノロジー・資本財）の
+            // 平均リターン差。プラス幅が大きいほど資金が守りに回っている＝リスクオフの進行。
+            decimal? GroupAverage(string[] symbols, Func<SectorInfo, decimal> selector)
+            {
+                var values = sectorList
+                    .Where(sector => symbols.Contains(sector.Symbol, StringComparer.OrdinalIgnoreCase))
+                    .Select(selector).ToList();
+                return values.Count == 0 ? null : Math.Round(values.Average(), 2);
+            }
+
+            decimal? defensive1m = GroupAverage(DEFENSIVE_SECTORS, s => s.Return1m);
+            decimal? cyclical1m = GroupAverage(CYCLICAL_SECTORS, s => s.Return1m);
+            decimal? defensive3m = GroupAverage(DEFENSIVE_SECTORS, s => s.Return3m);
+            decimal? cyclical3m = GroupAverage(CYCLICAL_SECTORS, s => s.Return3m);
+
             return new SectorRotationResult
             {
                 SpyReturn1m = spyReturn1m,
                 SpyReturn3m = spyReturn3m,
+                DefensiveReturn1m = defensive1m,
+                CyclicalReturn1m = cyclical1m,
+                RotationSpread1m = defensive1m.HasValue && cyclical1m.HasValue
+                    ? Math.Round(defensive1m.Value - cyclical1m.Value, 2) : null,
+                RotationSpread3m = defensive3m.HasValue && cyclical3m.HasValue
+                    ? Math.Round(defensive3m.Value - cyclical3m.Value, 2) : null,
                 // 3ヶ月の相対強度が高い順（＝リーダーシップが強い順）に並べる
                 Sectors = sectorList.OrderByDescending(s => s.RelStrength3m).ToList(),
                 BreadthProxies = breadthList
@@ -754,7 +822,24 @@ class Program
     static async Task<HyOasResult?> FetchHyOas()
     {
         string url = $"https://fred.stlouisfed.org/graph/fredgraph.csv?id={HY_OAS_FRED_SERIES}";
-        string csv = await GetResponseTextWithLimitAsync(fredHttpClient, url, MAX_FRED_RESPONSE_BYTES);
+
+        // FREDは一時的に応答が非常に遅くなることがある。1回のタイムアウトで恒久的に「未取得」にしない。
+        string? csv = null;
+        for (int attempt = 1; attempt <= 3; attempt++)
+        {
+            try
+            {
+                csv = await GetResponseTextWithLimitAsync(fredHttpClient, url, MAX_FRED_RESPONSE_BYTES);
+                break;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CreditRiskAppetite] FRED attempt {attempt}/3 failed: {ex.Message}");
+                if (attempt < 3) await Task.Delay(TimeSpan.FromSeconds(2 * attempt));
+            }
+        }
+        if (csv == null) return null;
+
         var observations = new List<(DateTime Date, decimal Value)>();
 
         foreach (string line in csv.Split('\n', StringSplitOptions.RemoveEmptyEntries).Skip(1))
@@ -788,27 +873,72 @@ class Program
 
     // ================= ボラティリティ警戒灯 =================
 
-    static async Task<VolatilityResult?> FetchVolatilityRegime()
+    static async Task<VolatilityResult?> FetchVolatilityRegime(List<DailyData> spyData)
     {
         try
         {
             var vixData = await FetchYahooDataWithRetry(VIX_SYMBOL, "6mo");
-            await Task.Delay(250);
-            var vix3mData = await FetchYahooDataWithRetry(VIX3M_SYMBOL, "6mo");
-            if (vixData.Count < VIX_SMA_WINDOW || vix3mData.Count == 0) return null;
+            if (vixData.Count < VIX_SMA_WINDOW) return null;
 
             decimal vix = vixData[^1].AdjustedClose;
-            decimal vix3m = vix3mData[^1].AdjustedClose;
             decimal vixSma20 = Math.Round(vixData.TakeLast(VIX_SMA_WINDOW).Average(d => d.AdjustedClose), 2);
-            decimal termSlopePct = Math.Round((vix - vix3m) / vix3m * 100m, 2);
 
+            // 分散リスクプレミアム = インプライド(VIX) − 実現ボラ。
+            // VIXの水準そのものより、「現実の変動に対してオプションが割安か」を見る。
+            // マイナス（実現>インプライド）は市場が現実の変動に追いつけていない慢心のサイン。
+            decimal? realizedVol21 = RealizedVolatilityPct(spyData, REALIZED_VOL_VRP_WINDOW);
+            decimal? varianceRiskPremium = realizedVol21.HasValue ? Math.Round(vix - realizedVol21.Value, 2) : null;
+
+            // ^VIX3Mの配信停止でボラティリティ判定そのものを失わないよう、失敗を致命的に扱わない。
+            List<DailyData>? vix3mData = null;
+            try
+            {
+                await Task.Delay(250);
+                vix3mData = await FetchYahooDataWithRetry(VIX3M_SYMBOL, "6mo", maxAttempts: 2);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Volatility] {VIX3M_SYMBOL} を利用できません。実現ボラティリティで代替します: {ex.Message}");
+            }
+
+            if (vix3mData is { Count: > 0 })
+            {
+                decimal vix3m = vix3mData[^1].AdjustedClose;
+                decimal termSlopePct = Math.Round((vix - vix3m) / vix3m * 100m, 2);
+                return new VolatilityResult
+                {
+                    Vix = vix,
+                    VixSma20 = vixSma20,
+                    RealizedVol21Pct = realizedVol21,
+                    VarianceRiskPremium = varianceRiskPremium,
+                    Vix3m = vix3m,
+                    TermSlopePct = termSlopePct,
+                    TermStructure = termSlopePct > 0 ? "Backwardation" : "Contango",
+                    TermSource = "VIX3M"
+                };
+            }
+
+            decimal? shortVol = RealizedVolatilityPct(spyData, REALIZED_VOL_SHORT_WINDOW);
+            decimal? longVol = RealizedVolatilityPct(spyData, REALIZED_VOL_LONG_WINDOW);
+            if (!shortVol.HasValue || !longVol.HasValue || longVol.Value <= 0m)
+            {
+                Console.WriteLine("[Volatility] 実現ボラティリティの代替算出にも失敗しました。");
+                return null;
+            }
+
+            decimal fallbackSlopePct = Math.Round((shortVol.Value - longVol.Value) / longVol.Value * 100m, 2);
             return new VolatilityResult
             {
                 Vix = vix,
                 VixSma20 = vixSma20,
-                Vix3m = vix3m,
-                TermSlopePct = termSlopePct,
-                TermStructure = termSlopePct > 0 ? "Backwardation" : "Contango"
+                RealizedVol21Pct = realizedVol21,
+                VarianceRiskPremium = varianceRiskPremium,
+                Vix3m = null,
+                RealizedVolShortPct = shortVol,
+                RealizedVolLongPct = longVol,
+                TermSlopePct = fallbackSlopePct,
+                TermStructure = fallbackSlopePct > 0 ? "Backwardation" : "Contango",
+                TermSource = "RealizedVol"
             };
         }
         catch (Exception ex)
@@ -818,12 +948,38 @@ class Program
         }
     }
 
+    // 対数リターンの標本標準偏差を年率換算した実現ボラティリティ(%)。
+    static decimal? RealizedVolatilityPct(List<DailyData> data, int window)
+    {
+        if (window < 2 || data.Count < window + 1) return null;
+
+        var logReturns = new List<double>(window);
+        for (int i = data.Count - window; i < data.Count; i++)
+        {
+            double previous = (double)data[i - 1].AdjustedClose;
+            double current = (double)data[i].AdjustedClose;
+            if (previous <= 0d || current <= 0d) return null;
+            logReturns.Add(Math.Log(current / previous));
+        }
+
+        double mean = logReturns.Average();
+        double variance = logReturns.Sum(value => (value - mean) * (value - mean)) / (logReturns.Count - 1);
+        double annualized = Math.Sqrt(variance) * Math.Sqrt(TRADING_DAYS_PER_YEAR) * 100d;
+        return double.IsFinite(annualized) ? Math.Round((decimal)annualized, 2) : null;
+    }
+
     // ================= Nasdaq-100 真の市場ブレッドス =================
 
-    static async Task<MarketBreadthResult?> FetchNasdaq100Breadth()
+    static async Task<MarketBreadthResult?> FetchNasdaq100Breadth(string marketDataAsOf)
     {
         try
         {
+            if (!DateTime.TryParseExact(marketDataAsOf, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var referenceDate))
+            {
+                Console.WriteLine($"[Breadth] 市場基準日を解釈できません: {marketDataAsOf}");
+                return null;
+            }
+
             string universePath = ResolveContentPath(NASDAQ100_UNIVERSE_FILE);
 
             var symbols = File.ReadLines(universePath)
@@ -834,7 +990,15 @@ class Program
             if (symbols.Count == 0) return null;
 
             var allData = await FetchYahooBreadthData(symbols);
-            var analyzed = allData.Values.Where(data => data.Count >= 100).ToList();
+            // 直近の取引日が市場基準日と一致する銘柄だけを使う。
+            // 鮮度チェックは5営業日まで許容するため、売買停止・上場廃止などで数日前の終値のまま返る銘柄が混ざる。
+            // それを「今日の上昇/下落」として数えるとA/Dラインと騰落数が別々の日の合成になってしまう。
+            var analyzed = allData.Values
+                .Where(data => data.Count >= 100 && data[^1].Date.Date == referenceDate.Date)
+                .ToList();
+            int staleSymbols = allData.Count - analyzed.Count;
+            if (staleSymbols > 0)
+                Console.WriteLine($"[Breadth] {staleSymbols} symbols skipped: 最終取引日が市場基準日({marketDataAsOf})と不一致。");
             if (analyzed.Count < BREADTH_MIN_COVERAGE)
             {
                 Console.WriteLine($"[Breadth] insufficient coverage: {analyzed.Count}/{symbols.Count}");
@@ -865,7 +1029,9 @@ class Program
                 if (latest >= trailingYear.Max()) newHighs++;
                 if (latest <= trailingYear.Min()) newLows++;
 
-                for (int i = 1; i < data.Count; i++)
+                // 使うのは直近20営業日分の騰落だけなので、1年分すべてを走査しない。
+                int adStart = Math.Max(1, data.Count - 20);
+                for (int i = adStart; i < data.Count; i++)
                 {
                     int net = data[i].AdjustedClose > data[i - 1].AdjustedClose ? 1 :
                               data[i].AdjustedClose < data[i - 1].AdjustedClose ? -1 : 0;
@@ -879,8 +1045,82 @@ class Program
 
             var latestAdDates = adNetByDate.Keys.OrderBy(d => d).TakeLast(20).ToList();
             int adLineChange20d = latestAdDates.Sum(date => adNetByDate[date]);
+
+            // ---- 出来高加重のアキュムレーション/ディストリビューション（IBDのA/D Rating相当） ----
+            // 上昇日の出来高と下落日の出来高を比べ、機関が拾っているか降りているかを銘柄ごとに判定する。
+            int accumulationCount = 0, adRatioEligible = 0, stealthDistributionCount = 0, aboveSma50ForStealth = 0;
+            foreach (var data in analyzed)
+            {
+                if (data.Count < AD_VOLUME_WINDOW + 1) continue;
+
+                decimal upVolume = 0m, downVolume = 0m;
+                for (int i = data.Count - AD_VOLUME_WINDOW; i < data.Count; i++)
+                {
+                    if (data[i].AdjustedClose > data[i - 1].AdjustedClose) upVolume += data[i].Volume;
+                    else if (data[i].AdjustedClose < data[i - 1].AdjustedClose) downVolume += data[i].Volume;
+                }
+
+                adRatioEligible++;
+                bool underAccumulation = downVolume <= 0m ? upVolume > 0m : upVolume / downVolume >= 1m;
+                if (underAccumulation) accumulationCount++;
+
+                // ステルス配分：価格は50日線の上なのに、出来高は下落日に偏っている＝最も気づきにくい売り抜け。
+                decimal sma50 = data.TakeLast(50).Average(d => d.AdjustedClose);
+                if (data[^1].AdjustedClose >= sma50)
+                {
+                    aboveSma50ForStealth++;
+                    if (!underAccumulation) stealthDistributionCount++;
+                }
+            }
+
+            // ---- 10日騰落レシオ と Zweig Breadth Thrust ----
+            var advanceDeclineByDate = new SortedDictionary<DateTime, (int Advances, int Declines)>();
+            foreach (var data in analyzed)
+            {
+                int thrustStart = Math.Max(1, data.Count - THRUST_LOOKBACK_DAYS);
+                for (int i = thrustStart; i < data.Count; i++)
+                {
+                    DateTime date = data[i].Date.Date;
+                    advanceDeclineByDate.TryGetValue(date, out var counts);
+                    if (data[i].AdjustedClose > data[i - 1].AdjustedClose) counts.Advances++;
+                    else if (data[i].AdjustedClose < data[i - 1].AdjustedClose) counts.Declines++;
+                    advanceDeclineByDate[date] = counts;
+                }
+            }
+
+            var advanceRatios = advanceDeclineByDate.Values
+                .Where(counts => counts.Advances + counts.Declines > 0)
+                .Select(counts => (decimal)counts.Advances / (counts.Advances + counts.Declines))
+                .ToList();
+
+            decimal? advanceRatioSma10 = null;
+            bool breadthThrustDetected = false;
+            if (advanceRatios.Count >= THRUST_MA_WINDOW)
+            {
+                var movingAverages = new List<decimal>();
+                for (int i = THRUST_MA_WINDOW - 1; i < advanceRatios.Count; i++)
+                    movingAverages.Add(advanceRatios.Skip(i - THRUST_MA_WINDOW + 1).Take(THRUST_MA_WINDOW).Average());
+
+                advanceRatioSma10 = Math.Round(movingAverages[^1], 3);
+
+                // 直近10営業日以内に「0.40以下 → 0.615以上」を10営業日以内で達成していれば点灯。
+                for (int j = Math.Max(0, movingAverages.Count - THRUST_MA_WINDOW); j < movingAverages.Count && !breadthThrustDetected; j++)
+                {
+                    if (movingAverages[j] < THRUST_UPPER_TRIGGER) continue;
+                    for (int i = Math.Max(0, j - THRUST_MA_WINDOW); i < j; i++)
+                    {
+                        if (movingAverages[i] <= THRUST_LOWER_TRIGGER) { breadthThrustDetected = true; break; }
+                    }
+                }
+            }
+
             return new MarketBreadthResult
             {
+                AvgPairwiseCorrelation = AveragePairwiseCorrelation(analyzed, CORRELATION_WINDOW),
+                AccumulationPct = adRatioEligible == 0 ? null : Math.Round((decimal)accumulationCount / adRatioEligible * 100m, 1),
+                StealthDistributionPct = aboveSma50ForStealth == 0 ? null : Math.Round((decimal)stealthDistributionCount / aboveSma50ForStealth * 100m, 1),
+                AdvanceRatioSma10 = advanceRatioSma10,
+                BreadthThrustDetected = breadthThrustDetected,
                 UniverseAsOf = "2026-05-01",
                 ExpectedConstituents = symbols.Count,
                 AnalyzedConstituents = analyzed.Count,
@@ -902,6 +1142,83 @@ class Program
         }
     }
 
+    // 構成銘柄どうしの平均ペア相関（ディスパージョンの逆数的な指標）。
+    // 高いほど「個別材料が効かないマクロ一括相場」で、分散もセクター選択も効きにくい。
+    // 全ペアを直接計算せず、標準化リターンの合計の分散から導く：
+    //   ρ̄ = [ (1/T)Σ_t (Σ_i z_it)^2 − n ] / (n(n−1))
+    static decimal? AveragePairwiseCorrelation(List<List<DailyData>> series, int window)
+    {
+        // 位置（末尾からn本目）でそろえると、Yahooが欠測日を落としている銘柄でリターンが日付ずれを起こす。
+        // 通常のNDX構成銘柄はカレンダーが一致するため結果は変わらないが、売買停止などで
+        // 歯抜けが出た銘柄が混ざったときに相関が不当に低く出るのを防ぐ保険として日付でそろえる。
+        var dateCounts = new Dictionary<DateTime, int>();
+        foreach (var data in series)
+        {
+            foreach (var day in data.TakeLast(window * 3))
+            {
+                DateTime date = day.Date.Date;
+                dateCounts[date] = dateCounts.TryGetValue(date, out int seen) ? seen + 1 : 1;
+            }
+        }
+
+        // 大半の銘柄が取引している日だけを共通カレンダーとして採用する。
+        int requiredSymbols = (int)Math.Ceiling(series.Count * 0.9);
+        var targetDates = dateCounts
+            .Where(entry => entry.Value >= requiredSymbols)
+            .Select(entry => entry.Key)
+            .OrderBy(date => date)
+            .TakeLast(window + 1)
+            .ToList();
+        if (targetDates.Count < window + 1) return null;
+
+        var standardized = new List<double[]>();
+        foreach (var data in series)
+        {
+            var closesByDate = new Dictionary<DateTime, decimal>();
+            foreach (var day in data.TakeLast(window * 3)) closesByDate[day.Date.Date] = day.AdjustedClose;
+
+            var returns = new double[window];
+            bool usable = true;
+            for (int k = 0; k < window; k++)
+            {
+                if (!closesByDate.TryGetValue(targetDates[k], out decimal previousClose) ||
+                    !closesByDate.TryGetValue(targetDates[k + 1], out decimal currentClose) ||
+                    previousClose <= 0m || currentClose <= 0m)
+                {
+                    usable = false;
+                    break;
+                }
+                returns[k] = Math.Log((double)currentClose / (double)previousClose);
+            }
+            if (!usable) continue;
+
+            double mean = returns.Average();
+            // 上式が厳密に成り立つよう、母分散（Tで割る）でそろえる。
+            double variance = returns.Sum(value => (value - mean) * (value - mean)) / window;
+            if (variance <= 0d) continue;
+
+            double deviation = Math.Sqrt(variance);
+            for (int k = 0; k < window; k++) returns[k] = (returns[k] - mean) / deviation;
+            standardized.Add(returns);
+        }
+
+        int count = standardized.Count;
+        if (count < CORRELATION_MIN_SYMBOLS) return null;
+
+        double sumOfSquares = 0d;
+        for (int t = 0; t < window; t++)
+        {
+            double total = 0d;
+            foreach (var z in standardized) total += z[t];
+            sumOfSquares += total * total;
+        }
+
+        double correlation = (sumOfSquares / window - count) / ((double)count * (count - 1));
+        return double.IsFinite(correlation)
+            ? Math.Round((decimal)Math.Clamp(correlation, -1d, 1d), 3)
+            : null;
+    }
+
     // ================= 総合市場リスク・スコア =================
 
     static MarketRiskScore CalculateMarketRiskScore(
@@ -913,8 +1230,9 @@ class Program
         VolatilityOutput volatility,
         MarketBreadthOutput breadth)
     {
-        // 配点: トレンド30、ブレッドス25、ボラティリティ15、信用15、セクター10、Put/Call5。
+        // 配点: トレンド24、ブレッドス21、機関需給9、市場構造7、ボラティリティ12、信用12、セクター10、需給5＝100。
         // 欠損データを低リスク（0点）と誤認しないよう、利用可能な配点で100点換算する。
+        // 配点を変更したら MARKET_RISK_TOTAL_POINTS も必ず合わせること。
         var metrics = new List<MarketRiskMetric>();
         void Add(string group, string name, decimal score, decimal maxPoints, string detail)
         {
@@ -930,71 +1248,141 @@ class Program
 
         decimal StatusRisk(IndexAnalysis index) => index.StatusId switch
         {
-            "Correction" => 9m,
-            "Pressure" => 4m,
+            "Correction" => 7m,
+            "Pressure" => 3m,
             _ => 0m
         };
 
-        decimal smaRisk = (sp500.IsAboveSma50 ? 0m : 3m) + (nasdaq.IsAboveSma50 ? 0m : 3m);
-        decimal ddRisk = Math.Min(3m, sp500.DistributionDaysActive / 2m) + Math.Min(3m, nasdaq.DistributionDaysActive / 2m);
-        Add("市場トレンド", "市場ステータス", StatusRisk(sp500) + StatusRisk(nasdaq), 18m,
+        // 売り抜けの「重さ」。日数カウントとは別枠で、出来高加重の強度を評価する。
+        decimal IntensityRisk(decimal intensity) =>
+            intensity >= 8m ? 1.5m : intensity >= 5m ? 1m : intensity >= 2.5m ? 0.5m : 0m;
+
+        decimal smaRisk = (sp500.IsAboveSma50 ? 0m : 2m) + (nasdaq.IsAboveSma50 ? 0m : 2m);
+        decimal ddRisk = Math.Min(1.5m, sp500.DistributionDaysActive / 4m) + Math.Min(1.5m, nasdaq.DistributionDaysActive / 4m);
+        Add("市場トレンド", "市場ステータス", StatusRisk(sp500) + StatusRisk(nasdaq), 14m,
             $"SPY: {sp500.StatusId} / QQQ: {nasdaq.StatusId}");
-        Add("市場トレンド", "50日線", smaRisk, 6m,
+        Add("市場トレンド", "50日線", smaRisk, 4m,
             $"SPY: {(sp500.IsAboveSma50 ? "上" : "下")} / QQQ: {(nasdaq.IsAboveSma50 ? "上" : "下")}");
-        Add("市場トレンド", "有効Distribution Day", ddRisk, 6m,
+        Add("市場トレンド", "有効Distribution Day", ddRisk, 3m,
             $"SPY: {sp500.DistributionDaysActive}日 / QQQ: {nasdaq.DistributionDaysActive}日");
+        Add("市場トレンド", "売り抜け強度", IntensityRisk(sp500.DistributionIntensity) + IntensityRisk(nasdaq.DistributionIntensity), 3m,
+            $"SPY: {sp500.DistributionIntensity:F1} / QQQ: {nasdaq.DistributionIntensity:F1}（下落率×出来高比の合計）");
 
         if (breadth.Status is "ok" or "partial")
         {
             if (breadth.AboveSma50Pct.HasValue)
             {
-                Add("市場ブレッドス", "50日線上比率", BreadthPctRisk(breadth.AboveSma50Pct.Value, 7m), 7m,
+                Add("市場ブレッドス", "50日線上比率", BreadthPctRisk(breadth.AboveSma50Pct.Value, 6m), 6m,
                     $"{breadth.AboveSma50Pct.Value:F1}%");
             }
             if (breadth.AboveSma200Pct.HasValue)
             {
-                Add("市場ブレッドス", "200日線上比率", BreadthPctRisk(breadth.AboveSma200Pct.Value, 7m), 7m,
+                Add("市場ブレッドス", "200日線上比率", BreadthPctRisk(breadth.AboveSma200Pct.Value, 5m), 5m,
                     $"{breadth.AboveSma200Pct.Value:F1}%");
             }
 
-            decimal highLowRisk = breadth.NewLows52Week > breadth.NewHighs52Week ? 5m :
-                breadth.NewLows52Week > 0 && breadth.NewHighs52Week < breadth.NewLows52Week * 2 ? 3m : 0m;
-            Add("市場ブレッドス", "52週新高値・新安値", highLowRisk, 5m,
+            decimal highLowRisk = breadth.NewLows52Week > breadth.NewHighs52Week ? 4m :
+                breadth.NewLows52Week > 0 && breadth.NewHighs52Week < breadth.NewLows52Week * 2 ? 2.5m : 0m;
+            Add("市場ブレッドス", "52週新高値・新安値", highLowRisk, 4m,
                 $"新高値 {breadth.NewHighs52Week} / 新安値 {breadth.NewLows52Week}");
 
-            decimal adRisk = breadth.AdLineChange20d <= -150 ? 6m : breadth.AdLineChange20d < 0 ? 3m : 0m;
-            Add("市場ブレッドス", "20日A/Dライン", adRisk, 6m,
+            decimal adRisk = breadth.AdLineChange20d <= -150 ? 3m : breadth.AdLineChange20d < 0 ? 1.5m : 0m;
+            Add("市場ブレッドス", "20日A/Dライン", adRisk, 3m,
                 $"20日変化 {(breadth.AdLineChange20d > 0 ? "+" : "")}{breadth.AdLineChange20d}");
+
+            if (breadth.AdvanceRatioSma10.HasValue)
+            {
+                // 騰落レシオが低いまま張り付く＝売りが広く持続している状態。
+                // Breadth Thrust点灯時はレシオ自体が0.615超なので自動的に0点になる。
+                decimal ratio = breadth.AdvanceRatioSma10.Value;
+                decimal ratioRisk = ratio <= 0.35m ? 3m : ratio <= 0.42m ? 2m : ratio <= 0.48m ? 1m : 0m;
+                string thrustNote = breadth.BreadthThrustDetected ? " / Zweig Breadth Thrust 点灯" : "";
+                Add("市場ブレッドス", "10日騰落レシオ", ratioRisk, 3m, $"{ratio:F3}{thrustNote}");
+            }
+
+            if (breadth.AccumulationPct.HasValue)
+            {
+                // 「かろうじて半数」では健全とは言えないため、55%未満から軽い加点を始める。
+                decimal accumulation = breadth.AccumulationPct.Value;
+                decimal accumulationRisk = accumulation < 35m ? 5m : accumulation < 45m ? 3.5m : accumulation < 55m ? 2m : 0m;
+                Add("機関需給", "アキュムレーション銘柄比率", accumulationRisk, 5m,
+                    $"{accumulation:F1}%（50日の出来高が上昇日に偏る銘柄）");
+            }
+
+            if (breadth.StealthDistributionPct.HasValue)
+            {
+                // 価格は50日線の上なのに出来高は下落日に偏る＝チャートだけ見ていると気づけない売り抜け。
+                decimal stealth = breadth.StealthDistributionPct.Value;
+                decimal stealthRisk = stealth >= 40m ? 4m : stealth >= 25m ? 2.5m : stealth >= 15m ? 1m : 0m;
+                Add("機関需給", "ステルス配分", stealthRisk, 4m,
+                    $"{stealth:F1}%（50日線上だが売り優勢）");
+            }
+
+            if (breadth.AvgPairwiseCorrelation.HasValue)
+            {
+                // 閾値の根拠：NDX全構成銘柄（セクター混在）の21日平均ペア相関は、分散が効く平時で0.05〜0.20、
+                // 平常0.20〜0.35、リスクオフ0.40〜0.60、パニックで0.60超という分布になる。
+                // 大型テック20銘柄だけに絞ると同時点で0.18と高く出るため、全銘柄ベースの水準で判定する。
+                // ※ここは自己履歴が貯まるまで検証できない、最も暫定的な閾値。
+                decimal correlation = breadth.AvgPairwiseCorrelation.Value;
+                decimal correlationRisk = correlation >= 0.55m ? 7m : correlation >= 0.40m ? 5m : correlation >= 0.25m ? 2m : 0m;
+                Add("市場構造", "銘柄間相関", correlationRisk, 7m,
+                    $"平均ペア相関 {correlation:F3}（{CORRELATION_WINDOW}日）");
+            }
         }
 
-        if (volatility.Status == "ok" && volatility.Vix.HasValue && volatility.VixSma20.HasValue && volatility.Vix3m.HasValue)
+        if (volatility.Status is "ok" or "partial" && volatility.Vix.HasValue && volatility.VixSma20.HasValue && volatility.TermSlopePct.HasValue)
         {
-            decimal vixRisk = volatility.Vix.Value > volatility.VixSma20.Value * 1.2m ? 5m :
-                volatility.Vix.Value > volatility.VixSma20.Value ? 3m : 0m;
-            Add("ボラティリティ", "VIX対20日平均", vixRisk, 5m,
+            decimal vixRisk = volatility.Vix.Value > volatility.VixSma20.Value * 1.2m ? 4m :
+                volatility.Vix.Value > volatility.VixSma20.Value ? 2.5m : 0m;
+            Add("ボラティリティ", "VIX対20日平均", vixRisk, 4m,
                 $"VIX {volatility.Vix.Value:F2} / 20日平均 {volatility.VixSma20.Value:F2}");
-            Add("ボラティリティ", "VIX期限構造", volatility.TermStructure == "Backwardation" ? 10m : 0m, 10m,
-                $"{volatility.TermStructure}（VIX対VIX3M {volatility.TermSlopePct ?? 0m:+0.00;-0.00;0.00}%）");
+            decimal termRisk;
+            string slopeLabel;
+            if (volatility.TermSource == "VIX3M")
+            {
+                slopeLabel = "VIX対VIX3M";
+                termRisk = volatility.TermStructure == "Backwardation" ? 5m : 0m;
+            }
+            else
+            {
+                // 実現ボラの「短期>長期」は本物のVIX逆転よりはるかに高頻度で起きる。
+                // 同じ条件で満点を与えると平常時でもリスクを過大評価するため、乖離幅で段階配点する。
+                slopeLabel = "SPY実現ボラ 短期対長期";
+                decimal slope = volatility.TermSlopePct.Value;
+                termRisk = slope >= 20m ? 5m : slope >= 5m ? 2.5m : 0m;
+            }
+            Add("ボラティリティ", "VIX期限構造", termRisk, 5m,
+                $"{volatility.TermStructure}（{slopeLabel} {volatility.TermSlopePct.Value:+0.00;-0.00;0.00}%）");
+
+            if (volatility.VarianceRiskPremium.HasValue)
+            {
+                // マイナス＝実現ボラがインプライドを上回る＝現実の変動に市場が追いつけていない。
+                decimal vrp = volatility.VarianceRiskPremium.Value;
+                decimal vrpRisk = vrp <= -2m ? 3m : vrp <= 0m ? 2m : vrp <= 1.5m ? 1m : 0m;
+                Add("ボラティリティ", "分散リスクプレミアム", vrpRisk, 3m,
+                    $"{vrp:+0.00;-0.00;0.00}（VIX {volatility.Vix.Value:F2} − 実現ボラ {volatility.RealizedVol21Pct:F2}）");
+            }
         }
 
         if (credit.Status == "ok")
         {
             if (credit.Spread3m.HasValue)
             {
-                decimal creditRisk = credit.Spread3m.Value <= -5m ? 7m : credit.Spread3m.Value < 0m ? 4m : 0m;
-                Add("クレジット", "HY対IG相対リターン", creditRisk, 7m,
+                decimal creditRisk = credit.Spread3m.Value <= -5m ? 6m : credit.Spread3m.Value < 0m ? 3.5m : 0m;
+                Add("クレジット", "HY対IG相対リターン", creditRisk, 6m,
                     $"3か月 {credit.Spread3m.Value:+0.00;-0.00;0.00}%");
             }
             if (credit.HyOasPct.HasValue)
             {
-                decimal oasLevelRisk = credit.HyOasPct.Value >= 6m ? 4m : credit.HyOasPct.Value >= 4.5m ? 2m : 0m;
-                Add("クレジット", "HY OAS水準", oasLevelRisk, 4m,
+                decimal oasLevelRisk = credit.HyOasPct.Value >= 6m ? 3m : credit.HyOasPct.Value >= 4.5m ? 1.5m : 0m;
+                Add("クレジット", "HY OAS水準", oasLevelRisk, 3m,
                     $"{credit.HyOasPct.Value:F2}%");
             }
             if (credit.HyOasChange1mBps.HasValue)
             {
-                decimal oasChangeRisk = credit.HyOasChange1mBps.Value >= 75m ? 4m : credit.HyOasChange1mBps.Value >= 25m ? 2m : 0m;
-                Add("クレジット", "HY OAS 1か月変化", oasChangeRisk, 4m,
+                decimal oasChangeRisk = credit.HyOasChange1mBps.Value >= 75m ? 3m : credit.HyOasChange1mBps.Value >= 25m ? 1.5m : 0m;
+                Add("クレジット", "HY OAS 1か月変化", oasChangeRisk, 3m,
                     $"{credit.HyOasChange1mBps.Value:+0;-0;0}bp");
             }
         }
@@ -1002,16 +1390,25 @@ class Program
         if (sector.Status == "ok" && sector.Sectors != null)
         {
             int positiveSectors = sector.Sectors.Count(s => s.RelStrength3m > 0m);
-            decimal sectorRisk = positiveSectors >= 7 ? 0m : positiveSectors >= 5 ? 2m : positiveSectors >= 3 ? 4m : 6m;
-            Add("セクター", "対SPYで優位なセクター数", sectorRisk, 6m,
+            decimal sectorRisk = positiveSectors >= 7 ? 0m : positiveSectors >= 5 ? 1.5m : positiveSectors >= 3 ? 2.5m : 4m;
+            Add("セクター", "対SPYで優位なセクター数", sectorRisk, 4m,
                 $"{positiveSectors}/{sector.Sectors.Count}セクター");
 
             if (sector.BreadthProxies != null && sector.BreadthProxies.Count > 0)
             {
-                decimal proxyMax = sector.BreadthProxies.Count * 2m;
-                decimal proxyRisk = sector.BreadthProxies.Sum(proxy => proxy.RelStrength3m <= -3m ? 2m : proxy.RelStrength3m < 0m ? 1m : 0m);
+                decimal proxyMax = sector.BreadthProxies.Count * 1.5m;
+                decimal proxyRisk = sector.BreadthProxies.Sum(proxy => proxy.RelStrength3m <= -3m ? 1.5m : proxy.RelStrength3m < 0m ? 0.75m : 0m);
                 Add("セクター", "RSP・IWMの相対強度", proxyRisk, proxyMax,
                     string.Join(" / ", sector.BreadthProxies.Select(p => $"{p.Symbol} {p.RelStrength3m:+0.00;-0.00;0.00}%")));
+            }
+
+            if (sector.RotationSpread1m.HasValue)
+            {
+                // ディフェンシブがシクリカルを上回る幅が大きいほど、資金が守りへ退避している。
+                decimal rotation = sector.RotationSpread1m.Value;
+                decimal rotationRisk = rotation >= 4m ? 3m : rotation >= 1.5m ? 2m : rotation >= 0m ? 1m : 0m;
+                Add("セクター", "ディフェンシブ優位度", rotationRisk, 3m,
+                    $"1か月 {rotation:+0.00;-0.00;0.00}%（守り {sector.DefensiveReturn1m:F2}% 対 攻め {sector.CyclicalReturn1m:F2}%）");
             }
         }
 
@@ -1041,7 +1438,9 @@ class Program
             Score = normalizedScore,
             RawScore = Math.Round(rawScore, 1),
             AvailableMaxPoints = Math.Round(availableMax, 1),
-            DataCoveragePct = Math.Round(availableMax, 1),
+            // 配点合計と満点がたまたま一致していたため、これまで生の配点をそのまま「%」として表示していた。
+            // 満点で割った本来のカバレッジ率にする。
+            DataCoveragePct = Math.Round(Math.Min(100m, availableMax / MARKET_RISK_TOTAL_POINTS * 100m), 1),
             Label = label,
             Metrics = metrics
         };
@@ -1105,6 +1504,33 @@ class Program
         // ループ終了時点のactiveDDsが「最新日時点でアクティブな売り抜け日」そのもの。
         // チャートでの有効/失効の視覚区別と、深刻さ（最大下落率）の算出に使う
         var activeDDIndices = activeDDs.Select(dd => dd.idx).ToHashSet();
+
+        // --- 売り抜け日の「強度」（出来高加重） ---
+        // 日数カウントだけでは -0.3%×平常出来高 の日と -2.0%×1.8倍出来高 の日が同じ「1日」になる。
+        // 下落率×出来高比で重み付けし、機関の売りの本気度を数値化する。
+        var volumeSma50 = new decimal?[n];
+        if (n >= 50)
+        {
+            decimal volumeWindowSum = 0m;
+            for (int i = 0; i < 50; i++) volumeWindowSum += data[i].Volume;
+            volumeSma50[49] = volumeWindowSum / 50m;
+            for (int i = 50; i < n; i++)
+            {
+                volumeWindowSum += data[i].Volume - data[i - 50].Volume;
+                volumeSma50[i] = volumeWindowSum / 50m;
+            }
+        }
+
+        decimal distributionIntensity = 0m;
+        foreach (var (idx, _) in activeDDs)
+        {
+            decimal dropPct = (data[idx - 1].AdjustedClose - data[idx].AdjustedClose) / data[idx - 1].AdjustedClose * 100m;
+            decimal volumeRatio = volumeSma50[idx].HasValue && volumeSma50[idx]!.Value > 0m
+                ? data[idx].Volume / volumeSma50[idx]!.Value
+                : 1m;
+            distributionIntensity += dropPct * volumeRatio;
+        }
+        distributionIntensity = Math.Round(distributionIntensity, 2);
 
         decimal? worstActiveDropPct = null;
         string? worstActiveDropDate = null;
@@ -1237,6 +1663,7 @@ class Program
             High52WeekAdjusted = high52Week,
             DrawdownFromHighPct = drawdownFromHighPct,
             DistributionDaysActive = lastDistDays,
+            DistributionIntensity = distributionIntensity,
             WorstActiveDropPct = worstActiveDropPct,
             WorstActiveDropDate = worstActiveDropDate,
             TrendState = lastState,
@@ -1295,7 +1722,9 @@ class Program
         // --- Put/Call Ratioのトレンド統計（当日の候補値を含めてメモリ上で算出する） ---
         var validRatios = trimmed.Where(h => h.PutCallRatio.HasValue).Select(h => h.PutCallRatio!.Value).ToList();
 
-        decimal? sma = validRatios.Count > 0
+        // 履歴が1日しかない状態で平均値を出すと「10日平均」という表示が実態と食い違うため、
+        // 窓が埋まるまではnullにして未確定であることを示す。
+        decimal? sma = validRatios.Count >= PUT_CALL_SMA_WINDOW
             ? Math.Round(validRatios.TakeLast(PUT_CALL_SMA_WINDOW).Average(), 3)
             : null;
 
@@ -1374,16 +1803,16 @@ class Program
                 continue; // 機能追加前の履歴には基準価格がないため、推測で補完しない。
 
             UpdateHorizonOutcome(
-                sp500Data, entry.MarketDataAsOf, entry.SpyAdjustedClose.Value, SCORE_VALIDATION_1M_DAYS,
+                sp500Data, entry.MarketDataAsOf, SCORE_VALIDATION_1M_DAYS,
                 value => entry.SpyReturn1m = value, value => entry.SpyMaxDrawdown1m = value, entry.SpyReturn1m.HasValue);
             UpdateHorizonOutcome(
-                nasdaqData, entry.MarketDataAsOf, entry.QqqAdjustedClose.Value, SCORE_VALIDATION_1M_DAYS,
+                nasdaqData, entry.MarketDataAsOf, SCORE_VALIDATION_1M_DAYS,
                 value => entry.QqqReturn1m = value, value => entry.QqqMaxDrawdown1m = value, entry.QqqReturn1m.HasValue);
             UpdateHorizonOutcome(
-                sp500Data, entry.MarketDataAsOf, entry.SpyAdjustedClose.Value, SCORE_VALIDATION_3M_DAYS,
+                sp500Data, entry.MarketDataAsOf, SCORE_VALIDATION_3M_DAYS,
                 value => entry.SpyReturn3m = value, value => entry.SpyMaxDrawdown3m = value, entry.SpyReturn3m.HasValue);
             UpdateHorizonOutcome(
-                nasdaqData, entry.MarketDataAsOf, entry.QqqAdjustedClose.Value, SCORE_VALIDATION_3M_DAYS,
+                nasdaqData, entry.MarketDataAsOf, SCORE_VALIDATION_3M_DAYS,
                 value => entry.QqqReturn3m = value, value => entry.QqqMaxDrawdown3m = value, entry.QqqReturn3m.HasValue);
         }
     }
@@ -1391,7 +1820,6 @@ class Program
     static void UpdateHorizonOutcome(
         List<DailyData> data,
         string marketDataAsOf,
-        decimal baseClose,
         int horizonDays,
         Action<decimal> setReturn,
         Action<decimal> setMaxDrawdown,
@@ -1403,8 +1831,15 @@ class Program
             return;
 
         int startIndex = data.FindIndex(day => day.Date.Date == baseDate.Date);
+        if (startIndex < 0) return;
         int targetIndex = startIndex + horizonDays;
-        if (startIndex < 0 || targetIndex >= data.Count) return;
+        if (targetIndex >= data.Count) return;
+
+        // 調整後終値は分配金が出るたびに過去分が遡って再計算される。
+        // 履歴に記録した当時の終値を分母にすると、その後の分配金の分だけリターンが過大評価される。
+        // 分子・分母を同じ取得回の系列でそろえて、この歪みを消す。
+        decimal baseClose = data[startIndex].AdjustedClose;
+        if (baseClose <= 0m) return;
 
         decimal futureClose = data[targetIndex].AdjustedClose;
         decimal maxDrawdown = data.Skip(startIndex).Take(horizonDays + 1)
@@ -1417,8 +1852,13 @@ class Program
     {
         string today = JstNow().ToString("yyyy-MM-dd");
         var current = history.SingleOrDefault(entry => entry.Date == today);
-        var previous = history.Where(entry => entry.Date != today && entry.MarketRiskScore.HasValue)
-            .OrderByDescending(entry => entry.Date).FirstOrDefault();
+        // 週末や休日に再実行すると市場基準日が前回と同じになる。
+        // その比較は必ず「変化なし」になり、相場が動いていないかのように読めてしまうため、
+        // 市場基準日が実際に進んでいる直近の記録とだけ比較する。
+        var previous = history
+            .Where(entry => entry.Date != today && entry.MarketRiskScore.HasValue &&
+                !string.Equals(entry.MarketDataAsOf, current?.MarketDataAsOf, StringComparison.Ordinal))
+            .OrderByDescending(entry => entry.Date, StringComparer.Ordinal).FirstOrDefault();
 
         if (current?.MarketRiskScore == null || previous?.MarketRiskScore == null ||
             current.MarketRiskMetrics == null || previous.MarketRiskMetrics == null ||
@@ -1435,12 +1875,18 @@ class Program
         var previousMetrics = previous.MarketRiskMetrics.ToDictionary(
             metric => $"{metric.Group}\u001f{metric.Name}", StringComparer.Ordinal);
         var factors = new List<MarketRiskChangeFactor>();
+        var currentKeys = new HashSet<(string Group, string Name)>();
         foreach (var metric in current.MarketRiskMetrics)
         {
-            if (!previousMetrics.TryGetValue($"{metric.Group}\u001f{metric.Name}", out var prior)) continue;
+            currentKeys.Add((metric.Group, metric.Name));
+            previousMetrics.TryGetValue($"{metric.Group}\u001f{metric.Name}", out var prior);
 
+            // 前回に無い項目を捨てると、指標が復旧・欠落した日の変動理由が空欄になってしまう。
+            // 片側にしか存在しない項目も、その寄与分をそのまま変化として並べる。
             decimal currentContribution = metric.Score / current.MarketRiskAvailableMaxPoints.Value * 100m;
-            decimal previousContribution = prior.Score / previous.MarketRiskAvailableMaxPoints.Value * 100m;
+            decimal previousContribution = prior == null
+                ? 0m
+                : prior.Score / previous.MarketRiskAvailableMaxPoints.Value * 100m;
             decimal delta = Math.Round(currentContribution - previousContribution, 1);
             if (Math.Abs(delta) < 0.1m) continue;
 
@@ -1450,6 +1896,23 @@ class Program
                 Name = metric.Name,
                 ChangeInRiskPoints = delta,
                 CurrentDetail = metric.Detail,
+                PreviousDetail = prior?.Detail ?? "前回は未取得"
+            });
+        }
+
+        foreach (var prior in previous.MarketRiskMetrics)
+        {
+            if (currentKeys.Contains((prior.Group, prior.Name))) continue;
+
+            decimal delta = Math.Round(-(prior.Score / previous.MarketRiskAvailableMaxPoints.Value * 100m), 1);
+            if (Math.Abs(delta) < 0.1m) continue;
+
+            factors.Add(new MarketRiskChangeFactor
+            {
+                Group = prior.Group,
+                Name = prior.Name,
+                ChangeInRiskPoints = delta,
+                CurrentDetail = "今回は未取得",
                 PreviousDetail = prior.Detail
             });
         }
@@ -1570,6 +2033,8 @@ class Program
         public decimal High52WeekAdjusted { get; set; }
         public decimal DrawdownFromHighPct { get; set; } // 0以下の値（52週高値からの下落率）
         public int DistributionDaysActive { get; set; }
+        // アクティブな売り抜け日の Σ(下落率 × 出来高/50日平均出来高)。大きいほど売りが重い。
+        public decimal DistributionIntensity { get; set; }
         public decimal? WorstActiveDropPct { get; set; } // アクティブな売り抜け日の中での最大下落率
         public string? WorstActiveDropDate { get; set; }
         public string TrendState { get; set; } = ""; // Correction / RallyAttempt / ConfirmedUptrend
@@ -1601,6 +2066,11 @@ class Program
     {
         public decimal SpyReturn1m { get; set; }
         public decimal SpyReturn3m { get; set; }
+        public decimal? DefensiveReturn1m { get; set; }
+        public decimal? CyclicalReturn1m { get; set; }
+        // ディフェンシブ − シクリカル。プラスが大きいほど守りへの資金移動が速い。
+        public decimal? RotationSpread1m { get; set; }
+        public decimal? RotationSpread3m { get; set; }
         public List<SectorInfo> Sectors { get; set; } = new();
         public List<SectorInfo> BreadthProxies { get; set; } = new();
     }
@@ -1610,6 +2080,10 @@ class Program
         public string Status { get; set; } = ""; // ok / unavailable
         public decimal? SpyReturn1m { get; set; }
         public decimal? SpyReturn3m { get; set; }
+        public decimal? DefensiveReturn1m { get; set; }
+        public decimal? CyclicalReturn1m { get; set; }
+        public decimal? RotationSpread1m { get; set; }
+        public decimal? RotationSpread3m { get; set; }
         public List<SectorInfo>? Sectors { get; set; }
         public List<SectorInfo>? BreadthProxies { get; set; }
         public string Note { get; set; } = "";
@@ -1654,19 +2128,29 @@ class Program
     {
         public decimal Vix { get; set; }
         public decimal VixSma20 { get; set; }
-        public decimal Vix3m { get; set; }
+        public decimal? Vix3m { get; set; }
+        public decimal? RealizedVolShortPct { get; set; }
+        public decimal? RealizedVolLongPct { get; set; }
+        public decimal? RealizedVol21Pct { get; set; }
+        public decimal? VarianceRiskPremium { get; set; }
         public decimal TermSlopePct { get; set; }
         public string TermStructure { get; set; } = "";
+        public string TermSource { get; set; } = ""; // VIX3M / RealizedVol
     }
 
     class VolatilityOutput
     {
-        public string Status { get; set; } = "";
+        public string Status { get; set; } = ""; // ok / partial / unavailable
         public decimal? Vix { get; set; }
         public decimal? VixSma20 { get; set; }
         public decimal? Vix3m { get; set; }
+        public decimal? RealizedVolShortPct { get; set; }
+        public decimal? RealizedVolLongPct { get; set; }
+        public decimal? RealizedVol21Pct { get; set; }
+        public decimal? VarianceRiskPremium { get; set; }
         public decimal? TermSlopePct { get; set; }
         public string? TermStructure { get; set; }
+        public string? TermSource { get; set; }
         public string Note { get; set; } = "";
     }
 
@@ -1684,6 +2168,15 @@ class Program
         public int Declines { get; set; }
         public int AdvanceDeclineNet { get; set; }
         public int AdLineChange20d { get; set; }
+        // 銘柄間の平均ペア相関（21日）。高いほどマクロ一括・分散が効かない地合い。
+        public decimal? AvgPairwiseCorrelation { get; set; }
+        // 直近50日の出来高が上昇日に偏っている（＝機関が蓄積している）銘柄の比率。
+        public decimal? AccumulationPct { get; set; }
+        // 50日線上の銘柄のうち、出来高は下落日に偏っている銘柄の比率＝ステルス配分。
+        public decimal? StealthDistributionPct { get; set; }
+        // 10日騰落レシオ（上昇 / (上昇+下落)）の移動平均。
+        public decimal? AdvanceRatioSma10 { get; set; }
+        public bool BreadthThrustDetected { get; set; }
     }
 
     class MarketBreadthOutput : MarketBreadthResult

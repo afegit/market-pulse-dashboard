@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#07111f">
   <!-- 正規クローラーへの公開抑制。認証の代わりにはならず、公開URLへの直接アクセスは防げない。 -->
   <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ' 'sha256-ksXg8EsjPjggadcdyyHjiFuxPm3Twb4He2vq/bvgsmY='; style-src 'self' 'sha256-WXXKiCoUAH89z/A15CccdT0xOBj8I/k1SLuTpv3Cuns='; connect-src 'self'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ' 'sha256-28M7peS1AfuLxe8ra9VMgTOCGOTqzkk4R7hDpbw6szU='; style-src 'self' 'sha256-WXXKiCoUAH89z/A15CccdT0xOBj8I/k1SLuTpv3Cuns='; connect-src 'self'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Market Pulse | US Equity Risk Monitor</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <style>
@@ -246,8 +246,21 @@
 
       <section class="grid three-col" aria-label="Risk signals">
         <article class="panel"><div class="panel-head"><div><div class="eyebrow">Market internals</div><h2>市場ブレッドス</h2><p class="panel-sub">上昇が市場全体に広がっているかを測ります。</p></div><span class="pill" id="breadth-status">--</span></div><div class="data-grid" id="breadth-data"></div><p class="compact-help">Nasdaq-100の構成銘柄を均等に集計します。指数が上がっていても、多くの銘柄が弱い局面を見分けるための指標です。</p></article>
-        <article class="panel"><div class="panel-head"><div><div class="eyebrow">Volatility regime</div><h2>ボラティリティ</h2><p class="panel-sub">市場参加者が急変をどの程度警戒しているかを見ます。</p></div><span class="pill" id="volatility-status">--</span></div><div class="data-grid" id="volatility-data"></div><p class="compact-help">VIXがVIX3Mを上回る逆転は、市場ストレスの警戒信号です。単独で売買を決めず、ほかの指標と合わせて判断します。</p></article>
+        <article class="panel"><div class="panel-head"><div><div class="eyebrow">Volatility regime</div><h2>ボラティリティ</h2><p class="panel-sub">市場参加者が急変をどの程度警戒しているかを見ます。</p></div><span class="pill" id="volatility-status">--</span></div><div class="data-grid" id="volatility-data"></div><p class="compact-help" id="volatility-note">短期の警戒度が長期を上回る逆転は、市場ストレスの警戒信号です。単独で売買を決めず、ほかの指標と合わせて判断します。</p></article>
         <article class="panel"><div class="panel-head"><div><div class="eyebrow">Credit appetite</div><h2>信用リスク</h2><p class="panel-sub">投資家がリスクの高い社債を避け始めていないかを見ます。</p></div><span class="pill" id="credit-status">--</span></div><div class="data-grid" id="credit-data"></div><p class="compact-help">HYGとLQDの強弱から信用不安を確認します。HY OASは社債市場の警戒度を補う指標で、更新が遅れることがあります。</p></article>
+      </section>
+
+      <section class="grid two-col" aria-label="Institutional flow and market structure">
+        <article class="panel">
+          <div class="panel-head"><div><div class="eyebrow">Institutional flow</div><h2>機関投資家の需給</h2><p class="panel-sub">出来高の偏りから、機関が拾っているか降りているかを見ます。</p></div><span class="pill" id="accumulation-status">--</span></div>
+          <div class="data-grid" id="accumulation-data"></div>
+          <p class="compact-help">各銘柄の直近50日について、上昇日の出来高と下落日の出来高を比べています。価格が50日線の上でも出来高が下落日に偏る「ステルス配分」は、チャートだけでは気づけない売り抜けです。</p>
+        </article>
+        <article class="panel">
+          <div class="panel-head"><div><div class="eyebrow">Market structure</div><h2>市場構造</h2><p class="panel-sub">個別材料が効く地合いか、マクロ一括の地合いかを見ます。</p></div><span class="pill" id="structure-status">--</span></div>
+          <div class="data-grid" id="structure-data"></div>
+          <p class="compact-help">銘柄間の平均ペア相関が高いほど、分散もセクター選択も効きにくいリスクオフ局面です。Breadth Thrustは10日騰落レシオが0.40以下から0.615以上へ急伸した、歴史的に強い転換シグナルを示します。</p>
+        </article>
       </section>
 
       <section class="grid two-col" aria-label="Leadership and sentiment">
@@ -267,7 +280,7 @@
 
       <section class="grid two-col" aria-label="History charts">
         <article class="panel"><div class="panel-head"><div><div class="eyebrow">Risk history</div><h2>市場リスクスコアの推移</h2><p class="panel-sub">低いほど買いを検討しやすく、高いほどリスクを抑えたい局面です。</p></div></div><div class="chart-box tall"><canvas id="chart-history"></canvas></div></article>
-        <article class="panel"><div class="panel-head"><div><div class="eyebrow">How to read this dashboard</div><h2>見る順番</h2><p class="panel-sub">迷ったら、上から下へ。</p></div></div><div class="metric-list"><div class="metric"><span>1. 総合スコア</span><strong>地合いの温度感</strong></div><div class="metric"><span>2. SPY / QQQ</span><strong>価格と売り圧力</strong></div><div class="metric"><span>3. スプレッド</span><strong>上昇の広がり</strong></div><div class="metric"><span>4. VIX・信用</span><strong>急変リスク</strong></div><div class="metric"><span>5. セクター</span><strong>候補探しの方向</strong></div></div><p class="compact-help">この画面はポジション量や新規エントリーの慎重さを考える補助です。個別銘柄の決算、損切り水準、保有期間は別途判断してください。</p></article>
+        <article class="panel"><div class="panel-head"><div><div class="eyebrow">How to read this dashboard</div><h2>見る順番</h2><p class="panel-sub">迷ったら、上から下へ。</p></div></div><div class="metric-list"><div class="metric"><span>1. 総合スコア</span><strong>地合いの温度感</strong></div><div class="metric"><span>2. SPY / QQQ</span><strong>価格と売り圧力</strong></div><div class="metric"><span>3. ブレッドス</span><strong>上昇の広がり</strong></div><div class="metric"><span>4. VIX・信用</span><strong>急変リスク</strong></div><div class="metric"><span>5. セクター</span><strong>候補探しの方向</strong></div></div><p class="compact-help">この画面はポジション量や新規エントリーの慎重さを考える補助です。個別銘柄の決算、損切り水準、保有期間は別途判断してください。</p></article>
       </section>
 
       <section class="panel section-panel" aria-labelledby="score-validation-title">
@@ -510,7 +523,7 @@
     }
 
     function renderBreadth(block) {
-      if (!isAvailable(block)) { setPill('breadth-status', '取得不可', 'muted'); replaceDataGrid('breadth-data', [{ label: '市場スプレッド', value: '取得不可', sub: block?.note || '—' }]); return; }
+      if (!isAvailable(block)) { setPill('breadth-status', '取得不可', 'muted'); replaceDataGrid('breadth-data', [{ label: '市場ブレッドス', value: '取得不可', sub: block?.note || '—' }]); return; }
       const tone = block.status === 'partial' ? 'warn' : 'good';
       setPill('breadth-status', block.status === 'partial' ? '一部取得' : '稼働中', tone);
       replaceDataGrid('breadth-data', [
@@ -522,15 +535,34 @@
     }
 
     function renderVolatility(block) {
-      if (!isAvailable(block)) { setPill('volatility-status', '取得不可', 'muted'); replaceDataGrid('volatility-data', [{ label: 'VIX', value: '取得不可', sub: block?.note || '—' }]); return; }
-      const backwardation = block.termStructure === 'Backwardation';
-      setPill('volatility-status', backwardation ? '警戒' : '通常', backwardation ? 'risk' : 'good');
+      const note = byId('volatility-note');
+      if (!isAvailable(block)) {
+        setPill('volatility-status', '取得不可', 'muted');
+        replaceDataGrid('volatility-data', [{ label: 'VIX', value: '取得不可', sub: block?.note || '—' }]);
+        note.textContent = block?.note || 'ボラティリティ指標を取得できませんでした。';
+        return;
+      }
+      // ^VIX3Mは配信が止まることがあり、その場合はSPYの実現ボラティリティ比で期限構造を代替する。
+      // 実現ボラの「短期>長期」は本物のVIX逆転より高頻度なので、同じ「逆転」表記・同じ警戒度にはしない。
+      const usesRealized = block.termSource === 'RealizedVol';
+      const slope = Number(block.termSlopePct);
+      const stressed = usesRealized ? slope >= 20 : block.termStructure === 'Backwardation';
+      const elevated = usesRealized && slope >= 5 && slope < 20;
+      setPill('volatility-status', stressed ? '警戒' : usesRealized ? '代替指標で稼働' : '通常', stressed ? 'risk' : usesRealized ? 'warn' : 'good');
       replaceDataGrid('volatility-data', [
         { label: 'VIX', value: number(block.vix), sub: `20日平均 ${number(block.vixSma20)}`, tone: Number(block.vix) > Number(block.vixSma20) ? 'warn' : 'good' },
-        { label: 'VIX3M', value: number(block.vix3m), sub: '3か月先の予想変動率' },
-        { label: '期限構造', value: backwardation ? '逆転' : '順正常', sub: block.termStructure, tone: backwardation ? 'risk' : 'good' },
-        { label: 'VIX対VIX3M', value: signedPct(block.termSlopePct), tone: Number(block.termSlopePct) > 0 ? 'risk' : 'good' }
+        usesRealized
+          ? { label: 'SPY実現ボラ', value: `${number(block.realizedVolShortPct)} / ${number(block.realizedVolLongPct)}`, sub: '10日 / 63日（年率%）' }
+          : { label: 'VIX3M', value: number(block.vix3m), sub: '3か月先の予想変動率' },
+        usesRealized
+          ? { label: '短期ボラの優勢度', value: stressed ? '強い短期優勢' : elevated ? 'やや短期優勢' : '長期優勢', sub: 'SPY実現ボラ比（代替）', tone: stressed ? 'risk' : elevated ? 'warn' : 'good' }
+          : { label: '期限構造', value: stressed ? '逆転' : '順正常', sub: 'VIX対VIX3M', tone: stressed ? 'risk' : 'good' },
+        { label: usesRealized ? '短期 対 長期' : 'VIX対VIX3M', value: signedPct(block.termSlopePct), tone: stressed ? 'risk' : elevated ? 'warn' : 'good' },
+        // 分散リスクプレミアム：VIXの水準ではなく「現実の変動に対して割安か」を見る。
+        // マイナス＝実現ボラがインプライドを上回る＝市場が現実の値動きに追いつけていない。
+        { label: '分散リスクプレミアム', value: block.varianceRiskPremium == null ? '--' : `${Number(block.varianceRiskPremium) > 0 ? '+' : ''}${number(block.varianceRiskPremium)}`, sub: `VIX − 実現ボラ ${number(block.realizedVol21Pct)}（21日）`, tone: block.varianceRiskPremium == null ? 'muted' : Number(block.varianceRiskPremium) <= 0 ? 'risk' : Number(block.varianceRiskPremium) <= 1.5 ? 'warn' : 'good' }
       ]);
+      note.textContent = block.note || '短期の警戒度が長期を上回る逆転は、市場ストレスの警戒信号です。';
     }
 
     function renderCredit(block) {
@@ -542,6 +574,47 @@
         { label: 'LQD 3か月', value: pct(block.lqdReturn3m), sub: '投資適格債' },
         { label: 'HY 対 IG', value: signedPct(block.spread3m), sub: '3か月の相対リターン', tone: spreadTone },
         { label: 'HY OAS', value: block.hyOasPct == null ? '未取得' : pct(block.hyOasPct), sub: block.hyOasChange1mBps == null ? '公表遅延または取得不可' : `1か月 ${Number(block.hyOasChange1mBps) > 0 ? '+' : ''}${number(block.hyOasChange1mBps, 0)}bp`, tone: block.hyOasChange1mBps == null ? 'muted' : Number(block.hyOasChange1mBps) > 0 ? 'risk' : 'good' }
+      ]);
+    }
+
+    function renderAccumulation(data) {
+      const block = data.marketBreadth;
+      if (!isAvailable(block) || block.accumulationPct == null) {
+        setPill('accumulation-status', '取得不可', 'muted');
+        replaceDataGrid('accumulation-data', [{ label: '機関需給', value: '取得不可', sub: block?.note || '—' }]);
+        return;
+      }
+      const accumulation = Number(block.accumulationPct);
+      const stealth = block.stealthDistributionPct == null ? null : Number(block.stealthDistributionPct);
+      const accumulationTone = accumulation >= 50 ? 'good' : accumulation >= 40 ? 'warn' : 'risk';
+      const intensityTone = value => Number(value) >= 5 ? 'risk' : Number(value) >= 2.5 ? 'warn' : 'good';
+      setPill('accumulation-status', accumulation >= 50 ? '買い優勢' : accumulation >= 40 ? '拮抗' : '売り優勢', accumulationTone);
+      replaceDataGrid('accumulation-data', [
+        { label: 'アキュムレーション比率', value: pct(accumulation, 1), sub: '50日の出来高が上昇日に偏る銘柄', tone: accumulationTone },
+        { label: 'ステルス配分', value: stealth == null ? '--' : pct(stealth, 1), sub: '50日線上だが売り優勢', tone: stealth == null ? 'muted' : stealth >= 40 ? 'risk' : stealth >= 25 ? 'warn' : 'good' },
+        { label: 'SPY 売り抜け強度', value: number(data.sp500?.distributionIntensity, 1), sub: '下落率×出来高比の合計', tone: intensityTone(data.sp500?.distributionIntensity) },
+        { label: 'QQQ 売り抜け強度', value: number(data.nasdaq?.distributionIntensity, 1), sub: '下落率×出来高比の合計', tone: intensityTone(data.nasdaq?.distributionIntensity) }
+      ]);
+    }
+
+    function renderStructure(data) {
+      const block = data.marketBreadth;
+      const rotation = data.sectorRotation?.rotationSpread1m;
+      if (!isAvailable(block) || block.avgPairwiseCorrelation == null) {
+        setPill('structure-status', '取得不可', 'muted');
+        replaceDataGrid('structure-data', [{ label: '市場構造', value: '取得不可', sub: block?.note || '—' }]);
+        return;
+      }
+      const correlation = Number(block.avgPairwiseCorrelation);
+      const ratio = block.advanceRatioSma10 == null ? null : Number(block.advanceRatioSma10);
+      const thrust = block.breadthThrustDetected === true;
+      const correlationTone = correlation >= 0.70 ? 'risk' : correlation >= 0.55 ? 'warn' : 'good';
+      setPill('structure-status', thrust ? 'Thrust 点灯' : correlation >= 0.70 ? '一括相場' : correlation >= 0.55 ? 'やや一括' : '個別物色', thrust ? 'good' : correlationTone);
+      replaceDataGrid('structure-data', [
+        { label: '銘柄間 平均ペア相関', value: number(correlation, 3), sub: '21日・高いほど分散が効かない', tone: correlationTone },
+        { label: '10日騰落レシオ', value: ratio == null ? '--' : number(ratio, 3), sub: '上昇 / (上昇+下落) の10日平均', tone: ratio == null ? 'muted' : ratio <= 0.42 ? 'risk' : ratio <= 0.48 ? 'warn' : 'good' },
+        { label: 'Breadth Thrust', value: thrust ? '点灯' : '未点灯', sub: '0.40以下→0.615以上を10日以内', tone: thrust ? 'good' : 'muted' },
+        { label: 'ディフェンシブ優位度', value: rotation == null ? '--' : signedPct(rotation), sub: '守り − 攻め（1か月）', tone: rotation == null ? 'muted' : Number(rotation) >= 4 ? 'risk' : Number(rotation) >= 1.5 ? 'warn' : 'good' }
       ]);
     }
 
@@ -571,7 +644,7 @@
       setPill('putcall-status', percentile == null ? '履歴蓄積中' : extreme ? '極端値を確認' : '中立', percentile == null ? 'muted' : extreme ? 'warn' : 'good');
       replaceDataGrid('putcall-data', [
         { label: 'Put / Call', value: number(block.ratio, 3), sub: '直近限月・出来高ベース' },
-        { label: '10日平均', value: number(block.sma10, 3), sub: '短期の基準線' },
+        { label: '10日平均', value: number(block.sma10, 3), sub: block.sma10 == null ? '10日分の履歴がそろうと表示' : '短期の基準線' },
         { label: '履歴順位', value: percentile == null ? '蓄積中' : `${number(percentile, 1)}%`, sub: `${block.historyDays || 0}日分の自己履歴`, tone: extreme ? 'warn' : 'good' },
         { label: '出来高', value: `${Number(block.putVolume || 0).toLocaleString()} / ${Number(block.callVolume || 0).toLocaleString()}`, sub: 'Put / Call' }
       ]);
@@ -580,7 +653,7 @@
 
     function renderHealth(data) {
       const sources = [
-        ['Put / Call', data.putCallRatio], ['セクター', data.sectorRotation], ['信用', data.creditRiskAppetite], ['VIX', data.volatilityRegime], ['スプレッド', data.marketBreadth]
+        ['Put / Call', data.putCallRatio], ['セクター', data.sectorRotation], ['信用', data.creditRiskAppetite], ['VIX', data.volatilityRegime], ['ブレッドス', data.marketBreadth]
       ];
       const fragment = document.createDocumentFragment();
       sources.forEach(([name, block]) => {
@@ -660,6 +733,7 @@
         renderOverview(data); renderRiskScore(data.marketRiskScore); renderRiskChange(data.marketRiskChange); renderHealth(data);
         renderIndex('spy', data.sp500); renderIndex('qqq', data.nasdaq);
         renderBreadth(data.marketBreadth); renderVolatility(data.volatilityRegime); renderCredit(data.creditRiskAppetite);
+        renderAccumulation(data); renderStructure(data);
         renderSector(data.sectorRotation); renderPutCall(data.putCallRatio); renderHistory(history); renderScoreValidation(data.scoreValidation);
       } catch (error) {
         console.error(error); byId('update-time').textContent = 'データ読込エラー'; byId('stale-banner').style.display = 'block'; byId('stale-banner').textContent = 'データを読み込めませんでした。data.json と更新ワークフローを確認してください。';
