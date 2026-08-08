@@ -129,7 +129,28 @@ class Program
 
     static readonly TimeSpan JstOffset = TimeSpan.FromHours(9);
     static readonly Regex YahooSymbolPattern = new("^[A-Za-z0-9.^-]{1,20}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
-    static readonly HashSet<string> AllowedYahooRanges = new(StringComparer.Ordinal) { "1y", "6mo" };
+    static readonly HashSet<string> AllowedYahooRanges = new(StringComparer.Ordinal) { "2y", "1y", "6mo" };
+
+    // ===== 過去スコアのバックフィル =====
+    // 検証機能は1日1件しか観測が増えず、有意な標本が揃うまで数年かかる。
+    // 取得済みの系列だけで過去の各営業日のスコアを再計算し、検証を即座に成立させる。
+    //
+    // 重要な制約（結果を読むときに必ず考慮すること）:
+    //  1. 構成銘柄リストは現時点のスナップショットなので、過去日に当てはめると生存者バイアスが乗る。
+    //     指数から外された銘柄（多くは不振銘柄）が欠け、ブレッドス系は楽観方向に歪む。
+    //  2. Put/Callは過去データを取得できないため、バックフィル分は常にこの項目が欠測になる。
+    //     実運用分と単純比較しないよう、エントリにSourceを持たせて区別する。
+    //  3. 日次観測は重複区間を共有するため独立ではない。21営業日先を見る場合、
+    //     実質的な独立標本数は「日数 ÷ 21」程度しかない。閾値の最適化に使ってはいけない。
+    const string BACKFILL_RANGE = "2y";
+    // 52週高値・200日線を正しく計算するため、この本数の履歴が確保できる日からのみ再計算する。
+    const int BACKFILL_MIN_HISTORY_BARS = 252;
+    const int BACKFILL_MAX_DAYS = 260;
+    // 現在の配点体系の版。配点を変更したら必ず上げる。異なる版のスコアは同じ箱で集計しない。
+    const int RUBRIC_VERSION = 2;
+    // 変動理由の表示に使うのは直近数件だけなので、それ以外は採点内訳を捨ててファイルサイズを抑える。
+    const int HISTORY_METRICS_RETAINED = 5;
+    const int HISTORY_MAX_ENTRIES = 400;
     static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -223,45 +244,35 @@ class Program
 
             // 売り抜け日/FTDは出来高が必要なため、指数ではなく実際に売買できる流動性の高いETFを使用する。
             // 判定価格には調整後終値を使い、分配金による相対リターンの歪みを避ける。
-            var sp500Data = await FetchYahooDataWithRetry("SPY", "1y", requirePositiveVolume: true);
-            var nasdaqData = await FetchYahooDataWithRetry("QQQ", "1y", requirePositiveVolume: true);
-
-            var sp500 = AnalyzeIndex("S&P 500（SPY）", sp500Data);
-            var nasdaq = AnalyzeIndex("Nasdaq-100（QQQ）", nasdaqData);
-            if (!string.Equals(sp500.DataAsOf, nasdaq.DataAsOf, StringComparison.Ordinal))
-                throw new InvalidDataException($"SPYとQQQの基準日が一致しません（SPY: {sp500.DataAsOf}, QQQ: {nasdaq.DataAsOf}）。");
-            string marketDataAsOf = sp500.DataAsOf;
-
-            // 2指数のうち「悪い方（より弱気な方）」を採用するのがIBD Market Pulseの流儀
-            // ※ 同順位（引き分け）のときに片方だけを「弱いから採用」と表示すると誤解を招くため、
-            //    引き分けは明示的に分岐して扱う
-            int Rank(string status) => status switch { "Uptrend" => 2, "Pressure" => 1, _ => 0 };
-            int rankSp = Rank(sp500.StatusId);
-            int rankNq = Rank(nasdaq.StatusId);
-            string combinedStatus;
-            string combinedDrivenBy;
-            if (rankSp == rankNq)
+            // 過去日のスコアを再計算するため、必要な履歴の長さ（52週高値・200日線）を確保できる期間を取得する。
+            var bundle = new MarketDataBundle
             {
-                combinedStatus = sp500.StatusId;
-                combinedDrivenBy = "SPYとQQQは同じ市場ステータス";
-            }
-            else if (rankSp < rankNq)
-            {
-                combinedStatus = sp500.StatusId;
-                combinedDrivenBy = $"{sp500.Name}の状態がより弱いため採用";
-            }
-            else
-            {
-                combinedStatus = nasdaq.StatusId;
-                combinedDrivenBy = $"{nasdaq.Name}の状態がより弱いため採用";
-            }
+                Sp500 = await FetchYahooDataWithRetry("SPY", BACKFILL_RANGE, requirePositiveVolume: true),
+                Nasdaq = await FetchYahooDataWithRetry("QQQ", BACKFILL_RANGE, requirePositiveVolume: true)
+            };
+            if (bundle.Sp500[^1].Date.Date != bundle.Nasdaq[^1].Date.Date)
+                throw new InvalidDataException($"SPYとQQQの基準日が一致しません（SPY: {bundle.Sp500[^1].Date:yyyy-MM-dd}, QQQ: {bundle.Nasdaq[^1].Date:yyyy-MM-dd}）。");
 
             // Put/Call Ratio（自前算出）。失敗しても既存のExposure機能全体を止めないよう内部で例外を握りつぶす設計
             var putCall = await FetchPutCallRatio();
 
+            // 補助指標は取得だけ先に済ませ、計算は基準日ごとに行う（過去日の再計算に使い回すため）。
+            bundle.Sector = await FetchSectorRotationData();
+            bundle.Credit = await FetchCreditData();
+            bundle.Volatility = await FetchVolatilityData();
+            bundle.Breadth = await FetchBreadthData();
+
+            DateTime latestDate = bundle.Sp500[^1].Date.Date;
+            string marketDataAsOf = latestDate.ToString("yyyy-MM-dd");
+
             // 履歴はメモリ上で準備し、全指標の算出成功後に一度だけ保存する。
             // 途中失敗で当日分の最終スコアを失わないための原子性を持たせる。
-            var historyPreparation = PrepareHistory(combinedStatus, sp500, nasdaq, putCall?.Ratio, marketDataAsOf);
+            var todaySp500 = AnalyzeIndex("S&P 500（SPY）", bundle.Sp500);
+            var todayNasdaq = AnalyzeIndex("Nasdaq-100（QQQ）", bundle.Nasdaq);
+            int RankStatus(string status) => status switch { "Uptrend" => 2, "Pressure" => 1, _ => 0 };
+            string todayCombined = RankStatus(todaySp500.StatusId) <= RankStatus(todayNasdaq.StatusId)
+                ? todaySp500.StatusId : todayNasdaq.StatusId;
+            var historyPreparation = PrepareHistory(todayCombined, todaySp500, todayNasdaq, putCall?.Ratio, marketDataAsOf);
             var putCallStats = historyPreparation.PutCallStats;
 
             var putCallOutput = putCall == null
@@ -284,133 +295,43 @@ class Program
                     Note = "SPYの直近限月のみを集計した出来高ベースの参考指標です。0DTE・ヘッジ・満期構成の影響を受けるため、方向予想の主シグナルには使わず、極端な需給の補助確認に限定してください。"
                 };
 
-            // セクターローテーション（自前算出）。これも失敗して良い補助機能として独立させる
-            var sectorRotation = await FetchSectorRotation();
-            var sectorOutput = sectorRotation == null
-                ? new SectorRotationOutput
-                {
-                    Status = "unavailable",
-                    Note = "セクターデータの取得に失敗しました。詳細はActionsのログ（SectorRotationの行）を確認してください。"
-                }
-                : new SectorRotationOutput
-                {
-                    Status = "ok",
-                    SpyReturn1m = sectorRotation.SpyReturn1m,
-                    SpyReturn3m = sectorRotation.SpyReturn3m,
-                    DefensiveReturn1m = sectorRotation.DefensiveReturn1m,
-                    CyclicalReturn1m = sectorRotation.CyclicalReturn1m,
-                    RotationSpread1m = sectorRotation.RotationSpread1m,
-                    RotationSpread3m = sectorRotation.RotationSpread3m,
-                    Sectors = sectorRotation.Sectors,
-                    BreadthProxies = sectorRotation.BreadthProxies,
-                    Note = "SPDRセクターETF11銘柄のSPYに対する相対リターン(自前算出)。CAN SLIMの「L(Leader)」に対応する補助指標です。"
-                };
-
-            // Credit Risk Appetite（自前算出）。これも失敗して良い補助機能として独立させる
-            var creditRisk = await FetchCreditRiskAppetite();
-            var creditRiskOutput = creditRisk == null
-                ? new CreditRiskAppetiteOutput
-                {
-                    Status = "unavailable",
-                    Note = "HYG/LQDデータの取得に失敗しました。詳細はActionsのログ（CreditRiskAppetiteの行）を確認してください。"
-                }
-                : new CreditRiskAppetiteOutput
-                {
-                    Status = "ok",
-                    HygReturn1m = creditRisk.HygReturn1m,
-                    HygReturn3m = creditRisk.HygReturn3m,
-                    LqdReturn1m = creditRisk.LqdReturn1m,
-                    LqdReturn3m = creditRisk.LqdReturn3m,
-                    Spread1m = creditRisk.Spread1m,
-                    Spread3m = creditRisk.Spread3m,
-                    HyOasPct = creditRisk.HyOasPct,
-                    HyOasChange1mBps = creditRisk.HyOasChange1mBps,
-                    HyOasDate = creditRisk.HyOasDate,
-                    Note = "HYGと投資適格社債ETF(LQD)の相対リターンに、ICE BofA US High Yield OASを追加しました。TLT比較より金利デュレーション差の影響を抑え、信用リスクを読み取りやすくします。"
-                };
-
-            var volatility = await FetchVolatilityRegime(sp500Data);
-            var volatilityOutput = volatility == null
-                ? new VolatilityOutput
-                {
-                    Status = "unavailable",
-                    Note = "VIXデータの取得に失敗しました。"
-                }
-                : new VolatilityOutput
-                {
-                    // VIX3Mで期限構造が取れたときだけ ok。実現ボラティリティ代替は partial として明示する。
-                    Status = volatility.TermSource == "VIX3M" ? "ok" : "partial",
-                    Vix = volatility.Vix,
-                    VixSma20 = volatility.VixSma20,
-                    Vix3m = volatility.Vix3m,
-                    RealizedVolShortPct = volatility.RealizedVolShortPct,
-                    RealizedVolLongPct = volatility.RealizedVolLongPct,
-                    RealizedVol21Pct = volatility.RealizedVol21Pct,
-                    VarianceRiskPremium = volatility.VarianceRiskPremium,
-                    TermSlopePct = volatility.TermSlopePct,
-                    TermStructure = volatility.TermStructure,
-                    TermSource = volatility.TermSource,
-                    Note = volatility.TermSource == "VIX3M"
-                        ? "VIXとVIX3Mの比較による期限構造の近似です。逆転（Backwardation）は市場ストレスの警戒灯として扱い、単独の売買シグナルには使いません。"
-                        : $"^VIX3Mの配信が停止しているため、SPYの{REALIZED_VOL_SHORT_WINDOW}日／{REALIZED_VOL_LONG_WINDOW}日実現ボラティリティ比で期限構造を代替しています。実現ボラの短期優勢は本物のVIX逆転より高頻度で起きるため、乖離幅に応じて段階的に警戒度を判定します。"
-                };
-
-            var marketBreadth = await FetchNasdaq100Breadth(marketDataAsOf);
-            var marketBreadthOutput = marketBreadth == null
-                ? new MarketBreadthOutput
-                {
-                    Status = "unavailable",
-                    Note = "Nasdaq-100構成銘柄の取得数が不足したため、真の市場ブレッドスを算出できませんでした。"
-                }
-                : new MarketBreadthOutput
-                {
-                    Status = marketBreadth.CoveragePct >= 95 ? "ok" : "partial",
-                    UniverseAsOf = marketBreadth.UniverseAsOf,
-                    ExpectedConstituents = marketBreadth.ExpectedConstituents,
-                    AnalyzedConstituents = marketBreadth.AnalyzedConstituents,
-                    CoveragePct = marketBreadth.CoveragePct,
-                    AboveSma50Pct = marketBreadth.AboveSma50Pct,
-                    AboveSma200Pct = marketBreadth.AboveSma200Pct,
-                    NewHighs52Week = marketBreadth.NewHighs52Week,
-                    NewLows52Week = marketBreadth.NewLows52Week,
-                    Advances = marketBreadth.Advances,
-                    Declines = marketBreadth.Declines,
-                    AdvanceDeclineNet = marketBreadth.AdvanceDeclineNet,
-                    AdLineChange20d = marketBreadth.AdLineChange20d,
-                    AvgPairwiseCorrelation = marketBreadth.AvgPairwiseCorrelation,
-                    AccumulationPct = marketBreadth.AccumulationPct,
-                    StealthDistributionPct = marketBreadth.StealthDistributionPct,
-                    AdvanceRatioSma10 = marketBreadth.AdvanceRatioSma10,
-                    BreadthThrustDetected = marketBreadth.BreadthThrustDetected,
-                    Note = "Nasdaq-100構成銘柄を個別に集計した等ウェイトの市場内部指標です。指数上昇時でも50日線上比率やA/Dラインが悪化していれば、上昇の広がり不足を確認できます。"
-                };
-
             // 0点に近いほどロング投資環境が良好、100点に近いほど市場リスクが高い。
             // 取得できない指標は0点扱いせず、利用可能な配点で正規化してカバレッジを併記する。
-            var marketRiskScore = CalculateMarketRiskScore(
-                sp500, nasdaq, putCallOutput, sectorOutput,
-                creditRiskOutput, volatilityOutput, marketBreadthOutput);
-            ApplyTodayRiskScoreSnapshot(historyPreparation.Entries, marketRiskScore);
-            UpdateScoreValidationOutcomes(historyPreparation.Entries, sp500Data, nasdaqData);
-            var marketRiskChange = BuildMarketRiskChange(historyPreparation.Entries);
-            var scoreValidation = BuildScoreValidation(historyPreparation.Entries);
-            PersistHistory(historyPreparation.Entries);
+            var snapshot = BuildSnapshot(bundle, latestDate, putCallOutput, verbose: true)
+                ?? throw new InvalidDataException("当日の市場スナップショットを算出できませんでした。");
+
+            ApplyTodayRiskScoreSnapshot(historyPreparation.Entries, snapshot.RiskScore);
+
+            // 過去分をまとめて再計算し、検証機能に十分な標本を与える。
+            var existingMarketDates = historyPreparation.Entries
+                .Where(entry => !string.IsNullOrEmpty(entry.MarketDataAsOf))
+                .Select(entry => entry.MarketDataAsOf!)
+                .ToHashSet(StringComparer.Ordinal);
+            var backfilled = BuildBackfillEntries(bundle, existingMarketDates);
+            Console.WriteLine($"Backfilled {backfilled.Count} past sessions.");
+
+            var allEntries = historyPreparation.Entries.Concat(backfilled)
+                .OrderBy(entry => entry.Date, StringComparer.Ordinal).ToList();
+            UpdateScoreValidationOutcomes(allEntries, bundle.Sp500, bundle.Nasdaq);
+            var marketRiskChange = BuildMarketRiskChange(allEntries);
+            var scoreValidation = BuildScoreValidation(allEntries);
+            PersistHistory(allEntries);
             Console.WriteLine("history.json has been updated.");
 
             var output = new
             {
                 lastUpdated = JstNow().ToString("yyyy-MM-dd HH:mm:ss"),
                 marketDataAsOf,
-                combinedStatus,
-                combinedDrivenBy,
-                sp500,
-                nasdaq,
+                combinedStatus = snapshot.CombinedStatus,
+                combinedDrivenBy = snapshot.CombinedDrivenBy,
+                sp500 = snapshot.Sp500,
+                nasdaq = snapshot.Nasdaq,
                 putCallRatio = putCallOutput,
-                sectorRotation = sectorOutput,
-                creditRiskAppetite = creditRiskOutput,
-                volatilityRegime = volatilityOutput,
-                marketBreadth = marketBreadthOutput,
-                marketRiskScore,
+                sectorRotation = snapshot.Sector,
+                creditRiskAppetite = snapshot.Credit,
+                volatilityRegime = snapshot.Volatility,
+                marketBreadth = snapshot.Breadth,
+                marketRiskScore = snapshot.RiskScore,
                 marketRiskChange,
                 scoreValidation
             };
@@ -532,7 +453,9 @@ class Program
             await gate.WaitAsync();
             try
             {
-                var data = await FetchYahooDataWithRetry(symbol, "1y");
+                // 過去日のブレッドスを再計算するため、指数と同じ期間を取得する。
+                // ここだけ短いと必要履歴（52週高値・200日線）を満たせず全銘柄が脱落する。
+                var data = await FetchYahooDataWithRetry(symbol, BACKFILL_RANGE);
                 return (Symbol: symbol, Data: data);
             }
             catch (Exception ex)
@@ -669,95 +592,46 @@ class Program
 
     // ================= セクターローテーション（自前算出） =================
 
-    static async Task<SectorRotationResult?> FetchSectorRotation()
+    // 取得と計算を分離する。過去日のスコアを再計算するために、同じ生データへ何度も
+    // 別の基準日を当てて計算できるようにしておく必要がある。
+    static async Task<SectorRotationData?> FetchSectorRotationData()
     {
         try
         {
-            // 基準となるSPY自身のリターンを先に取得
-            var spyData = await FetchYahooDataWithRetry("SPY", "6mo");
-            decimal spyReturn1m = ComputeReturnPct(spyData, SECTOR_RETURN_1M_DAYS);
-            decimal spyReturn3m = ComputeReturnPct(spyData, SECTOR_RETURN_3M_DAYS);
+            var sectors = new Dictionary<string, List<DailyData>>(StringComparer.OrdinalIgnoreCase);
+            var proxies = new Dictionary<string, List<DailyData>>(StringComparer.OrdinalIgnoreCase);
 
-            // 1銘柄取得してSPY比の相対強度を計算する共通処理（セクターと値幅代理指標の両方で使う）
-            async Task<SectorInfo?> FetchOne(string symbol, string name)
+            async Task FetchInto(Dictionary<string, List<DailyData>> target, string symbol, string label)
             {
                 try
                 {
-                    var data = await FetchYahooDataWithRetry(symbol, "6mo");
-                    decimal r1m = ComputeReturnPct(data, SECTOR_RETURN_1M_DAYS);
-                    decimal r3m = ComputeReturnPct(data, SECTOR_RETURN_3M_DAYS);
-                    return new SectorInfo
-                    {
-                        Symbol = symbol,
-                        Name = name,
-                        Return1m = r1m,
-                        Return3m = r3m,
-                        RelStrength1m = Math.Round(r1m - spyReturn1m, 2),
-                        RelStrength3m = Math.Round(r3m - spyReturn3m, 2)
-                    };
+                    target[symbol] = await FetchYahooDataWithRetry(symbol, BACKFILL_RANGE);
                 }
                 catch (Exception ex)
                 {
                     // 1銘柄の失敗は他の銘柄の表示を止める理由にしない
                     Console.WriteLine($"[SectorRotation] {symbol} の取得に失敗（この銘柄のみスキップ）: {ex.Message}");
-                    return null;
                 }
-            }
-
-            var sectorList = new List<SectorInfo>();
-            foreach (var (symbol, name) in SECTOR_ETFS)
-            {
-                var info = await FetchOne(symbol, name);
-                if (info != null) sectorList.Add(info);
                 // Yahoo側への負荷を抑えるため、連続リクエストの間に軽くウェイトを入れる
                 await Task.Delay(300);
             }
 
+            foreach (var (symbol, name) in SECTOR_ETFS) await FetchInto(sectors, symbol, name);
             // 値幅代理指標（RSP: 均等加重、IWM: 小型株）。500銘柄の個別スキャンをせずに
-            // 「上昇が広いか一部の大型株に偏っているか」を近似する。こちらは失敗しても
-            // セクターローテーション自体は成立させたいので、空でも先に進む
-            var breadthList = new List<SectorInfo>();
-            foreach (var (symbol, name) in BREADTH_PROXY_ETFS)
-            {
-                var info = await FetchOne(symbol, name);
-                if (info != null) breadthList.Add(info);
-                await Task.Delay(300);
-            }
+            // 「上昇が広いか一部の大型株に偏っているか」を近似する。
+            foreach (var (symbol, name) in BREADTH_PROXY_ETFS) await FetchInto(proxies, symbol, name);
 
-            if (sectorList.Count == 0)
+            if (sectors.Count == 0)
             {
                 Console.WriteLine("[SectorRotation] 全セクターの取得に失敗しました。");
                 return null;
             }
 
-            // ディフェンシブ（生活必需品・公益・ヘルスケア）とシクリカル（一般消費財・テクノロジー・資本財）の
-            // 平均リターン差。プラス幅が大きいほど資金が守りに回っている＝リスクオフの進行。
-            decimal? GroupAverage(string[] symbols, Func<SectorInfo, decimal> selector)
+            return new SectorRotationData
             {
-                var values = sectorList
-                    .Where(sector => symbols.Contains(sector.Symbol, StringComparer.OrdinalIgnoreCase))
-                    .Select(selector).ToList();
-                return values.Count == 0 ? null : Math.Round(values.Average(), 2);
-            }
-
-            decimal? defensive1m = GroupAverage(DEFENSIVE_SECTORS, s => s.Return1m);
-            decimal? cyclical1m = GroupAverage(CYCLICAL_SECTORS, s => s.Return1m);
-            decimal? defensive3m = GroupAverage(DEFENSIVE_SECTORS, s => s.Return3m);
-            decimal? cyclical3m = GroupAverage(CYCLICAL_SECTORS, s => s.Return3m);
-
-            return new SectorRotationResult
-            {
-                SpyReturn1m = spyReturn1m,
-                SpyReturn3m = spyReturn3m,
-                DefensiveReturn1m = defensive1m,
-                CyclicalReturn1m = cyclical1m,
-                RotationSpread1m = defensive1m.HasValue && cyclical1m.HasValue
-                    ? Math.Round(defensive1m.Value - cyclical1m.Value, 2) : null,
-                RotationSpread3m = defensive3m.HasValue && cyclical3m.HasValue
-                    ? Math.Round(defensive3m.Value - cyclical3m.Value, 2) : null,
-                // 3ヶ月の相対強度が高い順（＝リーダーシップが強い順）に並べる
-                Sectors = sectorList.OrderByDescending(s => s.RelStrength3m).ToList(),
-                BreadthProxies = breadthList
+                SpyData = await FetchYahooDataWithRetry("SPY", BACKFILL_RANGE),
+                Sectors = sectors,
+                Proxies = proxies
             };
         }
         catch (Exception ex)
@@ -765,6 +639,88 @@ class Program
             Console.WriteLine($"[SectorRotation] fetch failed (non-fatal): {ex.Message}");
             return null;
         }
+    }
+
+    static SectorRotationResult? ComputeSectorRotation(SectorRotationData source, DateTime asOf)
+    {
+        var spyData = TruncateTo(source.SpyData, asOf);
+        if (spyData == null) return null;
+
+        decimal spyReturn1m = ComputeReturnPct(spyData, SECTOR_RETURN_1M_DAYS);
+        decimal spyReturn3m = ComputeReturnPct(spyData, SECTOR_RETURN_3M_DAYS);
+
+        SectorInfo? Build(string symbol, string name, List<DailyData> raw)
+        {
+            var data = TruncateTo(raw, asOf);
+            if (data == null || data.Count <= SECTOR_RETURN_3M_DAYS) return null;
+            decimal r1m = ComputeReturnPct(data, SECTOR_RETURN_1M_DAYS);
+            decimal r3m = ComputeReturnPct(data, SECTOR_RETURN_3M_DAYS);
+            return new SectorInfo
+            {
+                Symbol = symbol,
+                Name = name,
+                Return1m = r1m,
+                Return3m = r3m,
+                RelStrength1m = Math.Round(r1m - spyReturn1m, 2),
+                RelStrength3m = Math.Round(r3m - spyReturn3m, 2)
+            };
+        }
+
+        var sectorList = new List<SectorInfo>();
+        foreach (var (symbol, name) in SECTOR_ETFS)
+        {
+            if (!source.Sectors.TryGetValue(symbol, out var raw)) continue;
+            var info = Build(symbol, name, raw);
+            if (info != null) sectorList.Add(info);
+        }
+        if (sectorList.Count == 0) return null;
+
+        var breadthList = new List<SectorInfo>();
+        foreach (var (symbol, name) in BREADTH_PROXY_ETFS)
+        {
+            if (!source.Proxies.TryGetValue(symbol, out var raw)) continue;
+            var info = Build(symbol, name, raw);
+            if (info != null) breadthList.Add(info);
+        }
+
+        // ディフェンシブ（生活必需品・公益・ヘルスケア）とシクリカル（一般消費財・テクノロジー・資本財）の
+        // 平均リターン差。プラス幅が大きいほど資金が守りに回っている＝リスクオフの進行。
+        decimal? GroupAverage(string[] symbols, Func<SectorInfo, decimal> selector)
+        {
+            var values = sectorList
+                .Where(sector => symbols.Contains(sector.Symbol, StringComparer.OrdinalIgnoreCase))
+                .Select(selector).ToList();
+            return values.Count == 0 ? null : Math.Round(values.Average(), 2);
+        }
+
+        decimal? defensive1m = GroupAverage(DEFENSIVE_SECTORS, s => s.Return1m);
+        decimal? cyclical1m = GroupAverage(CYCLICAL_SECTORS, s => s.Return1m);
+        decimal? defensive3m = GroupAverage(DEFENSIVE_SECTORS, s => s.Return3m);
+        decimal? cyclical3m = GroupAverage(CYCLICAL_SECTORS, s => s.Return3m);
+
+        return new SectorRotationResult
+        {
+            SpyReturn1m = spyReturn1m,
+            SpyReturn3m = spyReturn3m,
+            DefensiveReturn1m = defensive1m,
+            CyclicalReturn1m = cyclical1m,
+            RotationSpread1m = defensive1m.HasValue && cyclical1m.HasValue
+                ? Math.Round(defensive1m.Value - cyclical1m.Value, 2) : null,
+            RotationSpread3m = defensive3m.HasValue && cyclical3m.HasValue
+                ? Math.Round(defensive3m.Value - cyclical3m.Value, 2) : null,
+            // 3ヶ月の相対強度が高い順（＝リーダーシップが強い順）に並べる
+            Sectors = sectorList.OrderByDescending(s => s.RelStrength3m).ToList(),
+            BreadthProxies = breadthList
+        };
+    }
+
+    // 指定した基準日までの系列を切り出す。基準日に取引が無い銘柄はnullを返して集計から外す。
+    // （鮮度チェックが5営業日まで許容するため、日付をそろえないと別々の日の合成になる）
+    static List<DailyData>? TruncateTo(List<DailyData> data, DateTime asOf)
+    {
+        int index = data.FindLastIndex(day => day.Date.Date <= asOf.Date);
+        if (index < 0 || data[index].Date.Date != asOf.Date) return null;
+        return index == data.Count - 1 ? data : data.GetRange(0, index + 1);
     }
 
     static decimal ComputeReturnPct(List<DailyData> data, int lookbackDays)
@@ -778,39 +734,23 @@ class Program
 
     // ================= Credit Risk Appetite（自前算出） =================
 
-    static async Task<CreditRiskAppetiteResult?> FetchCreditRiskAppetite()
+    static async Task<CreditData?> FetchCreditData()
     {
         // HYGとLQDの「差」自体が指標の本体なので、片方だけ成功しても意味がない。
         // そのためセクターローテーションのような1銘柄ずつの部分成功は許容せず、
         // どちらかが失敗したら全体をunavailable扱いにする
         try
         {
-            var hygData = await FetchYahooDataWithRetry(CREDIT_RISK_ON_SYMBOL, "6mo");
+            var hygData = await FetchYahooDataWithRetry(CREDIT_RISK_ON_SYMBOL, BACKFILL_RANGE);
             await Task.Delay(300); // Yahoo側への負荷を抑える
-            var lqdData = await FetchYahooDataWithRetry(CREDIT_RISK_OFF_SYMBOL, "6mo");
-
-            decimal hyg1m = ComputeReturnPct(hygData, SECTOR_RETURN_1M_DAYS);
-            decimal hyg3m = ComputeReturnPct(hygData, SECTOR_RETURN_3M_DAYS);
-            decimal lqd1m = ComputeReturnPct(lqdData, SECTOR_RETURN_1M_DAYS);
-            decimal lqd3m = ComputeReturnPct(lqdData, SECTOR_RETURN_3M_DAYS);
+            var lqdData = await FetchYahooDataWithRetry(CREDIT_RISK_OFF_SYMBOL, BACKFILL_RANGE);
 
             // FREDが一時的に取得不能でも、HYG/LQDの比較は表示を継続する。
-            HyOasResult? hyOas = null;
-            try { hyOas = await FetchHyOas(); }
+            List<(DateTime Date, decimal Value)> hyOas = new();
+            try { hyOas = await FetchHyOasSeries(); }
             catch (Exception ex) { Console.WriteLine($"[CreditRiskAppetite] HY OAS fetch failed (non-fatal): {ex.Message}"); }
 
-            return new CreditRiskAppetiteResult
-            {
-                HygReturn1m = hyg1m,
-                HygReturn3m = hyg3m,
-                LqdReturn1m = lqd1m,
-                LqdReturn3m = lqd3m,
-                Spread1m = Math.Round(hyg1m - lqd1m, 2),
-                Spread3m = Math.Round(hyg3m - lqd3m, 2),
-                HyOasPct = hyOas?.ValuePct,
-                HyOasChange1mBps = hyOas?.Change1mBps,
-                HyOasDate = hyOas?.Date
-            };
+            return new CreditData { HygData = hygData, LqdData = lqdData, HyOasSeries = hyOas };
         }
         catch (Exception ex)
         {
@@ -819,7 +759,60 @@ class Program
         }
     }
 
-    static async Task<HyOasResult?> FetchHyOas()
+    static CreditRiskAppetiteResult? ComputeCreditRiskAppetite(CreditData source, DateTime asOf)
+    {
+        var hygData = TruncateTo(source.HygData, asOf);
+        var lqdData = TruncateTo(source.LqdData, asOf);
+        if (hygData == null || lqdData == null) return null;
+        if (hygData.Count <= SECTOR_RETURN_3M_DAYS || lqdData.Count <= SECTOR_RETURN_3M_DAYS) return null;
+
+        decimal hyg1m = ComputeReturnPct(hygData, SECTOR_RETURN_1M_DAYS);
+        decimal hyg3m = ComputeReturnPct(hygData, SECTOR_RETURN_3M_DAYS);
+        decimal lqd1m = ComputeReturnPct(lqdData, SECTOR_RETURN_1M_DAYS);
+        decimal lqd3m = ComputeReturnPct(lqdData, SECTOR_RETURN_3M_DAYS);
+        var hyOas = HyOasAsOf(source.HyOasSeries, asOf);
+
+        return new CreditRiskAppetiteResult
+        {
+            HygReturn1m = hyg1m,
+            HygReturn3m = hyg3m,
+            LqdReturn1m = lqd1m,
+            LqdReturn3m = lqd3m,
+            Spread1m = Math.Round(hyg1m - lqd1m, 2),
+            Spread3m = Math.Round(hyg3m - lqd3m, 2),
+            HyOasPct = hyOas?.ValuePct,
+            HyOasChange1mBps = hyOas?.Change1mBps,
+            HyOasDate = hyOas?.Date
+        };
+    }
+
+    // 指定基準日時点で判明していた最新のHY OASを返す。過去日の再計算で未来の値を使わないための処理。
+    static HyOasResult? HyOasAsOf(List<(DateTime Date, decimal Value)> ordered, DateTime asOf)
+    {
+        if (ordered.Count == 0) return null;
+        int index = ordered.FindLastIndex(item => item.Date.Date <= asOf.Date);
+        if (index < 0) return null;
+
+        var latest = ordered[index];
+        // 基準日から見て古すぎる値は、その時点で「未取得」だったものとして扱う。
+        if ((asOf.Date - latest.Date.Date).TotalDays > MAX_AUXILIARY_DATA_AGE_CALENDAR_DAYS)
+        {
+            if (asOf.Date == DateTime.UtcNow.Date || index == ordered.Count - 1)
+                Console.WriteLine($"[CreditRiskAppetite] HY OASが{MAX_AUXILIARY_DATA_AGE_CALENDAR_DAYS}日超古いため採用しません ({latest.Date:yyyy-MM-dd})。");
+            return null;
+        }
+
+        int lookbackIndex = Math.Max(0, index - SECTOR_RETURN_1M_DAYS);
+        decimal change1mBps = Math.Round((latest.Value - ordered[lookbackIndex].Value) * 100m, 0);
+        return new HyOasResult
+        {
+            ValuePct = latest.Value,
+            Change1mBps = change1mBps,
+            Date = latest.Date.ToString("yyyy-MM-dd")
+        };
+    }
+
+    static async Task<List<(DateTime Date, decimal Value)>> FetchHyOasSeries()
     {
         string url = $"https://fred.stlouisfed.org/graph/fredgraph.csv?id={HY_OAS_FRED_SERIES}";
 
@@ -838,9 +831,8 @@ class Program
                 if (attempt < 3) await Task.Delay(TimeSpan.FromSeconds(2 * attempt));
             }
         }
-        if (csv == null) return null;
-
         var observations = new List<(DateTime Date, decimal Value)>();
+        if (csv == null) return observations;
 
         foreach (string line in csv.Split('\n', StringSplitOptions.RemoveEmptyEntries).Skip(1))
         {
@@ -853,99 +845,88 @@ class Program
             }
         }
 
-        if (observations.Count == 0) return null;
-        var ordered = observations.OrderBy(x => x.Date).ToList();
-        var latest = ordered[^1];
-        if ((DateTime.UtcNow.Date - latest.Date.Date).TotalDays > MAX_AUXILIARY_DATA_AGE_CALENDAR_DAYS)
-        {
-            Console.WriteLine($"[CreditRiskAppetite] HY OASが{MAX_AUXILIARY_DATA_AGE_CALENDAR_DAYS}日超古いため採用しません ({latest.Date:yyyy-MM-dd})。");
-            return null;
-        }
-        int lookbackIndex = Math.Max(0, ordered.Count - 1 - SECTOR_RETURN_1M_DAYS);
-        decimal change1mBps = Math.Round((latest.Value - ordered[lookbackIndex].Value) * 100m, 0);
-        return new HyOasResult
-        {
-            ValuePct = latest.Value,
-            Change1mBps = change1mBps,
-            Date = latest.Date.ToString("yyyy-MM-dd")
-        };
+        return observations.OrderBy(x => x.Date).ToList();
     }
 
     // ================= ボラティリティ警戒灯 =================
 
-    static async Task<VolatilityResult?> FetchVolatilityRegime(List<DailyData> spyData)
+    static async Task<VolatilityData?> FetchVolatilityData()
     {
         try
         {
-            var vixData = await FetchYahooDataWithRetry(VIX_SYMBOL, "6mo");
-            if (vixData.Count < VIX_SMA_WINDOW) return null;
-
-            decimal vix = vixData[^1].AdjustedClose;
-            decimal vixSma20 = Math.Round(vixData.TakeLast(VIX_SMA_WINDOW).Average(d => d.AdjustedClose), 2);
-
-            // 分散リスクプレミアム = インプライド(VIX) − 実現ボラ。
-            // VIXの水準そのものより、「現実の変動に対してオプションが割安か」を見る。
-            // マイナス（実現>インプライド）は市場が現実の変動に追いつけていない慢心のサイン。
-            decimal? realizedVol21 = RealizedVolatilityPct(spyData, REALIZED_VOL_VRP_WINDOW);
-            decimal? varianceRiskPremium = realizedVol21.HasValue ? Math.Round(vix - realizedVol21.Value, 2) : null;
+            var vixData = await FetchYahooDataWithRetry(VIX_SYMBOL, BACKFILL_RANGE);
 
             // ^VIX3Mの配信停止でボラティリティ判定そのものを失わないよう、失敗を致命的に扱わない。
             List<DailyData>? vix3mData = null;
             try
             {
                 await Task.Delay(250);
-                vix3mData = await FetchYahooDataWithRetry(VIX3M_SYMBOL, "6mo", maxAttempts: 2);
+                vix3mData = await FetchYahooDataWithRetry(VIX3M_SYMBOL, BACKFILL_RANGE, maxAttempts: 2);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[Volatility] {VIX3M_SYMBOL} を利用できません。実現ボラティリティで代替します: {ex.Message}");
             }
 
-            if (vix3mData is { Count: > 0 })
-            {
-                decimal vix3m = vix3mData[^1].AdjustedClose;
-                decimal termSlopePct = Math.Round((vix - vix3m) / vix3m * 100m, 2);
-                return new VolatilityResult
-                {
-                    Vix = vix,
-                    VixSma20 = vixSma20,
-                    RealizedVol21Pct = realizedVol21,
-                    VarianceRiskPremium = varianceRiskPremium,
-                    Vix3m = vix3m,
-                    TermSlopePct = termSlopePct,
-                    TermStructure = termSlopePct > 0 ? "Backwardation" : "Contango",
-                    TermSource = "VIX3M"
-                };
-            }
-
-            decimal? shortVol = RealizedVolatilityPct(spyData, REALIZED_VOL_SHORT_WINDOW);
-            decimal? longVol = RealizedVolatilityPct(spyData, REALIZED_VOL_LONG_WINDOW);
-            if (!shortVol.HasValue || !longVol.HasValue || longVol.Value <= 0m)
-            {
-                Console.WriteLine("[Volatility] 実現ボラティリティの代替算出にも失敗しました。");
-                return null;
-            }
-
-            decimal fallbackSlopePct = Math.Round((shortVol.Value - longVol.Value) / longVol.Value * 100m, 2);
-            return new VolatilityResult
-            {
-                Vix = vix,
-                VixSma20 = vixSma20,
-                RealizedVol21Pct = realizedVol21,
-                VarianceRiskPremium = varianceRiskPremium,
-                Vix3m = null,
-                RealizedVolShortPct = shortVol,
-                RealizedVolLongPct = longVol,
-                TermSlopePct = fallbackSlopePct,
-                TermStructure = fallbackSlopePct > 0 ? "Backwardation" : "Contango",
-                TermSource = "RealizedVol"
-            };
+            return new VolatilityData { VixData = vixData, Vix3mData = vix3mData };
         }
         catch (Exception ex)
         {
             Console.WriteLine($"[Volatility] fetch failed (non-fatal): {ex.Message}");
             return null;
         }
+    }
+
+    static VolatilityResult? ComputeVolatilityRegime(VolatilityData source, List<DailyData> spyData, DateTime asOf)
+    {
+        var vixData = TruncateTo(source.VixData, asOf);
+        if (vixData == null || vixData.Count < VIX_SMA_WINDOW) return null;
+
+        decimal vix = vixData[^1].AdjustedClose;
+        decimal vixSma20 = Math.Round(vixData.TakeLast(VIX_SMA_WINDOW).Average(d => d.AdjustedClose), 2);
+
+        // 分散リスクプレミアム = インプライド(VIX) − 実現ボラ。
+        // VIXの水準そのものより、「現実の変動に対してオプションが割安か」を見る。
+        // マイナス（実現>インプライド）は市場が現実の変動に追いつけていない慢心のサイン。
+        decimal? realizedVol21 = RealizedVolatilityPct(spyData, REALIZED_VOL_VRP_WINDOW);
+        decimal? varianceRiskPremium = realizedVol21.HasValue ? Math.Round(vix - realizedVol21.Value, 2) : null;
+
+        var vix3mData = source.Vix3mData == null ? null : TruncateTo(source.Vix3mData, asOf);
+        if (vix3mData is { Count: > 0 })
+        {
+            decimal vix3m = vix3mData[^1].AdjustedClose;
+            decimal termSlopePct = Math.Round((vix - vix3m) / vix3m * 100m, 2);
+            return new VolatilityResult
+            {
+                Vix = vix,
+                VixSma20 = vixSma20,
+                RealizedVol21Pct = realizedVol21,
+                VarianceRiskPremium = varianceRiskPremium,
+                Vix3m = vix3m,
+                TermSlopePct = termSlopePct,
+                TermStructure = termSlopePct > 0 ? "Backwardation" : "Contango",
+                TermSource = "VIX3M"
+            };
+        }
+
+        decimal? shortVol = RealizedVolatilityPct(spyData, REALIZED_VOL_SHORT_WINDOW);
+        decimal? longVol = RealizedVolatilityPct(spyData, REALIZED_VOL_LONG_WINDOW);
+        if (!shortVol.HasValue || !longVol.HasValue || longVol.Value <= 0m) return null;
+
+        decimal fallbackSlopePct = Math.Round((shortVol.Value - longVol.Value) / longVol.Value * 100m, 2);
+        return new VolatilityResult
+        {
+            Vix = vix,
+            VixSma20 = vixSma20,
+            RealizedVol21Pct = realizedVol21,
+            VarianceRiskPremium = varianceRiskPremium,
+            Vix3m = null,
+            RealizedVolShortPct = shortVol,
+            RealizedVolLongPct = longVol,
+            TermSlopePct = fallbackSlopePct,
+            TermStructure = fallbackSlopePct > 0 ? "Backwardation" : "Contango",
+            TermSource = "RealizedVol"
+        };
     }
 
     // 対数リターンの標本標準偏差を年率換算した実現ボラティリティ(%)。
@@ -970,16 +951,10 @@ class Program
 
     // ================= Nasdaq-100 真の市場ブレッドス =================
 
-    static async Task<MarketBreadthResult?> FetchNasdaq100Breadth(string marketDataAsOf)
+    static async Task<BreadthData?> FetchBreadthData()
     {
         try
         {
-            if (!DateTime.TryParseExact(marketDataAsOf, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var referenceDate))
-            {
-                Console.WriteLine($"[Breadth] 市場基準日を解釈できません: {marketDataAsOf}");
-                return null;
-            }
-
             string universePath = ResolveContentPath(NASDAQ100_UNIVERSE_FILE);
 
             var symbols = File.ReadLines(universePath)
@@ -989,22 +964,44 @@ class Program
                 .ToList();
             if (symbols.Count == 0) return null;
 
-            var allData = await FetchYahooBreadthData(symbols);
-            // 直近の取引日が市場基準日と一致する銘柄だけを使う。
+            return new BreadthData
+            {
+                ExpectedConstituents = symbols.Count,
+                Symbols = await FetchYahooBreadthData(symbols)
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Breadth] fetch failed (non-fatal): {ex.Message}");
+            return null;
+        }
+    }
+
+    static MarketBreadthResult? ComputeBreadth(BreadthData source, DateTime referenceDate, bool verbose)
+    {
+        try
+        {
+            // 基準日に取引が成立している銘柄だけを使う。
             // 鮮度チェックは5営業日まで許容するため、売買停止・上場廃止などで数日前の終値のまま返る銘柄が混ざる。
             // それを「今日の上昇/下落」として数えるとA/Dラインと騰落数が別々の日の合成になってしまう。
-            var analyzed = allData.Values
-                .Where(data => data.Count >= 100 && data[^1].Date.Date == referenceDate.Date)
-                .ToList();
-            int staleSymbols = allData.Count - analyzed.Count;
-            if (staleSymbols > 0)
-                Console.WriteLine($"[Breadth] {staleSymbols} symbols skipped: 最終取引日が市場基準日({marketDataAsOf})と不一致。");
+            var analyzed = new List<List<DailyData>>();
+            foreach (var raw in source.Symbols.Values)
+            {
+                var data = TruncateTo(raw, referenceDate);
+                // 52週高値・200日線を正しく求めるため、十分な履歴がある銘柄のみ採用する。
+                if (data != null && data.Count >= BACKFILL_MIN_HISTORY_BARS) analyzed.Add(data);
+            }
+
+            int staleSymbols = source.Symbols.Count - analyzed.Count;
+            if (verbose && staleSymbols > 0)
+                Console.WriteLine($"[Breadth] {staleSymbols} symbols skipped: 基準日({referenceDate:yyyy-MM-dd})に取引が無い、または履歴不足。");
             if (analyzed.Count < BREADTH_MIN_COVERAGE)
             {
-                Console.WriteLine($"[Breadth] insufficient coverage: {analyzed.Count}/{symbols.Count}");
+                if (verbose) Console.WriteLine($"[Breadth] insufficient coverage: {analyzed.Count}/{source.ExpectedConstituents}");
                 return null;
             }
 
+            int symbolsCount = source.ExpectedConstituents;
             int above50 = 0, above50Eligible = 0;
             int above200 = 0, above200Eligible = 0;
             int newHighs = 0, newLows = 0;
@@ -1122,9 +1119,9 @@ class Program
                 AdvanceRatioSma10 = advanceRatioSma10,
                 BreadthThrustDetected = breadthThrustDetected,
                 UniverseAsOf = "2026-05-01",
-                ExpectedConstituents = symbols.Count,
+                ExpectedConstituents = symbolsCount,
                 AnalyzedConstituents = analyzed.Count,
-                CoveragePct = Math.Round((decimal)analyzed.Count / symbols.Count * 100m, 1),
+                CoveragePct = Math.Round((decimal)analyzed.Count / symbolsCount * 100m, 1),
                 AboveSma50Pct = above50Eligible == 0 ? null : Math.Round((decimal)above50 / above50Eligible * 100m, 1),
                 AboveSma200Pct = above200Eligible == 0 ? null : Math.Round((decimal)above200 / above200Eligible * 100m, 1),
                 NewHighs52Week = newHighs,
@@ -1137,7 +1134,7 @@ class Program
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Breadth] fetch failed (non-fatal): {ex.Message}");
+            if (verbose) Console.WriteLine($"[Breadth] compute failed (non-fatal): {ex.Message}");
             return null;
         }
     }
@@ -1217,6 +1214,181 @@ class Program
         return double.IsFinite(correlation)
             ? Math.Round((decimal)Math.Clamp(correlation, -1d, 1d), 3)
             : null;
+    }
+
+    // ================= 基準日ごとの市場スナップショット =================
+
+    // 実運用日もバックフィル日も必ずこの関数を通す。
+    // 過去分だけ別の計算経路を用意すると、両者を比較した瞬間に意味が失われるため。
+    static MarketSnapshot? BuildSnapshot(MarketDataBundle bundle, DateTime asOf, PutCallOutput putCall, bool verbose)
+    {
+        var spyData = TruncateTo(bundle.Sp500, asOf);
+        var qqqData = TruncateTo(bundle.Nasdaq, asOf);
+        if (spyData == null || qqqData == null) return null;
+        if (spyData.Count < BACKFILL_MIN_HISTORY_BARS || qqqData.Count < BACKFILL_MIN_HISTORY_BARS) return null;
+
+        var sp500 = AnalyzeIndex("S&P 500（SPY）", spyData);
+        var nasdaq = AnalyzeIndex("Nasdaq-100（QQQ）", qqqData);
+        if (!string.Equals(sp500.DataAsOf, nasdaq.DataAsOf, StringComparison.Ordinal)) return null;
+
+        // 2指数のうち「悪い方（より弱気な方）」を採用するのがIBD Market Pulseの流儀
+        // ※ 同順位（引き分け）のときに片方だけを「弱いから採用」と表示すると誤解を招くため、
+        //    引き分けは明示的に分岐して扱う
+        int Rank(string status) => status switch { "Uptrend" => 2, "Pressure" => 1, _ => 0 };
+        int rankSp = Rank(sp500.StatusId);
+        int rankNq = Rank(nasdaq.StatusId);
+        string combinedStatus, combinedDrivenBy;
+        if (rankSp == rankNq)
+        {
+            combinedStatus = sp500.StatusId;
+            combinedDrivenBy = "SPYとQQQは同じ市場ステータス";
+        }
+        else if (rankSp < rankNq)
+        {
+            combinedStatus = sp500.StatusId;
+            combinedDrivenBy = $"{sp500.Name}の状態がより弱いため採用";
+        }
+        else
+        {
+            combinedStatus = nasdaq.StatusId;
+            combinedDrivenBy = $"{nasdaq.Name}の状態がより弱いため採用";
+        }
+
+        var sector = bundle.Sector == null ? null : ComputeSectorRotation(bundle.Sector, asOf);
+        var sectorOutput = sector == null
+            ? new SectorRotationOutput { Status = "unavailable", Note = "セクターデータを取得できませんでした。" }
+            : new SectorRotationOutput
+            {
+                Status = "ok",
+                SpyReturn1m = sector.SpyReturn1m,
+                SpyReturn3m = sector.SpyReturn3m,
+                DefensiveReturn1m = sector.DefensiveReturn1m,
+                CyclicalReturn1m = sector.CyclicalReturn1m,
+                RotationSpread1m = sector.RotationSpread1m,
+                RotationSpread3m = sector.RotationSpread3m,
+                Sectors = sector.Sectors,
+                BreadthProxies = sector.BreadthProxies,
+                Note = "SPDRセクターETF11銘柄のSPYに対する相対リターン(自前算出)。CAN SLIMの「L(Leader)」に対応する補助指標です。"
+            };
+
+        var credit = bundle.Credit == null ? null : ComputeCreditRiskAppetite(bundle.Credit, asOf);
+        var creditOutput = credit == null
+            ? new CreditRiskAppetiteOutput { Status = "unavailable", Note = "HYG/LQDデータを取得できませんでした。" }
+            : new CreditRiskAppetiteOutput
+            {
+                Status = "ok",
+                HygReturn1m = credit.HygReturn1m,
+                HygReturn3m = credit.HygReturn3m,
+                LqdReturn1m = credit.LqdReturn1m,
+                LqdReturn3m = credit.LqdReturn3m,
+                Spread1m = credit.Spread1m,
+                Spread3m = credit.Spread3m,
+                HyOasPct = credit.HyOasPct,
+                HyOasChange1mBps = credit.HyOasChange1mBps,
+                HyOasDate = credit.HyOasDate,
+                Note = "HYGと投資適格社債ETF(LQD)の相対リターンに、ICE BofA US High Yield OASを追加しました。TLT比較より金利デュレーション差の影響を抑え、信用リスクを読み取りやすくします。"
+            };
+
+        var volatility = bundle.Volatility == null ? null : ComputeVolatilityRegime(bundle.Volatility, spyData, asOf);
+        var volatilityOutput = volatility == null
+            ? new VolatilityOutput { Status = "unavailable", Note = "VIXデータを取得できませんでした。" }
+            : new VolatilityOutput
+            {
+                Status = volatility.TermSource == "VIX3M" ? "ok" : "partial",
+                Vix = volatility.Vix,
+                VixSma20 = volatility.VixSma20,
+                Vix3m = volatility.Vix3m,
+                RealizedVolShortPct = volatility.RealizedVolShortPct,
+                RealizedVolLongPct = volatility.RealizedVolLongPct,
+                RealizedVol21Pct = volatility.RealizedVol21Pct,
+                VarianceRiskPremium = volatility.VarianceRiskPremium,
+                TermSlopePct = volatility.TermSlopePct,
+                TermStructure = volatility.TermStructure,
+                TermSource = volatility.TermSource,
+                Note = volatility.TermSource == "VIX3M"
+                    ? "VIXとVIX3Mの比較による期限構造の近似です。逆転（Backwardation）は市場ストレスの警戒灯として扱い、単独の売買シグナルには使いません。"
+                    : $"^VIX3Mの配信が停止しているため、SPYの{REALIZED_VOL_SHORT_WINDOW}日／{REALIZED_VOL_LONG_WINDOW}日実現ボラティリティ比で期限構造を代替しています。実現ボラの短期優勢は本物のVIX逆転より高頻度で起きるため、乖離幅に応じて段階的に警戒度を判定します。"
+            };
+
+        var breadth = bundle.Breadth == null ? null : ComputeBreadth(bundle.Breadth, asOf, verbose);
+        var breadthOutput = breadth == null
+            ? new MarketBreadthOutput { Status = "unavailable", Note = "Nasdaq-100構成銘柄の取得数が不足したため、真の市場ブレッドスを算出できませんでした。" }
+            : new MarketBreadthOutput
+            {
+                Status = breadth.CoveragePct >= 95 ? "ok" : "partial",
+                UniverseAsOf = breadth.UniverseAsOf,
+                ExpectedConstituents = breadth.ExpectedConstituents,
+                AnalyzedConstituents = breadth.AnalyzedConstituents,
+                CoveragePct = breadth.CoveragePct,
+                AboveSma50Pct = breadth.AboveSma50Pct,
+                AboveSma200Pct = breadth.AboveSma200Pct,
+                NewHighs52Week = breadth.NewHighs52Week,
+                NewLows52Week = breadth.NewLows52Week,
+                Advances = breadth.Advances,
+                Declines = breadth.Declines,
+                AdvanceDeclineNet = breadth.AdvanceDeclineNet,
+                AdLineChange20d = breadth.AdLineChange20d,
+                AvgPairwiseCorrelation = breadth.AvgPairwiseCorrelation,
+                AccumulationPct = breadth.AccumulationPct,
+                StealthDistributionPct = breadth.StealthDistributionPct,
+                AdvanceRatioSma10 = breadth.AdvanceRatioSma10,
+                BreadthThrustDetected = breadth.BreadthThrustDetected,
+                Note = "Nasdaq-100構成銘柄を個別に集計した等ウェイトの市場内部指標です。指数上昇時でも50日線上比率やA/Dラインが悪化していれば、上昇の広がり不足を確認できます。"
+            };
+
+        return new MarketSnapshot
+        {
+            MarketDataAsOf = sp500.DataAsOf,
+            Sp500 = sp500,
+            Nasdaq = nasdaq,
+            CombinedStatus = combinedStatus,
+            CombinedDrivenBy = combinedDrivenBy,
+            Sector = sectorOutput,
+            Credit = creditOutput,
+            Volatility = volatilityOutput,
+            Breadth = breadthOutput,
+            PutCall = putCall,
+            RiskScore = CalculateMarketRiskScore(sp500, nasdaq, putCall, sectorOutput, creditOutput, volatilityOutput, breadthOutput)
+        };
+    }
+
+    // 過去の各営業日についてスコアを再計算する。
+    // Put/Callは過去データが取れないため、バックフィル分は常にこの項目が欠測になる（Sourceで区別）。
+    static List<HistoryEntry> BuildBackfillEntries(MarketDataBundle bundle, HashSet<string> existingMarketDates)
+    {
+        var entries = new List<HistoryEntry>();
+        var unavailablePutCall = new PutCallOutput { Status = "unavailable", Underlying = PUT_CALL_UNDERLYING };
+
+        // 十分な履歴が確保できる日だけを対象にする（52週高値・200日線のため）。
+        int start = Math.Max(BACKFILL_MIN_HISTORY_BARS - 1, bundle.Sp500.Count - BACKFILL_MAX_DAYS);
+        for (int i = start; i < bundle.Sp500.Count; i++)
+        {
+            DateTime asOf = bundle.Sp500[i].Date.Date;
+            string key = asOf.ToString("yyyy-MM-dd");
+            if (existingMarketDates.Contains(key)) continue;
+
+            var snapshot = BuildSnapshot(bundle, asOf, unavailablePutCall, verbose: false);
+            if (snapshot == null || snapshot.RiskScore.AvailableMaxPoints <= 0m) continue;
+
+            entries.Add(new HistoryEntry
+            {
+                Date = key,
+                MarketDataAsOf = key,
+                Source = "backfill",
+                RubricVersion = RUBRIC_VERSION,
+                CombinedStatus = snapshot.CombinedStatus,
+                Sp500Status = snapshot.Sp500.StatusId,
+                Sp500DistDays = snapshot.Sp500.DistributionDaysActive,
+                NasdaqStatus = snapshot.Nasdaq.StatusId,
+                NasdaqDistDays = snapshot.Nasdaq.DistributionDaysActive,
+                MarketRiskScore = Math.Round(snapshot.RiskScore.Score, 1),
+                MarketRiskAvailableMaxPoints = Math.Round(snapshot.RiskScore.AvailableMaxPoints, 1),
+                SpyAdjustedClose = snapshot.Sp500.LatestAdjustedClose,
+                QqqAdjustedClose = snapshot.Nasdaq.LatestAdjustedClose
+            });
+        }
+
+        return entries;
     }
 
     // ================= 総合市場リスク・スコア =================
@@ -1706,6 +1878,8 @@ class Program
         {
             Date = today,
             MarketDataAsOf = marketDataAsOf,
+            Source = "live",
+            RubricVersion = RUBRIC_VERSION,
             CombinedStatus = combinedStatus,
             Sp500Status = sp500.StatusId,
             Sp500DistDays = sp500.DistributionDaysActive,
@@ -1716,8 +1890,8 @@ class Program
             QqqAdjustedClose = nasdaq.LatestAdjustedClose
         });
 
-        // 直近180日分のみ保持。ここではまだファイルへ書かず、全計算成功後に保存する。
-        var trimmed = history.OrderBy(h => h.Date).TakeLast(180).ToList();
+        // ここではまだファイルへ書かず、全計算成功後に保存する。
+        var trimmed = history.OrderBy(h => h.Date, StringComparer.Ordinal).TakeLast(HISTORY_MAX_ENTRIES).ToList();
 
         // --- Put/Call Ratioのトレンド統計（当日の候補値を含めてメモリ上で算出する） ---
         var validRatios = trimmed.Where(h => h.PutCallRatio.HasValue).Select(h => h.PutCallRatio!.Value).ToList();
@@ -1938,13 +2112,16 @@ class Program
     static ScoreValidationOutput BuildScoreValidation(List<HistoryEntry> history)
     {
         // 同じ市場基準日を複数回更新した場合は最後の記録だけを使い、休日・再実行による重複集計を防ぐ。
+        // 配点体系が違うスコアは同じ箱に入れない（分母が変わると同じ点数でも意味が変わるため）。
         var observations = history
             .Where(entry => entry.MarketRiskScore.HasValue && !string.IsNullOrEmpty(entry.MarketDataAsOf) &&
-                entry.SpyAdjustedClose.HasValue && entry.QqqAdjustedClose.HasValue)
+                entry.SpyAdjustedClose.HasValue && entry.QqqAdjustedClose.HasValue &&
+                (entry.RubricVersion ?? 0) == RUBRIC_VERSION)
             .GroupBy(entry => entry.MarketDataAsOf!, StringComparer.Ordinal)
             .Select(group => group.OrderBy(entry => entry.Date).Last())
             .OrderBy(entry => entry.MarketDataAsOf)
             .ToList();
+        int backfilledCount = observations.Count(entry => entry.Source == "backfill");
 
         var bands = new[]
         {
@@ -1968,8 +2145,11 @@ class Program
             OneMonthMaturedCount = oneMonthMatured,
             ThreeMonthMaturedCount = threeMonthMatured,
             RecommendedMinSamples = SCORE_VALIDATION_RECOMMENDED_MIN_SAMPLES,
+            BackfilledCount = backfilledCount,
             Bands = bandResults,
-            Note = "各スコア記録日の調整後終値から21・63営業日後までの実績です。過去実績であり、将来のリターンや投資成果を保証するものではありません。"
+            Note = backfilledCount == 0
+                ? "各スコア記録日の調整後終値から21・63営業日後までの実績です。過去実績であり、将来のリターンや投資成果を保証するものではありません。"
+                : $"{observations.Count}件中{backfilledCount}件は過去データからの再計算です。構成銘柄リストが現時点のものなので生存者バイアスが乗り、ブレッドス系は実際より良く出ます。また日次観測は期間が重なるため独立ではなく、1か月先の実質的な独立標本数は概ね「件数÷21」にとどまります。閾値の最適化には使わず、傾向の確認にとどめてください。"
         };
     }
 
@@ -2015,7 +2195,14 @@ class Program
         if (history.Any(entry => !IsValidHistoryEntry(entry)))
             throw new InvalidDataException("history.json に不正なデータがあるため、市場リスクスコアを保存できません。");
 
-        WriteTextAtomically(GetOutputPath("history.json"), JsonSerializer.Serialize(history.OrderBy(entry => entry.Date).TakeLast(180).ToList(), JsonOptions));
+        var trimmed = history.OrderBy(entry => entry.Date, StringComparer.Ordinal).TakeLast(HISTORY_MAX_ENTRIES).ToList();
+
+        // 採点内訳（marketRiskMetrics）は「今日のスコア変動理由」でしか使わず、必要なのは直近数件だけ。
+        // 1件あたり19項目×説明文で数KBになり、全件保持するとファイルが1MB近くまで膨らんで
+        // 5分ごとの再取得が重くなるため、古いエントリからは落とす。
+        for (int i = 0; i < trimmed.Count - HISTORY_METRICS_RETAINED; i++) trimmed[i].MarketRiskMetrics = null;
+
+        WriteTextAtomically(GetOutputPath("history.json"), JsonSerializer.Serialize(trimmed, JsonOptions));
     }
 
     // ================= モデル =================
@@ -2060,6 +2247,60 @@ class Program
         public decimal Return3m { get; set; }
         public decimal RelStrength1m { get; set; } // SPY比（1ヶ月）
         public decimal RelStrength3m { get; set; } // SPY比（3ヶ月）
+    }
+
+    // ---- 生データ（取得は1回、計算は基準日ごとに何度でも） ----
+    class SectorRotationData
+    {
+        public List<DailyData> SpyData { get; set; } = new();
+        public Dictionary<string, List<DailyData>> Sectors { get; set; } = new();
+        public Dictionary<string, List<DailyData>> Proxies { get; set; } = new();
+    }
+
+    class CreditData
+    {
+        public List<DailyData> HygData { get; set; } = new();
+        public List<DailyData> LqdData { get; set; } = new();
+        public List<(DateTime Date, decimal Value)> HyOasSeries { get; set; } = new();
+    }
+
+    class VolatilityData
+    {
+        public List<DailyData> VixData { get; set; } = new();
+        public List<DailyData>? Vix3mData { get; set; }
+    }
+
+    class BreadthData
+    {
+        public int ExpectedConstituents { get; set; }
+        public Dictionary<string, List<DailyData>> Symbols { get; set; } = new();
+    }
+
+    // 全市場データをまとめて保持し、任意の基準日でスコアを再計算できるようにする。
+    class MarketDataBundle
+    {
+        public List<DailyData> Sp500 { get; set; } = new();
+        public List<DailyData> Nasdaq { get; set; } = new();
+        public SectorRotationData? Sector { get; set; }
+        public CreditData? Credit { get; set; }
+        public VolatilityData? Volatility { get; set; }
+        public BreadthData? Breadth { get; set; }
+    }
+
+    // ある基準日時点の市場評価一式。実運用日もバックフィル日も同じ関数で作るため、比較可能性が保たれる。
+    class MarketSnapshot
+    {
+        public string MarketDataAsOf { get; set; } = "";
+        public IndexAnalysis Sp500 { get; set; } = new();
+        public IndexAnalysis Nasdaq { get; set; } = new();
+        public string CombinedStatus { get; set; } = "";
+        public string CombinedDrivenBy { get; set; } = "";
+        public SectorRotationOutput Sector { get; set; } = new();
+        public CreditRiskAppetiteOutput Credit { get; set; } = new();
+        public VolatilityOutput Volatility { get; set; } = new();
+        public MarketBreadthOutput Breadth { get; set; } = new();
+        public PutCallOutput PutCall { get; set; } = new();
+        public MarketRiskScore RiskScore { get; set; } = new();
     }
 
     class SectorRotationResult
@@ -2210,6 +2451,11 @@ class Program
         // スコア計算時に使った市場の基準日と調整後終値。
         // 後日の検証ではこの値を起点にするため、古い履歴を推測で補完しない。
         public string? MarketDataAsOf { get; set; }
+        // "live"（当日実行）か "backfill"（過去再計算）か。
+        // バックフィル分はPut/Callが常に欠測で、構成銘柄リストの生存者バイアスも乗るため区別する。
+        public string? Source { get; set; }
+        // 採点体系の版。配点を変えた前後のスコアを同じ箱で集計しないための識別子。
+        public int? RubricVersion { get; set; }
         public string CombinedStatus { get; set; } = "";
         public string Sp500Status { get; set; } = "";
         public int Sp500DistDays { get; set; }
@@ -2259,6 +2505,8 @@ class Program
         public int OneMonthMaturedCount { get; set; }
         public int ThreeMonthMaturedCount { get; set; }
         public int RecommendedMinSamples { get; set; }
+        // うち過去データからの再計算分。生存者バイアスとPut/Call欠測を含むため、実運用分と区別して示す。
+        public int BackfilledCount { get; set; }
         public List<ScoreBandValidation> Bands { get; set; } = new();
         public string Note { get; set; } = "";
     }

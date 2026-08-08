@@ -53,6 +53,8 @@ const glossary = {
   '200日線上': '構成銘柄のうち、株価が200日移動平均線（長期トレンドの目安）より上にある銘柄の割合です。',
   '52週新高値/新安値': '直近52週間で最高値・最安値を更新した銘柄数です。',
   '20日A/D変化': '直近20営業日の「上昇銘柄数−下落銘柄数」の積み上げです。プラスが続くほど値上がりの広がりが強いことを示します。',
+  'VIX': '「恐怖指数」と呼ばれる指標です。今後30日間にS&P500がどれくらい大きく動くと市場が予想しているかを表します。一般に20を超えると不安が高まっている状態とされます。',
+  '信用リスク': '企業がお金を返せなくなる危険性に対して、投資家がどれだけ神経質になっているかです。社債の値動きから読み取ります。',
   'VIX3M': '3か月先を対象にした、株価の変動予想の大きさ（インプライド・ボラティリティ）です。',
   'SPY実現ボラ': 'SPYで実際に起きた値動きの大きさ（実現ボラティリティ）を年率換算した値です。予想値であるVIXと違い、実際の結果に基づきます。',
   '短期ボラの優勢度': '短期の実現ボラティリティが、長期の実現ボラティリティをどれだけ上回っているかです。VIX3Mが取得できないときの代替指標として使います。',
@@ -253,8 +255,10 @@ function renderScoreValidation(validation) {
   const isPreliminary = validation?.status === 'preliminary';
   const isCollecting = validation?.status === 'collecting';
   setPill('score-validation-status', isPreliminary ? '暫定集計' : isCollecting ? '蓄積中' : '未計算', isPreliminary ? 'warn' : 'muted');
+  const backfilled = Number(validation?.backfilledCount || 0);
+  const observations = Number(validation?.observationCount || 0);
   replaceDataGrid('score-validation-summary', [
-    { label: 'スコア記録', value: `${validation?.observationCount || 0}件`, sub: '同じ市場基準日は重複集計しません' },
+    { label: 'スコア記録', value: `${observations}件`, sub: backfilled > 0 ? `うち${backfilled}件は過去データからの再計算` : '同じ市場基準日は重複集計しません' },
     { label: '1か月後の確定実績', value: `${validation?.oneMonthMaturedCount || 0}件`, sub: `目安: ${validation?.recommendedMinSamples || 10}件以上` },
     { label: '3か月後の確定実績', value: `${validation?.threeMonthMaturedCount || 0}件`, sub: '63営業日経過後に確定' }
   ]);
