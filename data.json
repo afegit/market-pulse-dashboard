@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-08-08 08:53:57",
+  "lastUpdated": "2026-08-09 07:32:01",
   "marketDataAsOf": "2026-08-07",
   "combinedStatus": "Pressure",
   "combinedDrivenBy": "SPY\u3068QQQ\u306F\u540C\u3058\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9",
@@ -124,7 +124,7 @@
       "prices": [
         667.2440185546875,
         657.9335327148438,
-        656.3121337890625,
+        656.3121948242188,
         646.9034423828125,
         653.6959228515625,
         651.5015869140625,
@@ -430,7 +430,7 @@
       "distMarksExpired": [
         null,
         null,
-        656.3121337890625,
+        656.3121948242188,
         646.9034423828125,
         null,
         null,
@@ -1062,12 +1062,12 @@
   "putCallRatio": {
     "status": "ok",
     "underlying": "SPY",
-    "callVolume": 4159468,
-    "putVolume": 3991623,
-    "ratio": 0.960,
+    "callVolume": 663075,
+    "putVolume": 308991,
+    "ratio": 0.466,
     "sma10": null,
     "percentileRank": null,
-    "historyDays": 5,
+    "historyDays": 6,
     "note": "SPY\u306E\u76F4\u8FD1\u9650\u6708\u306E\u307F\u3092\u96C6\u8A08\u3057\u305F\u51FA\u6765\u9AD8\u30D9\u30FC\u30B9\u306E\u53C2\u8003\u6307\u6A19\u3067\u3059\u30020DTE\u30FB\u30D8\u30C3\u30B8\u30FB\u6E80\u671F\u69CB\u6210\u306E\u5F71\u97FF\u3092\u53D7\u3051\u308B\u305F\u3081\u3001\u65B9\u5411\u4E88\u60F3\u306E\u4E3B\u30B7\u30B0\u30CA\u30EB\u306B\u306F\u4F7F\u308F\u305A\u3001\u6975\u7AEF\u306A\u9700\u7D66\u306E\u88DC\u52A9\u78BA\u8A8D\u306B\u9650\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
   },
   "sectorRotation": {
@@ -1202,46 +1202,46 @@
     "note": "HYG\u3068\u6295\u8CC7\u9069\u683C\u793E\u50B5ETF(LQD)\u306E\u76F8\u5BFE\u30EA\u30BF\u30FC\u30F3\u306B\u3001ICE BofA US High Yield OAS\u3092\u8FFD\u52A0\u3057\u307E\u3057\u305F\u3002TLT\u6BD4\u8F03\u3088\u308A\u91D1\u5229\u30C7\u30E5\u30EC\u30FC\u30B7\u30E7\u30F3\u5DEE\u306E\u5F71\u97FF\u3092\u6291\u3048\u3001\u4FE1\u7528\u30EA\u30B9\u30AF\u3092\u8AAD\u307F\u53D6\u308A\u3084\u3059\u304F\u3057\u307E\u3059\u3002"
   },
   "volatilityRegime": {
-    "status": "ok",
+    "status": "partial",
     "vix": 14.899999618530273,
     "vixSma20": 17.16,
-    "vix3m": 18.719999313354492,
-    "realizedVolShortPct": null,
-    "realizedVolLongPct": null,
+    "vix3m": null,
+    "realizedVolShortPct": 16.15,
+    "realizedVolLongPct": 14.03,
     "realizedVol21Pct": 14.03,
     "varianceRiskPremium": 0.87,
-    "termSlopePct": -20.41,
-    "termStructure": "Contango",
-    "termSource": "VIX3M",
-    "note": "VIX\u3068VIX3M\u306E\u6BD4\u8F03\u306B\u3088\u308B\u671F\u9650\u69CB\u9020\u306E\u8FD1\u4F3C\u3067\u3059\u3002\u9006\u8EE2\uFF08Backwardation\uFF09\u306F\u5E02\u5834\u30B9\u30C8\u30EC\u30B9\u306E\u8B66\u6212\u706F\u3068\u3057\u3066\u6271\u3044\u3001\u5358\u72EC\u306E\u58F2\u8CB7\u30B7\u30B0\u30CA\u30EB\u306B\u306F\u4F7F\u3044\u307E\u305B\u3093\u3002"
+    "termSlopePct": 15.11,
+    "termStructure": "Backwardation",
+    "termSource": "RealizedVol",
+    "note": "^VIX3M\u306E\u914D\u4FE1\u304C\u505C\u6B62\u3057\u3066\u3044\u308B\u305F\u3081\u3001SPY\u306E10\u65E5\uFF0F63\u65E5\u5B9F\u73FE\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3\u6BD4\u3067\u671F\u9650\u69CB\u9020\u3092\u4EE3\u66FF\u3057\u3066\u3044\u307E\u3059\u3002\u5B9F\u73FE\u30DC\u30E9\u306E\u77ED\u671F\u512A\u52E2\u306F\u672C\u7269\u306EVIX\u9006\u8EE2\u3088\u308A\u9AD8\u983B\u5EA6\u3067\u8D77\u304D\u308B\u305F\u3081\u3001\u4E56\u96E2\u5E45\u306B\u5FDC\u3058\u3066\u6BB5\u968E\u7684\u306B\u8B66\u6212\u5EA6\u3092\u5224\u5B9A\u3057\u307E\u3059\u3002"
   },
   "marketBreadth": {
     "status": "ok",
     "note": "Nasdaq-100\u69CB\u6210\u9298\u67C4\u3092\u500B\u5225\u306B\u96C6\u8A08\u3057\u305F\u7B49\u30A6\u30A7\u30A4\u30C8\u306E\u5E02\u5834\u5185\u90E8\u6307\u6A19\u3067\u3059\u3002\u6307\u6570\u4E0A\u6607\u6642\u3067\u308250\u65E5\u7DDA\u4E0A\u6BD4\u7387\u3084A/D\u30E9\u30A4\u30F3\u304C\u60AA\u5316\u3057\u3066\u3044\u308C\u3070\u3001\u4E0A\u6607\u306E\u5E83\u304C\u308A\u4E0D\u8DB3\u3092\u78BA\u8A8D\u3067\u304D\u307E\u3059\u3002",
     "universeAsOf": "2026-05-01",
     "expectedConstituents": 101,
-    "analyzedConstituents": 100,
-    "coveragePct": 99.0,
-    "aboveSma50Pct": 56.0,
-    "aboveSma200Pct": 69.0,
-    "newHighs52Week": 5,
+    "analyzedConstituents": 101,
+    "coveragePct": 100,
+    "aboveSma50Pct": 56.4,
+    "aboveSma200Pct": 69.3,
+    "newHighs52Week": 6,
     "newLows52Week": 0,
     "advances": 73,
     "declines": 27,
     "advanceDeclineNet": 46,
-    "adLineChange20d": 10,
+    "adLineChange20d": 14,
     "avgPairwiseCorrelation": 0.075,
-    "accumulationPct": 57.0,
-    "stealthDistributionPct": 19.6,
-    "advanceRatioSma10": 0.566,
+    "accumulationPct": 57.4,
+    "stealthDistributionPct": 19.3,
+    "advanceRatioSma10": 0.567,
     "breadthThrustDetected": false
   },
   "marketRiskScore": {
-    "score": 19.2,
-    "rawScore": 17.1,
+    "score": 22.0,
+    "rawScore": 19.6,
     "availableMaxPoints": 89.0,
     "dataCoveragePct": 89.0,
-    "label": "\u826F\u597D",
+    "label": "\u6982\u306D\u826F\u597D",
     "metrics": [
       {
         "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
@@ -1276,49 +1276,49 @@
         "name": "50\u65E5\u7DDA\u4E0A\u6BD4\u7387",
         "score": 1.8,
         "maxPoints": 6,
-        "detail": "56.0%"
+        "detail": "56.4%"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
         "name": "200\u65E5\u7DDA\u4E0A\u6BD4\u7387",
         "score": 0,
         "maxPoints": 5,
-        "detail": "69.0%"
+        "detail": "69.3%"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
         "name": "52\u9031\u65B0\u9AD8\u5024\u30FB\u65B0\u5B89\u5024",
         "score": 0,
         "maxPoints": 4,
-        "detail": "\u65B0\u9AD8\u5024 5 / \u65B0\u5B89\u5024 0"
+        "detail": "\u65B0\u9AD8\u5024 6 / \u65B0\u5B89\u5024 0"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
         "name": "20\u65E5A/D\u30E9\u30A4\u30F3",
         "score": 0,
         "maxPoints": 3,
-        "detail": "20\u65E5\u5909\u5316 \u002B10"
+        "detail": "20\u65E5\u5909\u5316 \u002B14"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
         "name": "10\u65E5\u9A30\u843D\u30EC\u30B7\u30AA",
         "score": 0,
         "maxPoints": 3,
-        "detail": "0.566"
+        "detail": "0.567"
       },
       {
         "group": "\u6A5F\u95A2\u9700\u7D66",
         "name": "\u30A2\u30AD\u30E5\u30E0\u30EC\u30FC\u30B7\u30E7\u30F3\u9298\u67C4\u6BD4\u7387",
         "score": 0,
         "maxPoints": 5,
-        "detail": "57.0%\uFF0850\u65E5\u306E\u51FA\u6765\u9AD8\u304C\u4E0A\u6607\u65E5\u306B\u504F\u308B\u9298\u67C4\uFF09"
+        "detail": "57.4%\uFF0850\u65E5\u306E\u51FA\u6765\u9AD8\u304C\u4E0A\u6607\u65E5\u306B\u504F\u308B\u9298\u67C4\uFF09"
       },
       {
         "group": "\u6A5F\u95A2\u9700\u7D66",
         "name": "\u30B9\u30C6\u30EB\u30B9\u914D\u5206",
         "score": 1,
         "maxPoints": 4,
-        "detail": "19.6%\uFF0850\u65E5\u7DDA\u4E0A\u3060\u304C\u58F2\u308A\u512A\u52E2\uFF09"
+        "detail": "19.3%\uFF0850\u65E5\u7DDA\u4E0A\u3060\u304C\u58F2\u308A\u512A\u52E2\uFF09"
       },
       {
         "group": "\u5E02\u5834\u69CB\u9020",
@@ -1337,9 +1337,9 @@
       {
         "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
         "name": "VIX\u671F\u9650\u69CB\u9020",
-        "score": 0,
+        "score": 2.5,
         "maxPoints": 5,
-        "detail": "Contango\uFF08VIX\u5BFEVIX3M -20.41%\uFF09"
+        "detail": "Backwardation\uFF08SPY\u5B9F\u73FE\u30DC\u30E9 \u77ED\u671F\u5BFE\u9577\u671F \u002B15.11%\uFF09"
       },
       {
         "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
@@ -1382,118 +1382,119 @@
     "status": "ok",
     "previousDate": "2026-08-07",
     "previousScore": 28.5,
-    "scoreChange": -9.3,
+    "scoreChange": -6.5,
     "coverageChange": 0.0,
     "factors": [
-      {
-        "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
-        "name": "VIX\u671F\u9650\u69CB\u9020",
-        "changeInRiskPoints": -2.8,
-        "currentDetail": "Contango\uFF08VIX\u5BFEVIX3M -20.41%\uFF09",
-        "previousDetail": "Backwardation\uFF08SPY\u5B9F\u73FE\u30DC\u30E9 \u77ED\u671F\u5BFE\u9577\u671F \u002B15.70%\uFF09"
-      },
       {
         "group": "\u6A5F\u95A2\u9700\u7D66",
         "name": "\u30A2\u30AD\u30E5\u30E0\u30EC\u30FC\u30B7\u30E7\u30F3\u9298\u67C4\u6BD4\u7387",
         "changeInRiskPoints": -2.2,
-        "currentDetail": "57.0%\uFF0850\u65E5\u306E\u51FA\u6765\u9AD8\u304C\u4E0A\u6607\u65E5\u306B\u504F\u308B\u9298\u67C4\uFF09",
+        "currentDetail": "57.4%\uFF0850\u65E5\u306E\u51FA\u6765\u9AD8\u304C\u4E0A\u6607\u65E5\u306B\u504F\u308B\u9298\u67C4\uFF09",
         "previousDetail": "51.0%\uFF0850\u65E5\u306E\u51FA\u6765\u9AD8\u304C\u4E0A\u6607\u65E5\u306B\u504F\u308B\u9298\u67C4\uFF09"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
         "name": "20\u65E5A/D\u30E9\u30A4\u30F3",
         "changeInRiskPoints": -1.7,
-        "currentDetail": "20\u65E5\u5909\u5316 \u002B10",
+        "currentDetail": "20\u65E5\u5909\u5316 \u002B14",
         "previousDetail": "20\u65E5\u5909\u5316 -27"
       },
       {
         "group": "\u6A5F\u95A2\u9700\u7D66",
         "name": "\u30B9\u30C6\u30EB\u30B9\u914D\u5206",
         "changeInRiskPoints": -1.7,
-        "currentDetail": "19.6%\uFF0850\u65E5\u7DDA\u4E0A\u3060\u304C\u58F2\u308A\u512A\u52E2\uFF09",
+        "currentDetail": "19.3%\uFF0850\u65E5\u7DDA\u4E0A\u3060\u304C\u58F2\u308A\u512A\u52E2\uFF09",
         "previousDetail": "27.8%\uFF0850\u65E5\u7DDA\u4E0A\u3060\u304C\u58F2\u308A\u512A\u52E2\uFF09"
+      },
+      {
+        "group": "\u30BB\u30AF\u30BF\u30FC",
+        "name": "RSP\u30FBIWM\u306E\u76F8\u5BFE\u5F37\u5EA6",
+        "changeInRiskPoints": -0.9,
+        "currentDetail": "RSP \u002B2.58% / IWM \u002B1.12%",
+        "previousDetail": "RSP \u002B2.12% / IWM -0.76%"
       }
     ],
     "note": "\u524D\u56DE\u3068\u5171\u901A\u3059\u308B\u63A1\u70B9\u9805\u76EE\u3092\u3001100\u70B9\u63DB\u7B97\u3067\u6BD4\u8F03\u3057\u3066\u3044\u307E\u3059\u3002"
   },
   "scoreValidation": {
-    "status": "collecting",
-    "observationCount": 5,
-    "oneMonthMaturedCount": 0,
-    "threeMonthMaturedCount": 0,
+    "status": "preliminary",
+    "observationCount": 246,
+    "oneMonthMaturedCount": 229,
+    "threeMonthMaturedCount": 187,
     "recommendedMinSamples": 10,
+    "backfilledCount": 245,
     "bands": [
       {
         "label": "0\u201320",
-        "observationCount": 1,
-        "oneMonthSampleSize": 0,
-        "threeMonthSampleSize": 0,
-        "spyAverageReturn1m": null,
-        "qqqAverageReturn1m": null,
-        "spyWinRate1m": null,
-        "qqqWinRate1m": null,
-        "spyAverageMaxDrawdown1m": null,
-        "qqqAverageMaxDrawdown1m": null,
-        "spyAverageReturn3m": null,
-        "qqqAverageReturn3m": null,
-        "spyWinRate3m": null,
-        "qqqWinRate3m": null,
-        "spyAverageMaxDrawdown3m": null,
-        "qqqAverageMaxDrawdown3m": null
+        "observationCount": 44,
+        "oneMonthSampleSize": 44,
+        "threeMonthSampleSize": 27,
+        "spyAverageReturn1m": 1.82,
+        "qqqAverageReturn1m": 3.87,
+        "spyWinRate1m": 59.1,
+        "qqqWinRate1m": 63.6,
+        "spyAverageMaxDrawdown1m": -1.88,
+        "qqqAverageMaxDrawdown1m": -2.72,
+        "spyAverageReturn3m": 4.33,
+        "qqqAverageReturn3m": 4.19,
+        "spyWinRate3m": 96.3,
+        "qqqWinRate3m": 77.8,
+        "spyAverageMaxDrawdown3m": -1.44,
+        "qqqAverageMaxDrawdown3m": -2.57
       },
       {
         "label": "21\u201340",
-        "observationCount": 3,
-        "oneMonthSampleSize": 0,
-        "threeMonthSampleSize": 0,
-        "spyAverageReturn1m": null,
-        "qqqAverageReturn1m": null,
-        "spyWinRate1m": null,
-        "qqqWinRate1m": null,
-        "spyAverageMaxDrawdown1m": null,
-        "qqqAverageMaxDrawdown1m": null,
-        "spyAverageReturn3m": null,
-        "qqqAverageReturn3m": null,
-        "spyWinRate3m": null,
-        "qqqWinRate3m": null,
-        "spyAverageMaxDrawdown3m": null,
-        "qqqAverageMaxDrawdown3m": null
+        "observationCount": 134,
+        "oneMonthSampleSize": 127,
+        "threeMonthSampleSize": 105,
+        "spyAverageReturn1m": 1.01,
+        "qqqAverageReturn1m": 0.64,
+        "spyWinRate1m": 72.4,
+        "qqqWinRate1m": 59.8,
+        "spyAverageMaxDrawdown1m": -1.82,
+        "qqqAverageMaxDrawdown1m": -3.00,
+        "spyAverageReturn3m": 2.74,
+        "qqqAverageReturn3m": 3.69,
+        "spyWinRate3m": 78.1,
+        "qqqWinRate3m": 73.3,
+        "spyAverageMaxDrawdown3m": -3.75,
+        "qqqAverageMaxDrawdown3m": -4.81
       },
       {
         "label": "41\u201360",
-        "observationCount": 1,
-        "oneMonthSampleSize": 0,
-        "threeMonthSampleSize": 0,
-        "spyAverageReturn1m": null,
-        "qqqAverageReturn1m": null,
-        "spyWinRate1m": null,
-        "qqqWinRate1m": null,
-        "spyAverageMaxDrawdown1m": null,
-        "qqqAverageMaxDrawdown1m": null,
-        "spyAverageReturn3m": null,
-        "qqqAverageReturn3m": null,
-        "spyWinRate3m": null,
-        "qqqWinRate3m": null,
-        "spyAverageMaxDrawdown3m": null,
-        "qqqAverageMaxDrawdown3m": null
+        "observationCount": 64,
+        "oneMonthSampleSize": 54,
+        "threeMonthSampleSize": 51,
+        "spyAverageReturn1m": 2.32,
+        "qqqAverageReturn1m": 3.42,
+        "spyWinRate1m": 70.4,
+        "qqqWinRate1m": 59.3,
+        "spyAverageMaxDrawdown1m": -2.82,
+        "qqqAverageMaxDrawdown1m": -3.48,
+        "spyAverageReturn3m": 8.40,
+        "qqqAverageReturn3m": 14.59,
+        "spyWinRate3m": 94.1,
+        "qqqWinRate3m": 84.3,
+        "spyAverageMaxDrawdown3m": -4.11,
+        "qqqAverageMaxDrawdown3m": -4.97
       },
       {
         "label": "61\u201380",
-        "observationCount": 0,
-        "oneMonthSampleSize": 0,
-        "threeMonthSampleSize": 0,
-        "spyAverageReturn1m": null,
-        "qqqAverageReturn1m": null,
-        "spyWinRate1m": null,
-        "qqqWinRate1m": null,
-        "spyAverageMaxDrawdown1m": null,
-        "qqqAverageMaxDrawdown1m": null,
-        "spyAverageReturn3m": null,
-        "qqqAverageReturn3m": null,
-        "spyWinRate3m": null,
-        "qqqWinRate3m": null,
-        "spyAverageMaxDrawdown3m": null,
-        "qqqAverageMaxDrawdown3m": null
+        "observationCount": 4,
+        "oneMonthSampleSize": 4,
+        "threeMonthSampleSize": 4,
+        "spyAverageReturn1m": 6.44,
+        "qqqAverageReturn1m": 7.88,
+        "spyWinRate1m": 100,
+        "qqqWinRate1m": 100,
+        "spyAverageMaxDrawdown1m": -0.08,
+        "qqqAverageMaxDrawdown1m": -0.38,
+        "spyAverageReturn3m": 7.92,
+        "qqqAverageReturn3m": 9.55,
+        "spyWinRate3m": 100,
+        "qqqWinRate3m": 100,
+        "spyAverageMaxDrawdown3m": -0.08,
+        "qqqAverageMaxDrawdown3m": -0.50
       },
       {
         "label": "81\u2013100",
@@ -1514,6 +1515,6 @@
         "qqqAverageMaxDrawdown3m": null
       }
     ],
-    "note": "\u5404\u30B9\u30B3\u30A2\u8A18\u9332\u65E5\u306E\u8ABF\u6574\u5F8C\u7D42\u5024\u304B\u308921\u30FB63\u55B6\u696D\u65E5\u5F8C\u307E\u3067\u306E\u5B9F\u7E3E\u3067\u3059\u3002\u904E\u53BB\u5B9F\u7E3E\u3067\u3042\u308A\u3001\u5C06\u6765\u306E\u30EA\u30BF\u30FC\u30F3\u3084\u6295\u8CC7\u6210\u679C\u3092\u4FDD\u8A3C\u3059\u308B\u3082\u306E\u3067\u306F\u3042\u308A\u307E\u305B\u3093\u3002"
+    "note": "246\u4EF6\u4E2D245\u4EF6\u306F\u904E\u53BB\u30C7\u30FC\u30BF\u304B\u3089\u306E\u518D\u8A08\u7B97\u3067\u3059\u3002\u69CB\u6210\u9298\u67C4\u30EA\u30B9\u30C8\u304C\u73FE\u6642\u70B9\u306E\u3082\u306E\u306A\u306E\u3067\u751F\u5B58\u8005\u30D0\u30A4\u30A2\u30B9\u304C\u4E57\u308A\u3001\u30D6\u30EC\u30C3\u30C9\u30B9\u7CFB\u306F\u5B9F\u969B\u3088\u308A\u826F\u304F\u51FA\u307E\u3059\u3002\u307E\u305F\u65E5\u6B21\u89B3\u6E2C\u306F\u671F\u9593\u304C\u91CD\u306A\u308B\u305F\u3081\u72EC\u7ACB\u3067\u306F\u306A\u304F\u30011\u304B\u6708\u5148\u306E\u5B9F\u8CEA\u7684\u306A\u72EC\u7ACB\u6A19\u672C\u6570\u306F\u6982\u306D\u300C\u4EF6\u6570\u00F721\u300D\u306B\u3068\u3069\u307E\u308A\u307E\u3059\u3002\u95BE\u5024\u306E\u6700\u9069\u5316\u306B\u306F\u4F7F\u308F\u305A\u3001\u50BE\u5411\u306E\u78BA\u8A8D\u306B\u3068\u3069\u3081\u3066\u304F\u3060\u3055\u3044\u3002"
   }
 }
