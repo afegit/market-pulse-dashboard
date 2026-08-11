@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-08-11 07:32:02",
+  "lastUpdated": "2026-08-11 09:02:17",
   "marketDataAsOf": "2026-08-10",
   "combinedStatus": "Pressure",
   "combinedDrivenBy": "SPY\u3068QQQ\u306F\u540C\u3058\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9",
@@ -1062,9 +1062,9 @@
   "putCallRatio": {
     "status": "ok",
     "underlying": "SPY",
-    "callVolume": 3780957,
-    "putVolume": 3895788,
-    "ratio": 1.030,
+    "callVolume": 792818,
+    "putVolume": 815544,
+    "ratio": 1.029,
     "sma10": null,
     "percentileRank": null,
     "historyDays": 8,
@@ -1222,17 +1222,17 @@
     "expectedConstituents": 101,
     "analyzedConstituents": 100,
     "coveragePct": 99.0,
-    "aboveSma50Pct": 61.0,
+    "aboveSma50Pct": 62.0,
     "aboveSma200Pct": 67.0,
-    "newHighs52Week": 6,
+    "newHighs52Week": 7,
     "newLows52Week": 0,
-    "advances": 50,
-    "declines": 49,
-    "advanceDeclineNet": 1,
-    "adLineChange20d": 10,
-    "avgPairwiseCorrelation": 0.075,
+    "advances": 51,
+    "declines": 48,
+    "advanceDeclineNet": 3,
+    "adLineChange20d": 9,
+    "avgPairwiseCorrelation": 0.073,
     "accumulationPct": 55.0,
-    "stealthDistributionPct": 31.1,
+    "stealthDistributionPct": 30.6,
     "advanceRatioSma10": 0.551,
     "breadthThrustDetected": false
   },
@@ -1276,7 +1276,7 @@
         "name": "50\u65E5\u7DDA\u4E0A\u6BD4\u7387",
         "score": 0,
         "maxPoints": 6,
-        "detail": "61.0%"
+        "detail": "62.0%"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
@@ -1290,14 +1290,14 @@
         "name": "52\u9031\u65B0\u9AD8\u5024\u30FB\u65B0\u5B89\u5024",
         "score": 0,
         "maxPoints": 4,
-        "detail": "\u65B0\u9AD8\u5024 6 / \u65B0\u5B89\u5024 0"
+        "detail": "\u65B0\u9AD8\u5024 7 / \u65B0\u5B89\u5024 0"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
         "name": "20\u65E5A/D\u30E9\u30A4\u30F3",
         "score": 0,
         "maxPoints": 3,
-        "detail": "20\u65E5\u5909\u5316 \u002B10"
+        "detail": "20\u65E5\u5909\u5316 \u002B9"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
@@ -1318,14 +1318,14 @@
         "name": "\u30B9\u30C6\u30EB\u30B9\u914D\u5206",
         "score": 2.5,
         "maxPoints": 4,
-        "detail": "31.1%\uFF0850\u65E5\u7DDA\u4E0A\u3060\u304C\u58F2\u308A\u512A\u52E2\uFF09"
+        "detail": "30.6%\uFF0850\u65E5\u7DDA\u4E0A\u3060\u304C\u58F2\u308A\u512A\u52E2\uFF09"
       },
       {
         "group": "\u5E02\u5834\u69CB\u9020",
         "name": "\u9298\u67C4\u9593\u76F8\u95A2",
         "score": 0,
         "maxPoints": 7,
-        "detail": "\u5E73\u5747\u30DA\u30A2\u76F8\u95A2 0.075\uFF0821\u65E5\uFF09"
+        "detail": "\u5E73\u5747\u30DA\u30A2\u76F8\u95A2 0.073\uFF0821\u65E5\uFF09"
       },
       {
         "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
@@ -1396,14 +1396,14 @@
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
         "name": "50\u65E5\u7DDA\u4E0A\u6BD4\u7387",
         "changeInRiskPoints": -2.0,
-        "currentDetail": "61.0%",
+        "currentDetail": "62.0%",
         "previousDetail": "56.4%"
       },
       {
         "group": "\u6A5F\u95A2\u9700\u7D66",
         "name": "\u30B9\u30C6\u30EB\u30B9\u914D\u5206",
         "changeInRiskPoints": 1.7,
-        "currentDetail": "31.1%\uFF0850\u65E5\u7DDA\u4E0A\u3060\u304C\u58F2\u308A\u512A\u52E2\uFF09",
+        "currentDetail": "30.6%\uFF0850\u65E5\u7DDA\u4E0A\u3060\u304C\u58F2\u308A\u512A\u52E2\uFF09",
         "previousDetail": "19.3%\uFF0850\u65E5\u7DDA\u4E0A\u3060\u304C\u58F2\u308A\u512A\u52E2\uFF09"
       },
       {
