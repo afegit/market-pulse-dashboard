@@ -142,9 +142,21 @@ function replaceDataGrid(id, items) {
 }
 
 function chart(canvasId, config) {
+  const canvas = byId(canvasId);
+  if (!canvas) return;
   const old = charts.get(canvasId);
   if (old) old.destroy();
-  const instance = new Chart(byId(canvasId), config);
+  charts.delete(canvasId);
+  if (typeof window.Chart !== 'function') {
+    canvas.hidden = true;
+    const host = canvas.parentElement;
+    if (host && !host.querySelector('.chart-unavailable')) host.append(createNode('p', 'chart-unavailable', 'チャートを読み込めません。数値表は引き続き利用できます。'));
+    return;
+  }
+  const fallback = canvas.parentElement?.querySelector('.chart-unavailable');
+  if (fallback) fallback.remove();
+  canvas.hidden = false;
+  const instance = new window.Chart(canvas, config);
   charts.set(canvasId, instance);
 }
 
@@ -214,6 +226,12 @@ function renderRiskChange(change) {
   const summary = byId('risk-change-summary');
   const factors = byId('risk-change-factors');
   byId('risk-change-note').textContent = change?.note || '前回分の採点内訳がそろうと、変動理由を表示します。';
+  if (change?.status === 'coverage_changed') {
+    setPill('risk-change-status', '比較保留', 'warn');
+    summary.replaceChildren(createNode('span', '', '採点カバレッジが変わったため、前回との点数差は比較保留です。'));
+    factors.replaceChildren();
+    return;
+  }
   if (!change || change.status !== 'ok' || change.previousScore == null || change.scoreChange == null) {
     setPill('risk-change-status', '蓄積中', 'muted');
     summary.replaceChildren(createNode('span', '', '前回との比較は、次回以降の更新から表示されます。'));
@@ -255,10 +273,11 @@ function renderScoreValidation(validation) {
   const isPreliminary = validation?.status === 'preliminary';
   const isCollecting = validation?.status === 'collecting';
   setPill('score-validation-status', isPreliminary ? '暫定集計' : isCollecting ? '蓄積中' : '未計算', isPreliminary ? 'warn' : 'muted');
-  const backfilled = Number(validation?.backfilledCount || 0);
+  const excludedBackfilled = Number(validation?.excludedBackfilledCount ?? validation?.backfilledCount ?? 0);
+  const incompatibleLive = Number(validation?.incompatibleLiveCount || 0);
   const observations = Number(validation?.observationCount || 0);
   replaceDataGrid('score-validation-summary', [
-    { label: 'スコア記録', value: `${observations}件`, sub: backfilled > 0 ? `うち${backfilled}件は過去データからの再計算` : '同じ市場基準日は重複集計しません' },
+    { label: '比較可能なライブ記録', value: `${observations}件`, sub: `除外: バックフィル ${excludedBackfilled}件${incompatibleLive ? ` / 異なる採点条件 ${incompatibleLive}件` : ''}` },
     { label: '1か月後の確定実績', value: `${validation?.oneMonthMaturedCount || 0}件`, sub: `目安: ${validation?.recommendedMinSamples || 10}件以上` },
     { label: '3か月後の確定実績', value: `${validation?.threeMonthMaturedCount || 0}件`, sub: '63営業日経過後に確定' }
   ]);
@@ -364,7 +383,8 @@ function renderVolatility(block) {
 function renderCredit(block) {
   if (!isAvailable(block)) { setPill('credit-status', '取得不可', 'muted'); replaceDataGrid('credit-data', [{ label: '信用リスク', value: '取得不可', sub: block?.note || '—' }]); return; }
   const spreadTone = Number(block.spread3m) < 0 ? 'risk' : 'good';
-  setPill('credit-status', Number(block.spread3m) < 0 ? '慎重' : '安定', spreadTone);
+  const partial = block.status === 'partial';
+  setPill('credit-status', partial ? 'OAS未取得' : Number(block.spread3m) < 0 ? '慎重' : '安定', partial ? 'warn' : spreadTone);
   replaceDataGrid('credit-data', [
     { label: 'HYG 3か月', value: pct(block.hygReturn3m), sub: 'ハイイールド債' },
     { label: 'LQD 3か月', value: pct(block.lqdReturn3m), sub: '投資適格債' },
@@ -418,7 +438,8 @@ function renderSector(block) {
   const table = byId('sector-table');
   const proxy = byId('proxy-metrics');
   if (!isAvailable(block) || !Array.isArray(block.sectors)) { setPill('sector-status', '取得不可', 'muted'); table.replaceChildren(); proxy.replaceChildren(createNode('div', 'empty', block?.note || 'セクターデータを取得できませんでした。')); return; }
-  setPill('sector-status', '稼働中', 'good');
+  const partial = block.status === 'partial';
+  setPill('sector-status', partial ? '一部欠損' : '稼働中', partial ? 'warn' : 'good');
   const fragment = document.createDocumentFragment();
   block.sectors.forEach(item => {
     const row = document.createElement('tr');
@@ -431,6 +452,9 @@ function renderSector(block) {
   const proxies = block.breadthProxies || [];
   replaceMetrics('proxy-metrics', proxies.map(item => [`${item.name} (${item.symbol})`, `${signedPct(item.relStrength3m)} 対SPY`, Number(item.relStrength3m) >= 0 ? 'good' : 'warn']));
   byId('sector-note').textContent = `SPY: 1か月 ${pct(block.spyReturn1m)} / 3か月 ${pct(block.spyReturn3m)}。上位セクターは候補探しの出発点で、買い推奨ではありません。`;
+  if (block.expectedSectors && block.analyzedSectors) {
+    byId('sector-note').textContent += ` · セクター取得 ${block.analyzedSectors}/${block.expectedSectors} (${number(block.coveragePct, 1)}%)`;
+  }
 }
 
 function renderPutCall(block) {
@@ -464,8 +488,24 @@ function renderHealth(data) {
 
 function renderHistory(history) {
   if (!Array.isArray(history) || history.length === 0) return;
-  const scores = history.filter(item => Number.isFinite(Number(item.marketRiskScore)) && item.marketRiskScore != null);
-  if (scores.length) chart('chart-history', { type: 'line', data: { labels: scores.map(item => item.date), datasets: [{ label: '市場リスクスコア', data: scores.map(item => item.marketRiskScore), borderColor: '#a990ff', backgroundColor: 'rgba(169,144,255,.12)', tension: .18, fill: true, borderWidth: 2, pointRadius: scores.length === 1 ? 4 : 2, pointHoverRadius: 5 }] }, options: chartOptions({ scales: { x: { grid: { display: false }, ticks: { color: '#657791', maxTicksLimit: 7, font: { size: 12 } } }, y: { min: 0, max: 100, grid: { color: 'rgba(158,185,220,.10)' }, ticks: { color: '#657791', font: { size: 12 }, callback: value => `${value}点` } } } }) });
+  const scores = history
+    .filter(item => Number.isFinite(Number(item.marketRiskScore)) && item.marketRiskScore != null)
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const latestLive = scores.filter(item => item.source === 'live' && item.marketRiskSchema).at(-1);
+  const currentSchema = latestLive?.marketRiskSchema || null;
+  if (scores.length) {
+    const comparable = item => currentSchema && item.marketRiskSchema === currentSchema;
+    const comparableCount = scores.filter(comparable).length;
+    const datasets = [];
+    if (comparableCount) {
+      datasets.push({ label: '現行採点条件のスコア', data: scores.map(item => comparable(item) ? item.marketRiskScore : null), borderColor: '#a990ff', backgroundColor: 'rgba(169,144,255,.12)', tension: .18, fill: true, spanGaps: false, borderWidth: 2, pointRadius: comparableCount === 1 ? 4 : 2, pointHoverRadius: 5 });
+    }
+    const excludedCount = scores.length - comparableCount;
+    if (excludedCount) {
+      datasets.push({ label: '異なる採点条件（比較対象外）', data: scores.map(item => comparable(item) ? null : item.marketRiskScore), borderColor: '#657791', backgroundColor: '#657791', showLine: false, pointRadius: 3, pointHoverRadius: 5 });
+    }
+    chart('chart-history', { type: 'line', data: { labels: scores.map(item => item.date), datasets }, options: chartOptions({ scales: { x: { grid: { display: false }, ticks: { color: '#657791', maxTicksLimit: 7, font: { size: 12 } } }, y: { min: 0, max: 100, grid: { color: 'rgba(158,185,220,.10)' }, ticks: { color: '#657791', font: { size: 12 }, callback: value => `${value}点` } } } }) });
+  }
   const pc = history.filter(item => item.putCallRatio != null);
   if (pc.length) chart('chart-putcall', { type: 'line', data: { labels: pc.map(item => item.date), datasets: [{ data: pc.map(item => item.putCallRatio), borderColor: '#a990ff', backgroundColor: 'rgba(169,144,255,.10)', fill: true, tension: .18, borderWidth: 2, pointRadius: 0 }] }, options: chartOptions() });
 }
@@ -483,6 +523,54 @@ function jstToday() {
   return new Date(Date.UTC(get('year'), get('month') - 1, get('day')));
 }
 
+const dateKey = date => date.toISOString().slice(0, 10);
+const utcDate = (year, month, day) => new Date(Date.UTC(year, month, day));
+
+function nthWeekdayOfMonth(year, month, weekday, occurrence) {
+  const first = utcDate(year, month, 1);
+  return utcDate(year, month, 1 + (weekday - first.getUTCDay() + 7) % 7 + 7 * (occurrence - 1));
+}
+
+function lastWeekdayOfMonth(year, month, weekday) {
+  const last = utcDate(year, month + 1, 0);
+  return utcDate(year, month + 1, -((last.getUTCDay() - weekday + 7) % 7));
+}
+
+function observedFixedHoliday(year, month, day) {
+  const date = utcDate(year, month, day);
+  if (date.getUTCDay() === 6) date.setUTCDate(date.getUTCDate() - 1);
+  if (date.getUTCDay() === 0) date.setUTCDate(date.getUTCDate() + 1);
+  return date;
+}
+
+function nyseNewYearsDay(year) {
+  const date = utcDate(year, 0, 1);
+  if (date.getUTCDay() === 0) date.setUTCDate(2);
+  return date; // Saturday is not observed by NYSE (for example, 2028-01-01).
+}
+
+function easterSunday(year) {
+  const a = year % 19; const b = Math.floor(year / 100); const c = year % 100;
+  const d = Math.floor(b / 4); const e = b % 4; const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3); const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4); const k = c % 4; const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  return utcDate(year, Math.floor((h + l - 7 * m + 114) / 31) - 1, (h + l - 7 * m + 114) % 31 + 1);
+}
+
+function isNyseHoliday(date) {
+  const years = [date.getUTCFullYear() - 1, date.getUTCFullYear(), date.getUTCFullYear() + 1];
+  return years.some(year => {
+    const easter = easterSunday(year); const goodFriday = new Date(easter); goodFriday.setUTCDate(easter.getUTCDate() - 2);
+    const holidays = [
+      nyseNewYearsDay(year), nthWeekdayOfMonth(year, 0, 1, 3), nthWeekdayOfMonth(year, 1, 1, 3), goodFriday,
+      lastWeekdayOfMonth(year, 4, 1), observedFixedHoliday(year, 5, 19), observedFixedHoliday(year, 6, 4),
+      nthWeekdayOfMonth(year, 8, 1, 1), nthWeekdayOfMonth(year, 10, 4, 4), observedFixedHoliday(year, 11, 25)
+    ];
+    return holidays.some(holiday => dateKey(holiday) === dateKey(date));
+  });
+}
+
 function completedWeekdaysSince(value) {
   const start = jstCalendarDate(value);
   const today = jstToday();
@@ -493,17 +581,19 @@ function completedWeekdaysSince(value) {
   // 当日はまだ米国市場の終値が確定していない可能性があるため数えない。
   while (cursor < today) {
     const day = cursor.getUTCDay();
-    if (day !== 0 && day !== 6) count += 1;
+    if (day !== 0 && day !== 6 && !isNyseHoliday(cursor)) count += 1;
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
   return count;
 }
 
-function showStaleWarning(lastUpdated) {
+function showStaleWarning(lastUpdated, marketDataAsOf) {
   // 市場基準日ではなく、生成時刻で更新停止を判定する。
   // 金曜終値を月曜の日本時間に表示するような週末またぎを、古いデータとして誤判定しないため。
-  const elapsedBusinessDays = completedWeekdaysSince(lastUpdated);
-  const stale = elapsedBusinessDays == null || elapsedBusinessDays >= 3;
+  const generatedAge = completedWeekdaysSince(lastUpdated);
+  const marketAge = completedWeekdaysSince(marketDataAsOf);
+  const elapsedBusinessDays = generatedAge == null || marketAge == null ? null : Math.max(generatedAge, marketAge);
+  const stale = elapsedBusinessDays == null || elapsedBusinessDays >= 1;
   const banner = byId('stale-banner');
   banner.style.display = stale ? 'block' : 'none';
   if (stale) banner.textContent = elapsedBusinessDays == null
@@ -585,7 +675,7 @@ async function loadDashboard() {
     const sourceAsOf = data.marketDataAsOf || data.sp500?.dataAsOf;
     const generatedAt = data.lastUpdated || '—';
     byId('update-time').textContent = sourceAsOf ? `${sourceAsOf} 時点 · 更新 ${generatedAt} JST` : `更新 ${generatedAt} JST`;
-    showStaleWarning(data.lastUpdated);
+    showStaleWarning(data.lastUpdated, sourceAsOf);
     renderOverview(data); renderRiskScore(data.marketRiskScore); renderRiskChange(data.marketRiskChange); renderHealth(data);
     renderIndex('spy', data.sp500); renderIndex('qqq', data.nasdaq);
     renderBreadth(data.marketBreadth); renderVolatility(data.volatilityRegime); renderCredit(data.creditRiskAppetite);

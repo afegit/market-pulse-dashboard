@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -64,6 +65,8 @@ class Program
     // 11本のセクター表を睨まなくても、資金が守りに回ったかを1つの差分で読む。
     static readonly string[] DEFENSIVE_SECTORS = { "XLP", "XLU", "XLV" };
     static readonly string[] CYCLICAL_SECTORS = { "XLY", "XLK", "XLI" };
+    const decimal SECTOR_MIN_COVERAGE_PCT = 80m;
+    const int SECTOR_MIN_GROUP_MEMBERS = 2;
 
     // ===== 市場リスクスコアの事後検証 =====
     // スコアが記録された21/63営業日後の実績を確定値として保存する。
@@ -107,6 +110,7 @@ class Program
     // 年次リバランスなどで構成が変わるため、nasdaq100-universe.txt を更新する運用にする。
     const string NASDAQ100_UNIVERSE_FILE = "nasdaq100-universe.txt";
     const int BREADTH_MIN_COVERAGE = 80;
+    const int MAX_NASDAQ100_UNIVERSE_AGE_CALENDAR_DAYS = 180;
     // 出来高加重のアキュムレーション/ディストリビューション判定に使う期間（IBDのA/D Rating相当）。
     const int AD_VOLUME_WINDOW = 50;
     // 銘柄間の平均ペア相関（ディスパージョン）の観測期間。
@@ -124,11 +128,18 @@ class Program
     const decimal MARKET_RISK_TOTAL_POINTS = 100m;
     const int MAX_YAHOO_RESPONSE_BYTES = 5 * 1024 * 1024;
     const int MAX_FRED_RESPONSE_BYTES = 2 * 1024 * 1024;
-    const int MAX_MARKET_DATA_AGE_CALENDAR_DAYS = 5;
+    // Do not publish a dashboard from a quote feed that is more than one normal weekend behind.
+    const int MAX_MARKET_DATA_AGE_CALENDAR_DAYS = 3;
     const int MAX_AUXILIARY_DATA_AGE_CALENDAR_DAYS = 7;
+    const int OPTIONAL_YAHOO_MAX_ATTEMPTS = 1;
+    const int OPTIONAL_YAHOO_CONCURRENCY = 5;
+    const int BREADTH_YAHOO_CONCURRENCY = 8;
+    const int PUT_CALL_MAX_ATTEMPTS = 2;
+    const int FRED_MAX_ATTEMPTS = 2;
 
     static readonly TimeSpan JstOffset = TimeSpan.FromHours(9);
     static readonly Regex YahooSymbolPattern = new("^[A-Za-z0-9.^-]{1,20}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    static readonly Regex UniverseAsOfPattern = new("^#\\s*Source:.*?(\\d{4}-\\d{2}-\\d{2})", RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     static readonly HashSet<string> AllowedYahooRanges = new(StringComparer.Ordinal) { "2y", "1y", "6mo" };
 
     // ===== 過去スコアのバックフィル =====
@@ -147,7 +158,7 @@ class Program
     const int BACKFILL_MIN_HISTORY_BARS = 252;
     const int BACKFILL_MAX_DAYS = 260;
     // 現在の配点体系の版。配点を変更したら必ず上げる。異なる版のスコアは同じ箱で集計しない。
-    const int RUBRIC_VERSION = 2;
+    const int RUBRIC_VERSION = 3;
     // 変動理由の表示に使うのは直近数件だけなので、それ以外は採点内訳を捨ててファイルサイズを抑える。
     const int HISTORY_METRICS_RETAINED = 5;
     const int HISTORY_MAX_ENTRIES = 400;
@@ -165,6 +176,7 @@ class Program
     // 静的フィールド初期化子で例外を投げるとMainのtry/catchより先にTypeInitializationExceptionになり、
     // 原因が分からないスタックトレースだけが出る。遅延評価にしてMain内で捕捉できるようにする。
     static readonly Lazy<string> LazyOutputDirectory = new(ResolveOutputDirectory);
+    static readonly Lazy<string> MarketRiskImplementationId = new(CreateMarketRiskImplementationId);
     static string OutputDirectory => LazyOutputDirectory.Value;
 
     static HttpClient CreateHttpClient(TimeSpan timeout)
@@ -206,6 +218,22 @@ class Program
         throw new FileNotFoundException($"必要なコンテンツファイルが見つかりません: {fileName}");
     }
 
+    static string CreateMarketRiskImplementationId()
+    {
+        // Program.cs全体のハッシュを含めることで、採点ロジックや閾値の変更を見落として
+        // 過去のライブ記録と混在させることを防ぐ。コメントだけの変更でも比較を保留する安全側の設計。
+        try
+        {
+            byte[] source = File.ReadAllBytes(ResolveContentPath("Program.cs"));
+            return Convert.ToHexString(SHA256.HashData(source))[..16];
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[RiskSchema] source hash unavailable; assembly id is used: {ex.Message}");
+            return typeof(Program).Assembly.ManifestModule.ModuleVersionId.ToString("N")[..16];
+        }
+    }
+
     static async Task<string> GetResponseTextWithLimitAsync(HttpClient client, string url, int maxBytes)
     {
         using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
@@ -236,8 +264,14 @@ class Program
         return Encoding.UTF8.GetString(buffer.ToArray()).TrimStart('\uFEFF');
     }
 
-    static async Task Main()
+    static async Task Main(string[] args)
     {
+        if (args.Any(arg => string.Equals(arg, "--self-test", StringComparison.OrdinalIgnoreCase)))
+        {
+            RunSelfTests();
+            return;
+        }
+
         try
         {
             Console.WriteLine("Fetching index data from Yahoo Finance...");
@@ -245,11 +279,10 @@ class Program
             // 売り抜け日/FTDは出来高が必要なため、指数ではなく実際に売買できる流動性の高いETFを使用する。
             // 判定価格には調整後終値を使い、分配金による相対リターンの歪みを避ける。
             // 過去日のスコアを再計算するため、必要な履歴の長さ（52週高値・200日線）を確保できる期間を取得する。
-            var bundle = new MarketDataBundle
-            {
-                Sp500 = await FetchYahooDataWithRetry("SPY", BACKFILL_RANGE, requirePositiveVolume: true),
-                Nasdaq = await FetchYahooDataWithRetry("QQQ", BACKFILL_RANGE, requirePositiveVolume: true)
-            };
+            var indexFetches = await Task.WhenAll(
+                FetchYahooDataWithRetry("SPY", BACKFILL_RANGE, requirePositiveVolume: true),
+                FetchYahooDataWithRetry("QQQ", BACKFILL_RANGE, requirePositiveVolume: true));
+            var bundle = new MarketDataBundle { Sp500 = indexFetches[0], Nasdaq = indexFetches[1] };
             if (bundle.Sp500[^1].Date.Date != bundle.Nasdaq[^1].Date.Date)
                 throw new InvalidDataException($"SPYとQQQの基準日が一致しません（SPY: {bundle.Sp500[^1].Date:yyyy-MM-dd}, QQQ: {bundle.Nasdaq[^1].Date:yyyy-MM-dd}）。");
 
@@ -257,9 +290,13 @@ class Program
             var putCall = await FetchPutCallRatio();
 
             // 補助指標は取得だけ先に済ませ、計算は基準日ごとに行う（過去日の再計算に使い回すため）。
-            bundle.Sector = await FetchSectorRotationData();
-            bundle.Credit = await FetchCreditData();
-            bundle.Volatility = await FetchVolatilityData();
+            var sectorTask = FetchSectorRotationData();
+            var creditTask = FetchCreditData();
+            var volatilityTask = FetchVolatilityData();
+            await Task.WhenAll(sectorTask, creditTask, volatilityTask);
+            bundle.Sector = await sectorTask;
+            bundle.Credit = await creditTask;
+            bundle.Volatility = await volatilityTask;
             bundle.Breadth = await FetchBreadthData();
 
             DateTime latestDate = bundle.Sp500[^1].Date.Date;
@@ -349,15 +386,67 @@ class Program
 
     static void WriteTextAtomically(string path, string content)
     {
-        string tempPath = $"{path}.{Guid.NewGuid():N}.tmp";
+        IOException? lastIoException = null;
+        for (int attempt = 1; attempt <= 3; attempt++)
+        {
+            string tempPath = $"{path}.{Guid.NewGuid():N}.marketpulse-pending";
+            try
+            {
+                File.WriteAllText(tempPath, content);
+                if (!File.Exists(tempPath))
+                    throw new IOException($"Temporary file disappeared before replacement: {tempPath}");
+                if (File.Exists(path))
+                    File.Replace(tempPath, path, destinationBackupFileName: null, ignoreMetadataErrors: true);
+                else
+                    File.Move(tempPath, path);
+                return;
+            }
+            catch (IOException ex)
+            {
+                lastIoException = ex;
+                if (attempt < 3)
+                {
+                    Console.WriteLine($"[FileWrite] attempt {attempt}/3 failed; retrying: {ex.Message}");
+                    Thread.Sleep(TimeSpan.FromMilliseconds(200 * attempt));
+                }
+            }
+            finally
+            {
+                try
+                {
+                    if (File.Exists(tempPath)) File.Delete(tempPath);
+                }
+                catch (IOException ex) when (attempt < 3)
+                {
+                    lastIoException = ex;
+                }
+            }
+        }
+
+        // 一部の同期フォルダ/ウイルス対策環境では、同一ディレクトリ内の置換だけが失敗することがある。
+        // その場合も生成ジョブを無駄にしないよう、直前の内容を退避してから直接書き込む。
+        string backupPath = $"{path}.{Guid.NewGuid():N}.marketpulse-backup";
         try
         {
-            File.WriteAllText(tempPath, content);
-            File.Move(tempPath, path, overwrite: true);
+            if (File.Exists(path)) File.Copy(path, backupPath, overwrite: true);
+            File.WriteAllText(path, content);
+            Console.WriteLine($"[FileWrite] atomic replacement failed three times; used guarded direct write: {lastIoException?.Message}");
+        }
+        catch (Exception fallbackException)
+        {
+            try
+            {
+                if (File.Exists(backupPath)) File.Copy(backupPath, path, overwrite: true);
+            }
+            catch (Exception restoreException)
+            {
+                throw new IOException($"Failed to write {path}; restoring the previous file also failed: {restoreException.Message}", fallbackException);
+            }
+            throw new IOException($"Failed to write {path} after atomic replacement retries.", fallbackException);
         }
         finally
         {
-            if (File.Exists(tempPath)) File.Delete(tempPath);
+            if (File.Exists(backupPath)) File.Delete(backupPath);
         }
     }
 
@@ -443,10 +532,10 @@ class Program
         return ordered;
     }
 
-    // 調整後終値を必要とするため、chartエンドポイントを最大5並列で取得する。
+    // 補助指標は短時間で部分欠損へ縮退させ、更新ジョブ全体を止めない。
     static async Task<Dictionary<string, List<DailyData>>> FetchYahooBreadthData(IEnumerable<string> symbols)
     {
-        using var gate = new SemaphoreSlim(5);
+        using var gate = new SemaphoreSlim(BREADTH_YAHOO_CONCURRENCY);
         var uniqueSymbols = symbols.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         var tasks = uniqueSymbols.Select(async symbol =>
         {
@@ -455,7 +544,7 @@ class Program
             {
                 // 過去日のブレッドスを再計算するため、指数と同じ期間を取得する。
                 // ここだけ短いと必要履歴（52週高値・200日線）を満たせず全銘柄が脱落する。
-                var data = await FetchYahooDataWithRetry(symbol, BACKFILL_RANGE);
+                var data = await FetchYahooDataWithRetry(symbol, BACKFILL_RANGE, maxAttempts: OPTIONAL_YAHOO_MAX_ATTEMPTS);
                 return (Symbol: symbol, Data: data);
             }
             catch (Exception ex)
@@ -525,7 +614,7 @@ class Program
         //   直近限月だけでもその日の出来高のかなりの部分を捉えられる実用上の近似として採用
         // ・失敗しても例外を外に投げず null を返す＝Stock Market Exposure機能を道連れにしない
         // ・Yahoo Finance側が近年Cookie/crumb認証を要求するようになっているため、先にcrumbを取得してから使う
-        for (int attempt = 1; attempt <= 3; attempt++)
+        for (int attempt = 1; attempt <= PUT_CALL_MAX_ATTEMPTS; attempt++)
         {
             try
             {
@@ -582,11 +671,11 @@ class Program
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[PutCallRatio] attempt {attempt}/3 failed (non-fatal): {ex.Message}");
-                if (attempt < 3) await Task.Delay(TimeSpan.FromSeconds(3 * attempt));
+                Console.WriteLine($"[PutCallRatio] attempt {attempt}/{PUT_CALL_MAX_ATTEMPTS} failed (non-fatal): {ex.Message}");
+                if (attempt < PUT_CALL_MAX_ATTEMPTS) await Task.Delay(TimeSpan.FromSeconds(3 * attempt));
             }
         }
-        Console.WriteLine("[PutCallRatio] 3回試行しましたが取得できませんでした。putCallRatioは省略されます。");
+        Console.WriteLine($"[PutCallRatio] {PUT_CALL_MAX_ATTEMPTS}回試行しましたが取得できませんでした。putCallRatioは省略されます。");
         return null;
     }
 
@@ -600,26 +689,31 @@ class Program
         {
             var sectors = new Dictionary<string, List<DailyData>>(StringComparer.OrdinalIgnoreCase);
             var proxies = new Dictionary<string, List<DailyData>>(StringComparer.OrdinalIgnoreCase);
+            using var gate = new SemaphoreSlim(OPTIONAL_YAHOO_CONCURRENCY);
 
             async Task FetchInto(Dictionary<string, List<DailyData>> target, string symbol, string label)
             {
+                await gate.WaitAsync();
                 try
                 {
-                    target[symbol] = await FetchYahooDataWithRetry(symbol, BACKFILL_RANGE);
+                    var data = await FetchYahooDataWithRetry(symbol, BACKFILL_RANGE, maxAttempts: OPTIONAL_YAHOO_MAX_ATTEMPTS);
+                    lock (target) target[symbol] = data;
                 }
                 catch (Exception ex)
                 {
                     // 1銘柄の失敗は他の銘柄の表示を止める理由にしない
                     Console.WriteLine($"[SectorRotation] {symbol} の取得に失敗（この銘柄のみスキップ）: {ex.Message}");
                 }
-                // Yahoo側への負荷を抑えるため、連続リクエストの間に軽くウェイトを入れる
-                await Task.Delay(300);
+                finally
+                {
+                    gate.Release();
+                }
             }
 
-            foreach (var (symbol, name) in SECTOR_ETFS) await FetchInto(sectors, symbol, name);
-            // 値幅代理指標（RSP: 均等加重、IWM: 小型株）。500銘柄の個別スキャンをせずに
-            // 「上昇が広いか一部の大型株に偏っているか」を近似する。
-            foreach (var (symbol, name) in BREADTH_PROXY_ETFS) await FetchInto(proxies, symbol, name);
+            var sectorTasks = SECTOR_ETFS.Select(item => FetchInto(sectors, item.Key, item.Value));
+            var proxyTasks = BREADTH_PROXY_ETFS.Select(item => FetchInto(proxies, item.Key, item.Value));
+            var spyTask = FetchYahooDataWithRetry("SPY", BACKFILL_RANGE, maxAttempts: OPTIONAL_YAHOO_MAX_ATTEMPTS);
+            await Task.WhenAll(sectorTasks.Concat(proxyTasks).Append(spyTask));
 
             if (sectors.Count == 0)
             {
@@ -629,7 +723,7 @@ class Program
 
             return new SectorRotationData
             {
-                SpyData = await FetchYahooDataWithRetry("SPY", BACKFILL_RANGE),
+                SpyData = await spyTask,
                 Sectors = sectors,
                 Proxies = proxies
             };
@@ -673,7 +767,8 @@ class Program
             var info = Build(symbol, name, raw);
             if (info != null) sectorList.Add(info);
         }
-        if (sectorList.Count == 0) return null;
+        int minSectorCoverage = (int)Math.Ceiling(SECTOR_ETFS.Count * SECTOR_MIN_COVERAGE_PCT / 100m);
+        if (sectorList.Count < minSectorCoverage) return null;
 
         var breadthList = new List<SectorInfo>();
         foreach (var (symbol, name) in BREADTH_PROXY_ETFS)
@@ -690,7 +785,7 @@ class Program
             var values = sectorList
                 .Where(sector => symbols.Contains(sector.Symbol, StringComparer.OrdinalIgnoreCase))
                 .Select(selector).ToList();
-            return values.Count == 0 ? null : Math.Round(values.Average(), 2);
+            return values.Count < SECTOR_MIN_GROUP_MEMBERS ? null : Math.Round(values.Average(), 2);
         }
 
         decimal? defensive1m = GroupAverage(DEFENSIVE_SECTORS, s => s.Return1m);
@@ -700,6 +795,9 @@ class Program
 
         return new SectorRotationResult
         {
+            ExpectedSectors = SECTOR_ETFS.Count,
+            AnalyzedSectors = sectorList.Count,
+            CoveragePct = Math.Round(sectorList.Count / (decimal)SECTOR_ETFS.Count * 100m, 1),
             SpyReturn1m = spyReturn1m,
             SpyReturn3m = spyReturn3m,
             DefensiveReturn1m = defensive1m,
@@ -741,9 +839,11 @@ class Program
         // どちらかが失敗したら全体をunavailable扱いにする
         try
         {
-            var hygData = await FetchYahooDataWithRetry(CREDIT_RISK_ON_SYMBOL, BACKFILL_RANGE);
-            await Task.Delay(300); // Yahoo側への負荷を抑える
-            var lqdData = await FetchYahooDataWithRetry(CREDIT_RISK_OFF_SYMBOL, BACKFILL_RANGE);
+            var creditEtfs = await Task.WhenAll(
+                FetchYahooDataWithRetry(CREDIT_RISK_ON_SYMBOL, BACKFILL_RANGE, maxAttempts: OPTIONAL_YAHOO_MAX_ATTEMPTS),
+                FetchYahooDataWithRetry(CREDIT_RISK_OFF_SYMBOL, BACKFILL_RANGE, maxAttempts: OPTIONAL_YAHOO_MAX_ATTEMPTS));
+            var hygData = creditEtfs[0];
+            var lqdData = creditEtfs[1];
 
             // FREDが一時的に取得不能でも、HYG/LQDの比較は表示を継続する。
             List<(DateTime Date, decimal Value)> hyOas = new();
@@ -818,7 +918,7 @@ class Program
 
         // FREDは一時的に応答が非常に遅くなることがある。1回のタイムアウトで恒久的に「未取得」にしない。
         string? csv = null;
-        for (int attempt = 1; attempt <= 3; attempt++)
+        for (int attempt = 1; attempt <= FRED_MAX_ATTEMPTS; attempt++)
         {
             try
             {
@@ -827,8 +927,8 @@ class Program
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[CreditRiskAppetite] FRED attempt {attempt}/3 failed: {ex.Message}");
-                if (attempt < 3) await Task.Delay(TimeSpan.FromSeconds(2 * attempt));
+                Console.WriteLine($"[CreditRiskAppetite] FRED attempt {attempt}/{FRED_MAX_ATTEMPTS} failed: {ex.Message}");
+                if (attempt < FRED_MAX_ATTEMPTS) await Task.Delay(TimeSpan.FromSeconds(2 * attempt));
             }
         }
         var observations = new List<(DateTime Date, decimal Value)>();
@@ -854,14 +954,14 @@ class Program
     {
         try
         {
-            var vixData = await FetchYahooDataWithRetry(VIX_SYMBOL, BACKFILL_RANGE);
+            var vixData = await FetchYahooDataWithRetry(VIX_SYMBOL, BACKFILL_RANGE, maxAttempts: OPTIONAL_YAHOO_MAX_ATTEMPTS);
 
             // ^VIX3Mの配信停止でボラティリティ判定そのものを失わないよう、失敗を致命的に扱わない。
             List<DailyData>? vix3mData = null;
             try
             {
                 await Task.Delay(250);
-                vix3mData = await FetchYahooDataWithRetry(VIX3M_SYMBOL, BACKFILL_RANGE, maxAttempts: 2);
+                vix3mData = await FetchYahooDataWithRetry(VIX3M_SYMBOL, BACKFILL_RANGE, maxAttempts: OPTIONAL_YAHOO_MAX_ATTEMPTS);
             }
             catch (Exception ex)
             {
@@ -956,6 +1056,7 @@ class Program
         try
         {
             string universePath = ResolveContentPath(NASDAQ100_UNIVERSE_FILE);
+            string universeAsOf = ReadUniverseAsOf(universePath);
 
             var symbols = File.ReadLines(universePath)
                 .Select(line => line.Trim())
@@ -966,6 +1067,7 @@ class Program
 
             return new BreadthData
             {
+                UniverseAsOf = universeAsOf,
                 ExpectedConstituents = symbols.Count,
                 Symbols = await FetchYahooBreadthData(symbols)
             };
@@ -975,6 +1077,27 @@ class Program
             Console.WriteLine($"[Breadth] fetch failed (non-fatal): {ex.Message}");
             return null;
         }
+    }
+
+    static string ReadUniverseAsOf(string universePath)
+    {
+        foreach (string line in File.ReadLines(universePath).Take(10))
+        {
+            Match match = UniverseAsOfPattern.Match(line);
+            if (!match.Success) continue;
+
+            if (!DateTime.TryParseExact(match.Groups[1].Value, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                    DateTimeStyles.None, out DateTime asOf))
+                break;
+
+            int ageDays = (int)(DateTime.UtcNow.Date - asOf.Date).TotalDays;
+            if (ageDays < 0 || ageDays > MAX_NASDAQ100_UNIVERSE_AGE_CALENDAR_DAYS)
+                throw new InvalidDataException($"Nasdaq-100 universe snapshot is {ageDays} days old; update {NASDAQ100_UNIVERSE_FILE} before publishing.");
+
+            return asOf.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        }
+
+        throw new InvalidDataException($"Could not find a valid 'data as of YYYY-MM-DD' source line in {NASDAQ100_UNIVERSE_FILE}.");
     }
 
     static MarketBreadthResult? ComputeBreadth(BreadthData source, DateTime referenceDate, bool verbose)
@@ -1118,7 +1241,7 @@ class Program
                 StealthDistributionPct = aboveSma50ForStealth == 0 ? null : Math.Round((decimal)stealthDistributionCount / aboveSma50ForStealth * 100m, 1),
                 AdvanceRatioSma10 = advanceRatioSma10,
                 BreadthThrustDetected = breadthThrustDetected,
-                UniverseAsOf = "2026-05-01",
+                UniverseAsOf = source.UniverseAsOf,
                 ExpectedConstituents = symbolsCount,
                 AnalyzedConstituents = analyzed.Count,
                 CoveragePct = Math.Round((decimal)analyzed.Count / symbolsCount * 100m, 1),
@@ -1259,7 +1382,10 @@ class Program
             ? new SectorRotationOutput { Status = "unavailable", Note = "セクターデータを取得できませんでした。" }
             : new SectorRotationOutput
             {
-                Status = "ok",
+                Status = sector.AnalyzedSectors == sector.ExpectedSectors ? "ok" : "partial",
+                ExpectedSectors = sector.ExpectedSectors,
+                AnalyzedSectors = sector.AnalyzedSectors,
+                CoveragePct = sector.CoveragePct,
                 SpyReturn1m = sector.SpyReturn1m,
                 SpyReturn3m = sector.SpyReturn3m,
                 DefensiveReturn1m = sector.DefensiveReturn1m,
@@ -1276,7 +1402,7 @@ class Program
             ? new CreditRiskAppetiteOutput { Status = "unavailable", Note = "HYG/LQDデータを取得できませんでした。" }
             : new CreditRiskAppetiteOutput
             {
-                Status = "ok",
+                Status = credit.HyOasPct.HasValue && credit.HyOasChange1mBps.HasValue ? "ok" : "partial",
                 HygReturn1m = credit.HygReturn1m,
                 HygReturn3m = credit.HygReturn3m,
                 LqdReturn1m = credit.LqdReturn1m,
@@ -1383,6 +1509,7 @@ class Program
                 NasdaqDistDays = snapshot.Nasdaq.DistributionDaysActive,
                 MarketRiskScore = Math.Round(snapshot.RiskScore.Score, 1),
                 MarketRiskAvailableMaxPoints = Math.Round(snapshot.RiskScore.AvailableMaxPoints, 1),
+                MarketRiskSchema = snapshot.RiskScore.SchemaId,
                 SpyAdjustedClose = snapshot.Sp500.LatestAdjustedClose,
                 QqqAdjustedClose = snapshot.Nasdaq.LatestAdjustedClose
             });
@@ -1537,7 +1664,7 @@ class Program
             }
         }
 
-        if (credit.Status == "ok")
+        if (credit.Status is "ok" or "partial")
         {
             if (credit.Spread3m.HasValue)
             {
@@ -1559,10 +1686,11 @@ class Program
             }
         }
 
-        if (sector.Status == "ok" && sector.Sectors != null)
+        if (sector.Status is "ok" or "partial" && sector.Sectors != null)
         {
             int positiveSectors = sector.Sectors.Count(s => s.RelStrength3m > 0m);
-            decimal sectorRisk = positiveSectors >= 7 ? 0m : positiveSectors >= 5 ? 1.5m : positiveSectors >= 3 ? 2.5m : 4m;
+            decimal positivePct = positiveSectors / (decimal)sector.Sectors.Count * 100m;
+            decimal sectorRisk = positivePct >= 63.6m ? 0m : positivePct >= 45.4m ? 1.5m : positivePct >= 27.2m ? 2.5m : 4m;
             Add("セクター", "対SPYで優位なセクター数", sectorRisk, 4m,
                 $"{positiveSectors}/{sector.Sectors.Count}セクター");
 
@@ -1614,6 +1742,7 @@ class Program
             // 満点で割った本来のカバレッジ率にする。
             DataCoveragePct = Math.Round(Math.Min(100m, availableMax / MARKET_RISK_TOTAL_POINTS * 100m), 1),
             Label = label,
+            SchemaId = BuildMarketRiskSchemaId(metrics),
             Metrics = metrics
         };
     }
@@ -1625,6 +1754,12 @@ class Program
         < 60m => Math.Round(maxPoints * 0.3m, 1),
         _ => 0m
     };
+
+    static string BuildMarketRiskSchemaId(IEnumerable<MarketRiskMetric> metrics) =>
+        $"v{RUBRIC_VERSION}:{MarketRiskImplementationId.Value}|" + string.Join("|", metrics
+            .OrderBy(metric => metric.Group, StringComparer.Ordinal)
+            .ThenBy(metric => metric.Name, StringComparer.Ordinal)
+            .Select(metric => $"{metric.Group}\u001f{metric.Name}\u001f{metric.MaxPoints.ToString(CultureInfo.InvariantCulture)}"));
 
     // ================= 指数ごとの分析 =================
 
@@ -1957,6 +2092,7 @@ class Program
             ?? throw new InvalidDataException("当日の履歴が見つからないため、市場リスクスコアを保存できません。");
         todayEntry.MarketRiskScore = Math.Round(riskScore.Score, 1);
         todayEntry.MarketRiskAvailableMaxPoints = Math.Round(riskScore.AvailableMaxPoints, 1);
+        todayEntry.MarketRiskSchema = riskScore.SchemaId;
         todayEntry.MarketRiskMetrics = riskScore.Metrics.Select(CopyMarketRiskMetric).ToList();
     }
 
@@ -2046,6 +2182,20 @@ class Program
             };
         }
 
+        if (string.IsNullOrEmpty(current.MarketRiskSchema) || string.IsNullOrEmpty(previous.MarketRiskSchema) ||
+            !string.Equals(current.MarketRiskSchema, previous.MarketRiskSchema, StringComparison.Ordinal))
+        {
+            return new MarketRiskChange
+            {
+                Status = "coverage_changed",
+                PreviousDate = previous.Date,
+                PreviousScore = previous.MarketRiskScore,
+                ScoreChange = Math.Round(current.MarketRiskScore.Value - previous.MarketRiskScore.Value, 1),
+                CoverageChange = Math.Round(current.MarketRiskAvailableMaxPoints.Value - previous.MarketRiskAvailableMaxPoints.Value, 1),
+                Note = "採点に利用できた指標または配点が前回と異なるため、スコア差分の要因分解は保留しています。"
+            };
+        }
+
         var previousMetrics = previous.MarketRiskMetrics.ToDictionary(
             metric => $"{metric.Group}\u001f{metric.Name}", StringComparer.Ordinal);
         var factors = new List<MarketRiskChangeFactor>();
@@ -2109,7 +2259,7 @@ class Program
         };
     }
 
-    static ScoreValidationOutput BuildScoreValidation(List<HistoryEntry> history)
+    static ScoreValidationOutput BuildLegacyScoreValidation(List<HistoryEntry> history)
     {
         // 同じ市場基準日を複数回更新した場合は最後の記録だけを使い、休日・再実行による重複集計を防ぐ。
         // 配点体系が違うスコアは同じ箱に入れない（分母が変わると同じ点数でも意味が変わるため）。
@@ -2150,6 +2300,55 @@ class Program
             Note = backfilledCount == 0
                 ? "各スコア記録日の調整後終値から21・63営業日後までの実績です。過去実績であり、将来のリターンや投資成果を保証するものではありません。"
                 : $"{observations.Count}件中{backfilledCount}件は過去データからの再計算です。構成銘柄リストが現時点のものなので生存者バイアスが乗り、ブレッドス系は実際より良く出ます。また日次観測は期間が重なるため独立ではなく、1か月先の実質的な独立標本数は概ね「件数÷21」にとどまります。閾値の最適化には使わず、傾向の確認にとどめてください。"
+        };
+    }
+
+    static ScoreValidationOutput BuildScoreValidation(List<HistoryEntry> history)
+    {
+        // Backfills omit the historical put/call value and use today's constituent list, so they are
+        // useful for chart history only. Predictive validation is limited to comparable live records.
+        var liveCandidates = history
+            .Where(entry => string.Equals(entry.Source, "live", StringComparison.Ordinal) &&
+                entry.MarketRiskScore.HasValue && !string.IsNullOrEmpty(entry.MarketDataAsOf) &&
+                entry.SpyAdjustedClose.HasValue && entry.QqqAdjustedClose.HasValue &&
+                !string.IsNullOrEmpty(entry.MarketRiskSchema) && (entry.RubricVersion ?? 0) == RUBRIC_VERSION)
+            .GroupBy(entry => entry.MarketDataAsOf!, StringComparer.Ordinal)
+            .Select(group => group.OrderBy(entry => entry.Date, StringComparer.Ordinal).Last())
+            .OrderBy(entry => entry.MarketDataAsOf, StringComparer.Ordinal)
+            .ToList();
+
+        string? currentSchema = liveCandidates.LastOrDefault()?.MarketRiskSchema;
+        var observations = string.IsNullOrEmpty(currentSchema)
+            ? new List<HistoryEntry>()
+            : liveCandidates.Where(entry => string.Equals(entry.MarketRiskSchema, currentSchema, StringComparison.Ordinal)).ToList();
+        int excludedBackfilledCount = history.Count(entry => string.Equals(entry.Source, "backfill", StringComparison.Ordinal) &&
+            entry.MarketRiskScore.HasValue && (entry.RubricVersion ?? 0) == RUBRIC_VERSION);
+        int incompatibleLiveCount = liveCandidates.Count - observations.Count;
+
+        var bands = new[]
+        {
+            (Label: "0-20", Matches: new Func<decimal, bool>(score => score <= 20m)),
+            (Label: "21-40", Matches: new Func<decimal, bool>(score => score > 20m && score <= 40m)),
+            (Label: "41-60", Matches: new Func<decimal, bool>(score => score > 40m && score <= 60m)),
+            (Label: "61-80", Matches: new Func<decimal, bool>(score => score > 60m && score <= 80m)),
+            (Label: "81-100", Matches: new Func<decimal, bool>(score => score > 80m))
+        };
+        var bandResults = bands.Select(band => BuildScoreBandValidation(
+            band.Label, observations.Where(entry => band.Matches(entry.MarketRiskScore!.Value)).ToList())).ToList();
+        int oneMonthMatured = observations.Count(entry => entry.SpyReturn1m.HasValue && entry.QqqReturn1m.HasValue);
+        int threeMonthMatured = observations.Count(entry => entry.SpyReturn3m.HasValue && entry.QqqReturn3m.HasValue);
+
+        return new ScoreValidationOutput
+        {
+            Status = oneMonthMatured >= SCORE_VALIDATION_RECOMMENDED_MIN_SAMPLES ? "preliminary" : "collecting",
+            ObservationCount = observations.Count,
+            OneMonthMaturedCount = oneMonthMatured,
+            ThreeMonthMaturedCount = threeMonthMatured,
+            RecommendedMinSamples = SCORE_VALIDATION_RECOMMENDED_MIN_SAMPLES,
+            ExcludedBackfilledCount = excludedBackfilledCount,
+            IncompatibleLiveCount = incompatibleLiveCount,
+            Bands = bandResults,
+            Note = "精度検証は、同じ採点スキーマのライブ記録だけを対象にします。バックフィルはPut/Call欠損と構成銘柄の生存者バイアスがあるため、検証値から除外しています。"
         };
     }
 
@@ -2208,6 +2407,89 @@ class Program
     // ================= モデル =================
 
     // 分配金・株式分割を反映した終値と、実取引の出来高のみを保持する。
+    static void RunSelfTests()
+    {
+        int assertions = 0;
+        void Assert(bool condition, string message)
+        {
+            if (!condition) throw new InvalidOperationException($"Self-test failed: {message}");
+            assertions++;
+        }
+
+        var metricA = new MarketRiskMetric { Group = "test", Name = "metric", MaxPoints = 4m };
+        string schemaA = BuildMarketRiskSchemaId(new[] { metricA });
+        string schemaB = BuildMarketRiskSchemaId(new[] { new MarketRiskMetric { Group = "test", Name = "metric", MaxPoints = 5m } });
+        Assert(schemaA != schemaB, "score schema changes when available points change");
+        Assert(schemaA.StartsWith($"v{RUBRIC_VERSION}:{MarketRiskImplementationId.Value}|", StringComparison.Ordinal), "score schema contains the implementation hash");
+
+        int breadthSymbolCount = File.ReadLines(ResolveContentPath(NASDAQ100_UNIVERSE_FILE))
+            .Count(line => !string.IsNullOrWhiteSpace(line) && !line.TrimStart().StartsWith('#'));
+        int breadthWorstCaseSeconds = (int)Math.Ceiling(breadthSymbolCount / (decimal)BREADTH_YAHOO_CONCURRENCY) * 20;
+        int sectorWorstCaseSeconds = (int)Math.Ceiling((SECTOR_ETFS.Count + BREADTH_PROXY_ETFS.Count) / (decimal)OPTIONAL_YAHOO_CONCURRENCY) * 20;
+        Assert(breadthWorstCaseSeconds <= 300 && sectorWorstCaseSeconds <= 60, "optional Yahoo fetches remain within the workflow time budget");
+
+        string atomicProbe = Path.Combine(Directory.GetCurrentDirectory(), $".marketpulse-self-test-{Guid.NewGuid():N}.json");
+        try
+        {
+            WriteTextAtomically(atomicProbe, "first");
+            WriteTextAtomically(atomicProbe, "second");
+            Assert(File.ReadAllText(atomicProbe) == "second", "atomic replacement preserves the complete latest content");
+        }
+        finally
+        {
+            if (File.Exists(atomicProbe)) File.Delete(atomicProbe);
+        }
+
+        var validationHistory = new List<HistoryEntry>
+        {
+            TestHistoryEntry("2026-01-02", "live", schemaA),
+            TestHistoryEntry("2026-01-03", "backfill", schemaA),
+            TestHistoryEntry("2026-01-04", "live", schemaB),
+            TestHistoryEntry("2026-01-05", "live", schemaA)
+        };
+        ScoreValidationOutput validation = BuildScoreValidation(validationHistory);
+        Assert(validation.ObservationCount == 2, "validation only includes live entries using the current schema");
+        Assert(validation.ExcludedBackfilledCount == 1, "backfills are explicitly excluded from validation");
+        Assert(validation.IncompatibleLiveCount == 1, "live entries with another schema are excluded");
+
+        DateTime today = JstNow().Date;
+        var previous = TestHistoryEntry(today.AddDays(-1).ToString("yyyy-MM-dd"), "live", schemaA);
+        previous.MarketRiskMetrics = new List<MarketRiskMetric> { metricA };
+        var current = TestHistoryEntry(today.ToString("yyyy-MM-dd"), "live", schemaB);
+        current.MarketRiskMetrics = new List<MarketRiskMetric> { metricA };
+        MarketRiskChange change = BuildMarketRiskChange(new List<HistoryEntry> { previous, current });
+        Assert(change.Status == "coverage_changed", "score deltas are withheld when schemas differ");
+
+        var sectorSource = new SectorRotationData { SpyData = TestPriceSeries(100m) };
+        foreach (string symbol in SECTOR_ETFS.Keys.Take(8)) sectorSource.Sectors[symbol] = TestPriceSeries(110m);
+        Assert(ComputeSectorRotation(sectorSource, sectorSource.SpyData[^1].Date) == null, "sector score requires 80 percent coverage");
+        foreach (string symbol in SECTOR_ETFS.Keys.Skip(8).Take(1)) sectorSource.Sectors[symbol] = TestPriceSeries(110m);
+        SectorRotationResult? sector = ComputeSectorRotation(sectorSource, sectorSource.SpyData[^1].Date);
+        Assert(sector != null && sector.AnalyzedSectors == 9 && sector.ExpectedSectors == 11, "sector score accepts the documented minimum coverage");
+
+        Console.WriteLine($"Self-test passed ({assertions} assertions).");
+    }
+
+    static HistoryEntry TestHistoryEntry(string date, string source, string schema) => new()
+    {
+        Date = date,
+        MarketDataAsOf = date,
+        Source = source,
+        RubricVersion = RUBRIC_VERSION,
+        CombinedStatus = "Uptrend",
+        Sp500Status = "Uptrend",
+        NasdaqStatus = "Uptrend",
+        MarketRiskScore = 30m,
+        MarketRiskAvailableMaxPoints = 80m,
+        MarketRiskSchema = schema,
+        SpyAdjustedClose = 100m,
+        QqqAdjustedClose = 100m
+    };
+
+    static List<DailyData> TestPriceSeries(decimal firstClose) => Enumerable.Range(0, 70)
+        .Select(index => new DailyData(new DateTime(2025, 1, 1).AddDays(index), firstClose + index, 1_000_000L))
+        .ToList();
+
     record DailyData(DateTime Date, decimal AdjustedClose, long Volume);
 
     class IndexAnalysis
@@ -2272,6 +2554,7 @@ class Program
 
     class BreadthData
     {
+        public string UniverseAsOf { get; set; } = "";
         public int ExpectedConstituents { get; set; }
         public Dictionary<string, List<DailyData>> Symbols { get; set; } = new();
     }
@@ -2305,6 +2588,9 @@ class Program
 
     class SectorRotationResult
     {
+        public int ExpectedSectors { get; set; }
+        public int AnalyzedSectors { get; set; }
+        public decimal CoveragePct { get; set; }
         public decimal SpyReturn1m { get; set; }
         public decimal SpyReturn3m { get; set; }
         public decimal? DefensiveReturn1m { get; set; }
@@ -2319,6 +2605,9 @@ class Program
     class SectorRotationOutput
     {
         public string Status { get; set; } = ""; // ok / unavailable
+        public int? ExpectedSectors { get; set; }
+        public int? AnalyzedSectors { get; set; }
+        public decimal? CoveragePct { get; set; }
         public decimal? SpyReturn1m { get; set; }
         public decimal? SpyReturn3m { get; set; }
         public decimal? DefensiveReturn1m { get; set; }
@@ -2442,6 +2731,7 @@ class Program
         public decimal AvailableMaxPoints { get; set; }
         public decimal DataCoveragePct { get; set; }
         public string Label { get; set; } = "";
+        public string SchemaId { get; set; } = "";
         public List<MarketRiskMetric> Metrics { get; set; } = new();
     }
 
@@ -2464,6 +2754,7 @@ class Program
         public decimal? PutCallRatio { get; set; }
         public decimal? MarketRiskScore { get; set; }
         public decimal? MarketRiskAvailableMaxPoints { get; set; }
+        public string? MarketRiskSchema { get; set; }
         public List<MarketRiskMetric>? MarketRiskMetrics { get; set; }
         public decimal? SpyAdjustedClose { get; set; }
         public decimal? QqqAdjustedClose { get; set; }
@@ -2505,6 +2796,8 @@ class Program
         public int OneMonthMaturedCount { get; set; }
         public int ThreeMonthMaturedCount { get; set; }
         public int RecommendedMinSamples { get; set; }
+        public int ExcludedBackfilledCount { get; set; }
+        public int IncompatibleLiveCount { get; set; }
         // うち過去データからの再計算分。生存者バイアスとPut/Call欠測を含むため、実運用分と区別して示す。
         public int BackfilledCount { get; set; }
         public List<ScoreBandValidation> Bands { get; set; } = new();
