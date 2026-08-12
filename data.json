@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-08-12 08:32:33",
+  "lastUpdated": "2026-08-12 09:10:49",
   "marketDataAsOf": "2026-08-11",
   "combinedStatus": "Pressure",
   "combinedDrivenBy": "SPY\u3068QQQ\u306F\u540C\u3058\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9",
@@ -122,7 +122,7 @@
         "08-11"
       ],
       "prices": [
-        656.3121948242188,
+        656.3121337890625,
         646.9034423828125,
         653.6959228515625,
         651.5015869140625,
@@ -428,7 +428,7 @@
         null
       ],
       "distMarksExpired": [
-        656.3121948242188,
+        656.3121337890625,
         646.9034423828125,
         null,
         null,
@@ -1062,9 +1062,9 @@
   "putCallRatio": {
     "status": "ok",
     "underlying": "SPY",
-    "callVolume": 3750208,
-    "putVolume": 3865487,
-    "ratio": 1.031,
+    "callVolume": 582221,
+    "putVolume": 658360,
+    "ratio": 1.131,
     "sma10": null,
     "percentileRank": null,
     "historyDays": 2,
