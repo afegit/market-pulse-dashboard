@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-08-14 07:31:36",
+  "lastUpdated": "2026-08-14 13:31:47",
   "marketDataAsOf": "2026-08-13",
   "combinedStatus": "Uptrend",
   "combinedDrivenBy": "SPY\u3068QQQ\u306F\u540C\u3058\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9",
@@ -1062,9 +1062,9 @@
   "putCallRatio": {
     "status": "ok",
     "underlying": "SPY",
-    "callVolume": 4572930,
-    "putVolume": 3513907,
-    "ratio": 0.768,
+    "callVolume": 1050014,
+    "putVolume": 815939,
+    "ratio": 0.777,
     "sma10": null,
     "percentileRank": null,
     "historyDays": 4,
@@ -1078,9 +1078,9 @@
     "spyReturn1m": 3.06,
     "spyReturn3m": 5.06,
     "defensiveReturn1m": 2.26,
-    "cyclicalReturn1m": 2.81,
-    "rotationSpread1m": -0.55,
-    "rotationSpread3m": 0.40,
+    "cyclicalReturn1m": 3.16,
+    "rotationSpread1m": -0.90,
+    "rotationSpread3m": 0.49,
     "sectors": [
       {
         "symbol": "XLV",
@@ -1109,10 +1109,10 @@
       {
         "symbol": "XLI",
         "name": "\u8CC7\u672C\u8CA1",
-        "return1m": 2.13,
-        "return3m": 7.53,
-        "relStrength1m": -0.93,
-        "relStrength3m": 2.47
+        "return1m": 3.18,
+        "return3m": 7.27,
+        "relStrength1m": 0.12,
+        "relStrength3m": 2.21
       },
       {
         "symbol": "XLE",
@@ -1141,10 +1141,10 @@
       {
         "symbol": "XLB",
         "name": "\u7D20\u6750",
-        "return1m": 3.58,
-        "return3m": 0.86,
-        "relStrength1m": 0.52,
-        "relStrength3m": -4.20
+        "return1m": 3.42,
+        "return3m": 0.47,
+        "relStrength1m": 0.36,
+        "relStrength3m": -4.59
       },
       {
         "symbol": "XLY",
@@ -1175,10 +1175,10 @@
       {
         "symbol": "RSP",
         "name": "S\u0026P500\u5747\u7B49\u52A0\u91CD",
-        "return1m": 3.97,
-        "return3m": 9.61,
-        "relStrength1m": 0.91,
-        "relStrength3m": 4.55
+        "return1m": 4.58,
+        "return3m": 10.19,
+        "relStrength1m": 1.52,
+        "relStrength3m": 5.13
       },
       {
         "symbol": "IWM",
@@ -1207,7 +1207,7 @@
   "volatilityRegime": {
     "status": "partial",
     "vix": 14.630000114440918,
-    "vixSma20": 16.86,
+    "vixSma20": 16.82,
     "vix3m": null,
     "realizedVolShortPct": 11.26,
     "realizedVolLongPct": 13.99,
@@ -1225,18 +1225,18 @@
     "expectedConstituents": 101,
     "analyzedConstituents": 100,
     "coveragePct": 99.0,
-    "aboveSma50Pct": 64.0,
+    "aboveSma50Pct": 63.0,
     "aboveSma200Pct": 70.0,
     "newHighs52Week": 6,
     "newLows52Week": 0,
     "advances": 72,
     "declines": 27,
     "advanceDeclineNet": 45,
-    "adLineChange20d": 53,
-    "avgPairwiseCorrelation": 0.064,
-    "accumulationPct": 51.0,
-    "stealthDistributionPct": 35.9,
-    "advanceRatioSma10": 0.573,
+    "adLineChange20d": 50,
+    "avgPairwiseCorrelation": 0.066,
+    "accumulationPct": 52.0,
+    "stealthDistributionPct": 34.9,
+    "advanceRatioSma10": 0.575,
     "breadthThrustDetected": false
   },
   "marketRiskScore": {
@@ -1280,7 +1280,7 @@
         "name": "50\u65E5\u7DDA\u4E0A\u6BD4\u7387",
         "score": 0,
         "maxPoints": 6,
-        "detail": "64.0%"
+        "detail": "63.0%"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
@@ -1301,42 +1301,42 @@
         "name": "20\u65E5A/D\u30E9\u30A4\u30F3",
         "score": 0,
         "maxPoints": 3,
-        "detail": "20\u65E5\u5909\u5316 \u002B53"
+        "detail": "20\u65E5\u5909\u5316 \u002B50"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
         "name": "10\u65E5\u9A30\u843D\u30EC\u30B7\u30AA",
         "score": 0,
         "maxPoints": 3,
-        "detail": "0.573"
+        "detail": "0.575"
       },
       {
         "group": "\u6A5F\u95A2\u9700\u7D66",
         "name": "\u30A2\u30AD\u30E5\u30E0\u30EC\u30FC\u30B7\u30E7\u30F3\u9298\u67C4\u6BD4\u7387",
         "score": 2,
         "maxPoints": 5,
-        "detail": "51.0%\uFF0850\u65E5\u306E\u51FA\u6765\u9AD8\u304C\u4E0A\u6607\u65E5\u306B\u504F\u308B\u9298\u67C4\uFF09"
+        "detail": "52.0%\uFF0850\u65E5\u306E\u51FA\u6765\u9AD8\u304C\u4E0A\u6607\u65E5\u306B\u504F\u308B\u9298\u67C4\uFF09"
       },
       {
         "group": "\u6A5F\u95A2\u9700\u7D66",
         "name": "\u30B9\u30C6\u30EB\u30B9\u914D\u5206",
         "score": 2.5,
         "maxPoints": 4,
-        "detail": "35.9%\uFF0850\u65E5\u7DDA\u4E0A\u3060\u304C\u58F2\u308A\u512A\u52E2\uFF09"
+        "detail": "34.9%\uFF0850\u65E5\u7DDA\u4E0A\u3060\u304C\u58F2\u308A\u512A\u52E2\uFF09"
       },
       {
         "group": "\u5E02\u5834\u69CB\u9020",
         "name": "\u9298\u67C4\u9593\u76F8\u95A2",
         "score": 0,
         "maxPoints": 7,
-        "detail": "\u5E73\u5747\u30DA\u30A2\u76F8\u95A2 0.064\uFF0821\u65E5\uFF09"
+        "detail": "\u5E73\u5747\u30DA\u30A2\u76F8\u95A2 0.066\uFF0821\u65E5\uFF09"
       },
       {
         "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
         "name": "VIX\u5BFE20\u65E5\u5E73\u5747",
         "score": 0,
         "maxPoints": 4,
-        "detail": "VIX 14.63 / 20\u65E5\u5E73\u5747 16.86"
+        "detail": "VIX 14.63 / 20\u65E5\u5E73\u5747 16.82"
       },
       {
         "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
@@ -1371,14 +1371,14 @@
         "name": "RSP\u30FBIWM\u306E\u76F8\u5BFE\u5F37\u5EA6",
         "score": 0,
         "maxPoints": 3.0,
-        "detail": "RSP \u002B4.55% / IWM \u002B2.56%"
+        "detail": "RSP \u002B5.13% / IWM \u002B2.56%"
       },
       {
         "group": "\u30BB\u30AF\u30BF\u30FC",
         "name": "\u30C7\u30A3\u30D5\u30A7\u30F3\u30B7\u30D6\u512A\u4F4D\u5EA6",
         "score": 0,
         "maxPoints": 3,
-        "detail": "1\u304B\u6708 -0.55%\uFF08\u5B88\u308A 2.26% \u5BFE \u653B\u3081 2.81%\uFF09"
+        "detail": "1\u304B\u6708 -0.90%\uFF08\u5B88\u308A 2.26% \u5BFE \u653B\u3081 3.16%\uFF09"
       }
     ]
   },
@@ -1400,7 +1400,7 @@
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
         "name": "50\u65E5\u7DDA\u4E0A\u6BD4\u7387",
         "changeInRiskPoints": -2.0,
-        "currentDetail": "64.0%",
+        "currentDetail": "63.0%",
         "previousDetail": "58.0%"
       },
       {
