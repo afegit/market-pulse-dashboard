@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-08-15 07:31:33",
+  "lastUpdated": "2026-08-15 07:59:34",
   "marketDataAsOf": "2026-08-14",
   "combinedStatus": "Uptrend",
   "combinedDrivenBy": "SPY\u3068QQQ\u306F\u540C\u3058\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9",
@@ -1195,10 +1195,10 @@
     "status": "partial",
     "hygReturn1m": 0.37,
     "hygReturn3m": 1.29,
-    "lqdReturn1m": -0.86,
-    "lqdReturn3m": -1.10,
-    "spread1m": 1.23,
-    "spread3m": 2.39,
+    "lqdReturn1m": -0.79,
+    "lqdReturn3m": -1.87,
+    "spread1m": 1.16,
+    "spread3m": 3.16,
     "hyOasPct": null,
     "hyOasChange1mBps": null,
     "hyOasDate": null,
@@ -1233,10 +1233,10 @@
     "declines": 54,
     "advanceDeclineNet": -9,
     "adLineChange20d": 100,
-    "avgPairwiseCorrelation": 0.077,
+    "avgPairwiseCorrelation": 0.081,
     "accumulationPct": 51.0,
     "stealthDistributionPct": 34.8,
-    "advanceRatioSma10": 0.569,
+    "advanceRatioSma10": 0.568,
     "breadthThrustDetected": false
   },
   "marketRiskScore": {
@@ -1308,7 +1308,7 @@
         "name": "10\u65E5\u9A30\u843D\u30EC\u30B7\u30AA",
         "score": 0,
         "maxPoints": 3,
-        "detail": "0.569"
+        "detail": "0.568"
       },
       {
         "group": "\u6A5F\u95A2\u9700\u7D66",
@@ -1329,7 +1329,7 @@
         "name": "\u9298\u67C4\u9593\u76F8\u95A2",
         "score": 0,
         "maxPoints": 7,
-        "detail": "\u5E73\u5747\u30DA\u30A2\u76F8\u95A2 0.077\uFF0821\u65E5\uFF09"
+        "detail": "\u5E73\u5747\u30DA\u30A2\u76F8\u95A2 0.081\uFF0821\u65E5\uFF09"
       },
       {
         "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
@@ -1357,7 +1357,7 @@
         "name": "HY\u5BFEIG\u76F8\u5BFE\u30EA\u30BF\u30FC\u30F3",
         "score": 0,
         "maxPoints": 6,
-        "detail": "3\u304B\u6708 \u002B2.39%"
+        "detail": "3\u304B\u6708 \u002B3.16%"
       },
       {
         "group": "\u30BB\u30AF\u30BF\u30FC",
