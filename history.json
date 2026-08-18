@@ -7260,7 +7260,7 @@
         "name": "20\u65E5A/D\u30E9\u30A4\u30F3",
         "score": 0,
         "maxPoints": 3,
-        "detail": "20\u65E5\u5909\u5316 \u002B100"
+        "detail": "20\u65E5\u5909\u5316 \u002B98"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
@@ -7274,7 +7274,7 @@
         "name": "\u30A2\u30AD\u30E5\u30E0\u30EC\u30FC\u30B7\u30E7\u30F3\u9298\u67C4\u6BD4\u7387",
         "score": 0,
         "maxPoints": 5,
-        "detail": "58.0%\uFF0850\u65E5\u306E\u51FA\u6765\u9AD8\u304C\u4E0A\u6607\u65E5\u306B\u504F\u308B\u9298\u67C4\uFF09"
+        "detail": "59.0%\uFF0850\u65E5\u306E\u51FA\u6765\u9AD8\u304C\u4E0A\u6607\u65E5\u306B\u504F\u308B\u9298\u67C4\uFF09"
       },
       {
         "group": "\u6A5F\u95A2\u9700\u7D66",
@@ -7288,21 +7288,21 @@
         "name": "\u9298\u67C4\u9593\u76F8\u95A2",
         "score": 0,
         "maxPoints": 7,
-        "detail": "\u5E73\u5747\u30DA\u30A2\u76F8\u95A2 0.077\uFF0821\u65E5\uFF09"
+        "detail": "\u5E73\u5747\u30DA\u30A2\u76F8\u95A2 0.075\uFF0821\u65E5\uFF09"
       },
       {
         "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
         "name": "VIX\u5BFE20\u65E5\u5E73\u5747",
         "score": 0,
         "maxPoints": 4,
-        "detail": "VIX 15.84 / 20\u65E5\u5E73\u5747 16.64"
+        "detail": "VIX 15.84 / 20\u65E5\u5E73\u5747 16.40"
       },
       {
         "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
         "name": "VIX\u671F\u9650\u69CB\u9020",
         "score": 0,
         "maxPoints": 5,
-        "detail": "Contango\uFF08SPY\u5B9F\u73FE\u30DC\u30E9 \u77ED\u671F\u5BFE\u9577\u671F -48.81%\uFF09"
+        "detail": "Contango\uFF08VIX\u5BFEVIX3M -17.80%\uFF09"
       },
       {
         "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
@@ -7316,7 +7316,7 @@
         "name": "HY\u5BFEIG\u76F8\u5BFE\u30EA\u30BF\u30FC\u30F3",
         "score": 0,
         "maxPoints": 6,
-        "detail": "3\u304B\u6708 \u002B2.91%"
+        "detail": "3\u304B\u6708 \u002B2.00%"
       },
       {
         "group": "\u30BB\u30AF\u30BF\u30FC",
@@ -7330,14 +7330,14 @@
         "name": "RSP\u30FBIWM\u306E\u76F8\u5BFE\u5F37\u5EA6",
         "score": 0,
         "maxPoints": 3.0,
-        "detail": "RSP \u002B4.17% / IWM \u002B4.88%"
+        "detail": "RSP \u002B4.63% / IWM \u002B4.88%"
       },
       {
         "group": "\u30BB\u30AF\u30BF\u30FC",
         "name": "\u30C7\u30A3\u30D5\u30A7\u30F3\u30B7\u30D6\u512A\u4F4D\u5EA6",
         "score": 0,
         "maxPoints": 3,
-        "detail": "1\u304B\u6708 -0.46%\uFF08\u5B88\u308A 1.79% \u5BFE \u653B\u3081 2.25%\uFF09"
+        "detail": "1\u304B\u6708 -1.62%\uFF08\u5B88\u308A 1.79% \u5BFE \u653B\u3081 3.41%\uFF09"
       }
     ],
     "spyAdjustedClose": 767.4500122070312,

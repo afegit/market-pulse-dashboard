@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-08-19 07:31:34",
+  "lastUpdated": "2026-08-19 08:00:34",
   "marketDataAsOf": "2026-08-18",
   "combinedStatus": "Uptrend",
   "combinedDrivenBy": "SPY\u3068QQQ\u306F\u540C\u3058\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9",
@@ -1078,9 +1078,9 @@
     "spyReturn1m": 3.42,
     "spyReturn3m": 4.17,
     "defensiveReturn1m": 1.79,
-    "cyclicalReturn1m": 2.25,
-    "rotationSpread1m": -0.46,
-    "rotationSpread3m": 2.43,
+    "cyclicalReturn1m": 3.41,
+    "rotationSpread1m": -1.62,
+    "rotationSpread3m": 1.18,
     "sectors": [
       {
         "symbol": "XLV",
@@ -1099,20 +1099,20 @@
         "relStrength3m": 8.01
       },
       {
+        "symbol": "XLI",
+        "name": "\u8CC7\u672C\u8CA1",
+        "return1m": 3.06,
+        "return3m": 7.77,
+        "relStrength1m": -0.36,
+        "relStrength3m": 3.60
+      },
+      {
         "symbol": "XLK",
         "name": "\u30C6\u30AF\u30CE\u30ED\u30B8\u30FC",
         "return1m": 5.64,
         "return3m": 6.58,
         "relStrength1m": 2.22,
         "relStrength3m": 2.41
-      },
-      {
-        "symbol": "XLI",
-        "name": "\u8CC7\u672C\u8CA1",
-        "return1m": 1.95,
-        "return3m": 5.99,
-        "relStrength1m": -1.47,
-        "relStrength3m": 1.82
       },
       {
         "symbol": "XLE",
@@ -1125,10 +1125,18 @@
       {
         "symbol": "XLRE",
         "name": "\u4E0D\u52D5\u7523",
-        "return1m": -1.83,
-        "return3m": 2.53,
-        "relStrength1m": -5.25,
-        "relStrength3m": -1.64
+        "return1m": -1.74,
+        "return3m": 4.14,
+        "relStrength1m": -5.16,
+        "relStrength3m": -0.03
+      },
+      {
+        "symbol": "XLB",
+        "name": "\u7D20\u6750",
+        "return1m": 3.50,
+        "return3m": 3.49,
+        "relStrength1m": 0.08,
+        "relStrength3m": -0.68
       },
       {
         "symbol": "XLU",
@@ -1137,14 +1145,6 @@
         "return3m": 0.82,
         "relStrength1m": -5.47,
         "relStrength3m": -3.35
-      },
-      {
-        "symbol": "XLB",
-        "name": "\u7D20\u6750",
-        "return1m": 1.75,
-        "return3m": 0.59,
-        "relStrength1m": -1.67,
-        "relStrength3m": -3.58
       },
       {
         "symbol": "XLP",
@@ -1157,28 +1157,28 @@
       {
         "symbol": "XLY",
         "name": "\u4E00\u822C\u6D88\u8CBB\u8CA1",
-        "return1m": -0.84,
-        "return3m": -1.75,
-        "relStrength1m": -4.26,
-        "relStrength3m": -5.92
+        "return1m": 1.53,
+        "return3m": 0.23,
+        "relStrength1m": -1.89,
+        "relStrength3m": -3.94
       },
       {
         "symbol": "XLC",
         "name": "\u901A\u4FE1\u30B5\u30FC\u30D3\u30B9",
-        "return1m": -1.93,
-        "return3m": -5.42,
-        "relStrength1m": -5.35,
-        "relStrength3m": -9.59
+        "return1m": -0.15,
+        "return3m": -4.58,
+        "relStrength1m": -3.57,
+        "relStrength3m": -8.75
       }
     ],
     "breadthProxies": [
       {
         "symbol": "RSP",
         "name": "S\u0026P500\u5747\u7B49\u52A0\u91CD",
-        "return1m": 2.20,
-        "return3m": 8.34,
-        "relStrength1m": -1.22,
-        "relStrength3m": 4.17
+        "return1m": 3.47,
+        "return3m": 8.80,
+        "relStrength1m": 0.05,
+        "relStrength3m": 4.63
       },
       {
         "symbol": "IWM",
@@ -1193,30 +1193,30 @@
   },
   "creditRiskAppetite": {
     "status": "partial",
-    "hygReturn1m": 0.15,
-    "hygReturn3m": 1.06,
-    "lqdReturn1m": -1.62,
-    "lqdReturn3m": -1.85,
-    "spread1m": 1.77,
-    "spread3m": 2.91,
+    "hygReturn1m": 0.30,
+    "hygReturn3m": 1.46,
+    "lqdReturn1m": -0.79,
+    "lqdReturn3m": -0.54,
+    "spread1m": 1.09,
+    "spread3m": 2.00,
     "hyOasPct": null,
     "hyOasChange1mBps": null,
     "hyOasDate": null,
     "note": "HYG\u3068\u6295\u8CC7\u9069\u683C\u793E\u50B5ETF(LQD)\u306E\u76F8\u5BFE\u30EA\u30BF\u30FC\u30F3\u306B\u3001ICE BofA US High Yield OAS\u3092\u8FFD\u52A0\u3057\u307E\u3057\u305F\u3002TLT\u6BD4\u8F03\u3088\u308A\u91D1\u5229\u30C7\u30E5\u30EC\u30FC\u30B7\u30E7\u30F3\u5DEE\u306E\u5F71\u97FF\u3092\u6291\u3048\u3001\u4FE1\u7528\u30EA\u30B9\u30AF\u3092\u8AAD\u307F\u53D6\u308A\u3084\u3059\u304F\u3057\u307E\u3059\u3002"
   },
   "volatilityRegime": {
-    "status": "partial",
+    "status": "ok",
     "vix": 15.84000015258789,
-    "vixSma20": 16.64,
-    "vix3m": null,
-    "realizedVolShortPct": 7.07,
-    "realizedVolLongPct": 13.81,
+    "vixSma20": 16.40,
+    "vix3m": 19.270000457763672,
+    "realizedVolShortPct": null,
+    "realizedVolLongPct": null,
     "realizedVol21Pct": 13.50,
     "varianceRiskPremium": 2.34,
-    "termSlopePct": -48.81,
+    "termSlopePct": -17.80,
     "termStructure": "Contango",
-    "termSource": "RealizedVol",
-    "note": "^VIX3M\u306E\u914D\u4FE1\u304C\u505C\u6B62\u3057\u3066\u3044\u308B\u305F\u3081\u3001SPY\u306E10\u65E5\uFF0F63\u65E5\u5B9F\u73FE\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3\u6BD4\u3067\u671F\u9650\u69CB\u9020\u3092\u4EE3\u66FF\u3057\u3066\u3044\u307E\u3059\u3002\u5B9F\u73FE\u30DC\u30E9\u306E\u77ED\u671F\u512A\u52E2\u306F\u672C\u7269\u306EVIX\u9006\u8EE2\u3088\u308A\u9AD8\u983B\u5EA6\u3067\u8D77\u304D\u308B\u305F\u3081\u3001\u4E56\u96E2\u5E45\u306B\u5FDC\u3058\u3066\u6BB5\u968E\u7684\u306B\u8B66\u6212\u5EA6\u3092\u5224\u5B9A\u3057\u307E\u3059\u3002"
+    "termSource": "VIX3M",
+    "note": "VIX\u3068VIX3M\u306E\u6BD4\u8F03\u306B\u3088\u308B\u671F\u9650\u69CB\u9020\u306E\u8FD1\u4F3C\u3067\u3059\u3002\u9006\u8EE2\uFF08Backwardation\uFF09\u306F\u5E02\u5834\u30B9\u30C8\u30EC\u30B9\u306E\u8B66\u6212\u706F\u3068\u3057\u3066\u6271\u3044\u3001\u5358\u72EC\u306E\u58F2\u8CB7\u30B7\u30B0\u30CA\u30EB\u306B\u306F\u4F7F\u3044\u307E\u305B\u3093\u3002"
   },
   "marketBreadth": {
     "status": "ok",
@@ -1232,9 +1232,9 @@
     "advances": 51,
     "declines": 49,
     "advanceDeclineNet": 2,
-    "adLineChange20d": 100,
-    "avgPairwiseCorrelation": 0.077,
-    "accumulationPct": 58.0,
+    "adLineChange20d": 98,
+    "avgPairwiseCorrelation": 0.075,
+    "accumulationPct": 59.0,
     "stealthDistributionPct": 25.4,
     "advanceRatioSma10": 0.509,
     "breadthThrustDetected": false
@@ -1301,7 +1301,7 @@
         "name": "20\u65E5A/D\u30E9\u30A4\u30F3",
         "score": 0,
         "maxPoints": 3,
-        "detail": "20\u65E5\u5909\u5316 \u002B100"
+        "detail": "20\u65E5\u5909\u5316 \u002B98"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
@@ -1315,7 +1315,7 @@
         "name": "\u30A2\u30AD\u30E5\u30E0\u30EC\u30FC\u30B7\u30E7\u30F3\u9298\u67C4\u6BD4\u7387",
         "score": 0,
         "maxPoints": 5,
-        "detail": "58.0%\uFF0850\u65E5\u306E\u51FA\u6765\u9AD8\u304C\u4E0A\u6607\u65E5\u306B\u504F\u308B\u9298\u67C4\uFF09"
+        "detail": "59.0%\uFF0850\u65E5\u306E\u51FA\u6765\u9AD8\u304C\u4E0A\u6607\u65E5\u306B\u504F\u308B\u9298\u67C4\uFF09"
       },
       {
         "group": "\u6A5F\u95A2\u9700\u7D66",
@@ -1329,21 +1329,21 @@
         "name": "\u9298\u67C4\u9593\u76F8\u95A2",
         "score": 0,
         "maxPoints": 7,
-        "detail": "\u5E73\u5747\u30DA\u30A2\u76F8\u95A2 0.077\uFF0821\u65E5\uFF09"
+        "detail": "\u5E73\u5747\u30DA\u30A2\u76F8\u95A2 0.075\uFF0821\u65E5\uFF09"
       },
       {
         "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
         "name": "VIX\u5BFE20\u65E5\u5E73\u5747",
         "score": 0,
         "maxPoints": 4,
-        "detail": "VIX 15.84 / 20\u65E5\u5E73\u5747 16.64"
+        "detail": "VIX 15.84 / 20\u65E5\u5E73\u5747 16.40"
       },
       {
         "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
         "name": "VIX\u671F\u9650\u69CB\u9020",
         "score": 0,
         "maxPoints": 5,
-        "detail": "Contango\uFF08SPY\u5B9F\u73FE\u30DC\u30E9 \u77ED\u671F\u5BFE\u9577\u671F -48.81%\uFF09"
+        "detail": "Contango\uFF08VIX\u5BFEVIX3M -17.80%\uFF09"
       },
       {
         "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
@@ -1357,7 +1357,7 @@
         "name": "HY\u5BFEIG\u76F8\u5BFE\u30EA\u30BF\u30FC\u30F3",
         "score": 0,
         "maxPoints": 6,
-        "detail": "3\u304B\u6708 \u002B2.91%"
+        "detail": "3\u304B\u6708 \u002B2.00%"
       },
       {
         "group": "\u30BB\u30AF\u30BF\u30FC",
@@ -1371,14 +1371,14 @@
         "name": "RSP\u30FBIWM\u306E\u76F8\u5BFE\u5F37\u5EA6",
         "score": 0,
         "maxPoints": 3.0,
-        "detail": "RSP \u002B4.17% / IWM \u002B4.88%"
+        "detail": "RSP \u002B4.63% / IWM \u002B4.88%"
       },
       {
         "group": "\u30BB\u30AF\u30BF\u30FC",
         "name": "\u30C7\u30A3\u30D5\u30A7\u30F3\u30B7\u30D6\u512A\u4F4D\u5EA6",
         "score": 0,
         "maxPoints": 3,
-        "detail": "1\u304B\u6708 -0.46%\uFF08\u5B88\u308A 1.79% \u5BFE \u653B\u3081 2.25%\uFF09"
+        "detail": "1\u304B\u6708 -1.62%\uFF08\u5B88\u308A 1.79% \u5BFE \u653B\u3081 3.41%\uFF09"
       }
     ]
   },
@@ -1400,7 +1400,7 @@
         "group": "\u6A5F\u95A2\u9700\u7D66",
         "name": "\u30A2\u30AD\u30E5\u30E0\u30EC\u30FC\u30B7\u30E7\u30F3\u9298\u67C4\u6BD4\u7387",
         "changeInRiskPoints": -2.2,
-        "currentDetail": "58.0%\uFF0850\u65E5\u306E\u51FA\u6765\u9AD8\u304C\u4E0A\u6607\u65E5\u306B\u504F\u308B\u9298\u67C4\uFF09",
+        "currentDetail": "59.0%\uFF0850\u65E5\u306E\u51FA\u6765\u9AD8\u304C\u4E0A\u6607\u65E5\u306B\u504F\u308B\u9298\u67C4\uFF09",
         "previousDetail": "50.0%\uFF0850\u65E5\u306E\u51FA\u6765\u9AD8\u304C\u4E0A\u6607\u65E5\u306B\u504F\u308B\u9298\u67C4\uFF09"
       },
       {
