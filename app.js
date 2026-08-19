@@ -47,7 +47,7 @@ const glossary = {
   '50日移動平均': '直近50営業日の終値の平均値です。短中期の値動きの流れを見る目安になります。',
   '52週高値からの下落': '直近52週間（約1年）の最高値から、現在どれだけ下落しているかです。',
   'トレンド': '株価が「調整局面」「反発を試す段階」「上昇トレンド確認済み」のどこにあるかの判定です。',
-  '直近FTD': 'フォロースルーデー（Follow-Through Day）の略。下落相場からの反発が本物である可能性が高いことを示す、出来高を伴った大幅上昇日です。',
+  '現行トレンドのFTD': 'フォロースルーデー（Follow-Through Day）の略。下落相場からの反発が本物である可能性が高いことを示す、出来高を伴った大幅上昇日です。今の上昇トレンドを確認した日を表示します。調整局面に入ると「未発生」に戻ります。株価が52週高値の目前まで戻って上昇トレンドと判定された場合は「価格回復で確認」と表示されます。',
   '最大の売り圧力': '直近の売り抜け日の中で、最も下落率が大きかった日の下落幅です。',
   '50日線上': '構成銘柄のうち、株価が50日移動平均線より上にある銘柄の割合です。',
   '200日線上': '構成銘柄のうち、株価が200日移動平均線（長期トレンドの目安）より上にある銘柄の割合です。',
@@ -324,7 +324,7 @@ function renderIndex(key, index) {
     ['トレンド', trendLabel[index.trendState] || index.trendState || '—', index.trendState === 'ConfirmedUptrend' ? 'good' : 'warn'],
     ['有効 Distribution Day', `${index.distributionDaysActive ?? '--'} 日`, Number(index.distributionDaysActive) >= 6 ? 'risk' : Number(index.distributionDaysActive) >= 3 ? 'warn' : 'good'],
     ['最大の売り圧力', index.worstActiveDropPct != null ? `-${Math.abs(Number(index.worstActiveDropPct)).toFixed(2)}%` : 'なし', index.worstActiveDropPct != null ? 'warn' : 'good'],
-    ['直近 FTD', index.lastFollowThroughDate || '未発生', index.lastFollowThroughDate ? 'good' : 'muted']
+    ['現行トレンドのFTD', index.lastFollowThroughDate || (index.trendState === 'ConfirmedUptrend' ? '価格回復で確認' : '未発生'), index.lastFollowThroughDate ? 'good' : 'muted']
   ]);
   chart(`chart-${key}`, {
     type: 'line',
@@ -393,43 +393,42 @@ function renderCredit(block) {
   ]);
 }
 
+// 構成銘柄ブレッドスが取れなくても、SPY/QQQ由来の売り抜け強度は必ず算出できている。
+// ブロック単位でまとめて「取得不可」にすると、手元にある情報まで隠してしまう。
 function renderAccumulation(data) {
   const block = data.marketBreadth;
-  if (!isAvailable(block) || block.accumulationPct == null) {
-    setPill('accumulation-status', '取得不可', 'muted');
-    replaceDataGrid('accumulation-data', [{ label: '機関需給', value: '取得不可', sub: block?.note || '—' }]);
-    return;
-  }
-  const accumulation = Number(block.accumulationPct);
-  const stealth = block.stealthDistributionPct == null ? null : Number(block.stealthDistributionPct);
-  const accumulationTone = accumulation >= 50 ? 'good' : accumulation >= 40 ? 'warn' : 'risk';
+  const breadthOk = isAvailable(block) && block.accumulationPct != null;
+  const accumulation = breadthOk ? Number(block.accumulationPct) : null;
+  const stealth = !breadthOk || block.stealthDistributionPct == null ? null : Number(block.stealthDistributionPct);
+  const accumulationTone = accumulation == null ? 'muted' : accumulation >= 50 ? 'good' : accumulation >= 40 ? 'warn' : 'risk';
   const intensityTone = value => Number(value) >= 5 ? 'risk' : Number(value) >= 2.5 ? 'warn' : 'good';
-  setPill('accumulation-status', accumulation >= 50 ? '買い優勢' : accumulation >= 40 ? '拮抗' : '売り優勢', accumulationTone);
+  setPill('accumulation-status',
+    accumulation == null ? '一部取得' : accumulation >= 50 ? '買い優勢' : accumulation >= 40 ? '拮抗' : '売り優勢',
+    accumulation == null ? 'warn' : accumulationTone);
   replaceDataGrid('accumulation-data', [
-    { label: 'アキュムレーション比率', value: pct(accumulation, 1), sub: '50日の出来高が上昇日に偏る銘柄', tone: accumulationTone },
+    { label: 'アキュムレーション比率', value: accumulation == null ? '取得不可' : pct(accumulation, 1), sub: accumulation == null ? (block?.note || '—') : '50日の出来高が上昇日に偏る銘柄', tone: accumulationTone },
     { label: 'ステルス配分', value: stealth == null ? '--' : pct(stealth, 1), sub: '50日線上だが売り優勢', tone: stealth == null ? 'muted' : stealth >= 40 ? 'risk' : stealth >= 25 ? 'warn' : 'good' },
     { label: 'SPY 売り抜け強度', value: number(data.sp500?.distributionIntensity, 1), sub: '下落率×出来高比の合計', tone: intensityTone(data.sp500?.distributionIntensity) },
     { label: 'QQQ 売り抜け強度', value: number(data.nasdaq?.distributionIntensity, 1), sub: '下落率×出来高比の合計', tone: intensityTone(data.nasdaq?.distributionIntensity) }
   ]);
 }
 
+// ディフェンシブ優位度はセクターETF由来なので、ブレッドスが欠けても表示できる。
 function renderStructure(data) {
   const block = data.marketBreadth;
   const rotation = data.sectorRotation?.rotationSpread1m;
-  if (!isAvailable(block) || block.avgPairwiseCorrelation == null) {
-    setPill('structure-status', '取得不可', 'muted');
-    replaceDataGrid('structure-data', [{ label: '市場構造', value: '取得不可', sub: block?.note || '—' }]);
-    return;
-  }
-  const correlation = Number(block.avgPairwiseCorrelation);
-  const ratio = block.advanceRatioSma10 == null ? null : Number(block.advanceRatioSma10);
-  const thrust = block.breadthThrustDetected === true;
-  const correlationTone = correlation >= 0.70 ? 'risk' : correlation >= 0.55 ? 'warn' : 'good';
-  setPill('structure-status', thrust ? 'Thrust 点灯' : correlation >= 0.70 ? '一括相場' : correlation >= 0.55 ? 'やや一括' : '個別物色', thrust ? 'good' : correlationTone);
+  const breadthOk = isAvailable(block) && block.avgPairwiseCorrelation != null;
+  const correlation = breadthOk ? Number(block.avgPairwiseCorrelation) : null;
+  const ratio = !breadthOk || block.advanceRatioSma10 == null ? null : Number(block.advanceRatioSma10);
+  const thrust = breadthOk && block.breadthThrustDetected === true;
+  const correlationTone = correlation == null ? 'muted' : correlation >= 0.70 ? 'risk' : correlation >= 0.55 ? 'warn' : 'good';
+  setPill('structure-status',
+    correlation == null ? '一部取得' : thrust ? 'Thrust 点灯' : correlation >= 0.70 ? '一括相場' : correlation >= 0.55 ? 'やや一括' : '個別物色',
+    correlation == null ? 'warn' : thrust ? 'good' : correlationTone);
   replaceDataGrid('structure-data', [
-    { label: '銘柄間 平均ペア相関', value: number(correlation, 3), sub: '21日・高いほど分散が効かない', tone: correlationTone },
+    { label: '銘柄間 平均ペア相関', value: correlation == null ? '取得不可' : number(correlation, 3), sub: correlation == null ? (block?.note || '—') : '21日・高いほど分散が効かない', tone: correlationTone },
     { label: '10日騰落レシオ', value: ratio == null ? '--' : number(ratio, 3), sub: '上昇 / (上昇+下落) の10日平均', tone: ratio == null ? 'muted' : ratio <= 0.42 ? 'risk' : ratio <= 0.48 ? 'warn' : 'good' },
-    { label: 'Breadth Thrust', value: thrust ? '点灯' : '未点灯', sub: '0.40以下→0.615以上を10日以内', tone: thrust ? 'good' : 'muted' },
+    { label: 'Breadth Thrust', value: correlation == null ? '--' : thrust ? '点灯' : '未点灯', sub: '0.40以下→0.615以上を10日以内', tone: thrust ? 'good' : 'muted' },
     { label: 'ディフェンシブ優位度', value: rotation == null ? '--' : signedPct(rotation), sub: '守り − 攻め（1か月）', tone: rotation == null ? 'muted' : Number(rotation) >= 4 ? 'risk' : Number(rotation) >= 1.5 ? 'warn' : 'good' }
   ]);
 }
@@ -608,7 +607,9 @@ function initTooltips() {
   tip.id = 'md-tooltip';
   tip.setAttribute('role', 'tooltip');
   document.body.append(tip);
-  let pinned = false;
+  // 「どの要素が固定されているか」を持つ。真偽値だと、固定中に別の用語へホバーしたあと
+  // 離脱してもフラグが立ったままになり、ツールチップがクリックするまで消えなくなる。
+  let pinnedTarget = null;
 
   function position(target) {
     const rect = target.getBoundingClientRect();
@@ -631,30 +632,36 @@ function initTooltips() {
 
   function hide() {
     tip.classList.remove('visible');
-    pinned = false;
+    pinnedTarget = null;
+  }
+
+  // 別の用語へ移った時点で固定を解除する。固定は「その要素から離れても消えない」だけの意味にする。
+  function moveTo(target) {
+    if (pinnedTarget !== target) pinnedTarget = null;
+    show(target);
   }
 
   // mouseenter/leaveはバブリングしないため、documentへのキャプチャ登録で委譲する。
   document.addEventListener('mouseenter', event => {
     const target = event.target.closest?.('[data-tip]');
-    if (target) show(target);
+    if (target) moveTo(target);
   }, true);
   document.addEventListener('mouseleave', event => {
     const target = event.target.closest?.('[data-tip]');
-    if (target && !pinned) hide();
+    if (target && pinnedTarget !== target) hide();
   }, true);
   document.addEventListener('focusin', event => {
     const target = event.target.closest?.('[data-tip]');
-    if (target) show(target);
+    if (target) moveTo(target);
   });
   document.addEventListener('focusout', event => {
     const target = event.target.closest?.('[data-tip]');
-    if (target && !pinned) hide();
+    if (target && pinnedTarget !== target) hide();
   });
   document.addEventListener('click', event => {
     const target = event.target.closest?.('[data-tip]');
     if (!target) { hide(); return; }
-    if (pinned) { hide(); } else { pinned = true; show(target); }
+    if (pinnedTarget === target) { hide(); } else { pinnedTarget = target; show(target); }
   });
   document.addEventListener('keydown', event => { if (event.key === 'Escape') hide(); });
   window.addEventListener('scroll', hide, true);

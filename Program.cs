@@ -17,7 +17,7 @@ class Program
     // ===== IBD Market Pulse ロジックのパラメータ =====
     // 売り抜け日(Distribution Day)判定の下落率しきい値
     const decimal DIST_DAY_DROP_PCT = 0.2m;
-    // 売り抜け日が有効とみなされる期間（営業日）
+    // 売り抜け日が有効とみなされる期間（営業日）。DD当日を1日目として数える。
     const int DIST_DAY_WINDOW = 25;
     // 売り抜け日が「失効（無効化）」する反発率（その日の終値からの上昇率）
     const decimal DIST_DAY_INVALIDATE_RALLY_PCT = 5.0m;
@@ -33,6 +33,17 @@ class Program
     const int FTD_MAX_DAY = 25;
     // Day1（ラリー起点）判定に使う直近安値の参照期間
     const int DAY1_LOOKBACK = 10;
+    // 52週高値の参照期間（営業日）。取得期間が2年でも「52週」の意味を保つために窓を固定する。
+    const int HIGH_52W_WINDOW = 252;
+    // 売り抜け日が規定数まで積み上がらないまま指数が崩れたときに、
+    // Confirmed Uptrend を価格側から強制解除する52週高値比のドローダウン。
+    const decimal UPTREND_BREAKDOWN_DRAWDOWN_PCT = -8.0m;
+    // 上と対になる復帰側の安全弁。52週高値のこの範囲まで戻り、かつ50日線の上にあるなら、
+    // FTDが成立していなくても上昇トレンドとみなす。
+    // FTDは「+1.25%かつ出来高増」を4〜25営業日目に要求する連言のため、低ボラの上昇では
+    // 何か月も成立せず、新高値を更新している最中でもCorrectionのまま張り付いてしまう。
+    // 解除-8%／復帰-2%と幅を空けてヒステリシスを持たせ、境界での往復を防ぐ。
+    const decimal UPTREND_RECOVERY_DRAWDOWN_PCT = -2.0m;
 
     // ===== Put/Call Ratio（自前算出）のパラメータ =====
     // IBD/CBOEの公式値とは母集団が異なる代替指標。SPYオプションの出来高から独自算出する。
@@ -124,7 +135,8 @@ class Program
     // 分散リスクプレミアム（VIX − 実現ボラ）に使う実現ボラの期間。VIXの30日インプライドと対応させる。
     const int REALIZED_VOL_VRP_WINDOW = 21;
     // 全指標が取得できたときの満点。採点カバレッジ率の分母として使う。
-    // 配点を変更したときはここも必ず合わせる（トレンド30＋ブレッドス25＋ボラ15＋信用15＋セクター10＋需給5）。
+    // 配点を変更したときはここも必ず合わせる
+    // （トレンド24＋ブレッドス21＋機関需給9＋市場構造7＋ボラ12＋信用12＋セクター10＋需給5）。
     const decimal MARKET_RISK_TOTAL_POINTS = 100m;
     const int MAX_YAHOO_RESPONSE_BYTES = 5 * 1024 * 1024;
     const int MAX_FRED_RESPONSE_BYTES = 2 * 1024 * 1024;
@@ -193,6 +205,30 @@ class Program
     }
 
     static DateTimeOffset JstNow() => DateTimeOffset.UtcNow.ToOffset(JstOffset);
+
+    // 米国東部時間。IANA名とWindows名の両方を試し、引けない環境では未確定バー判定を諦める。
+    static readonly Lazy<TimeZoneInfo?> LazyEasternTimeZone = new(() =>
+    {
+        foreach (string id in new[] { "America/New_York", "Eastern Standard Time" })
+        {
+            try { return TimeZoneInfo.FindSystemTimeZoneById(id); }
+            catch (TimeZoneNotFoundException) { }
+            catch (InvalidTimeZoneException) { }
+        }
+        Console.WriteLine("[Market] 米国東部タイムゾーンを解決できないため、当日バーの確定判定を行いません。");
+        return null;
+    });
+
+    // Yahooは取引時間中でも当日の「途中経過」バーを返す。これを終値として扱うと、
+    // 未確定の値でスコアを算出し、履歴と検証の基準終値にもその値が残ってしまう。
+    // 定時実行(22:17 UTC)は必ず引け後なので影響しないが、手動実行のために弾く。
+    static bool IsUnsettledSession(DateTime barDate)
+    {
+        var easternTimeZone = LazyEasternTimeZone.Value;
+        if (easternTimeZone == null) return false;
+        var easternNow = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, easternTimeZone);
+        return barDate.Date >= easternNow.Date && easternNow.TimeOfDay < TimeSpan.FromHours(16);
+    }
 
     static string ResolveOutputDirectory()
     {
@@ -266,6 +302,11 @@ class Program
 
     static async Task Main(string[] args)
     {
+        // detail文字列や小数の書式が実行環境のロケールで変わると、CIとローカルで出力が食い違う。
+        // （de-DE等では "3,79" になり、data.json の根拠表示が読み手の環境依存になる）
+        CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+        CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
+
         if (args.Any(arg => string.Equals(arg, "--self-test", StringComparison.OrdinalIgnoreCase)))
         {
             RunSelfTests();
@@ -290,14 +331,16 @@ class Program
             var putCall = await FetchPutCallRatio();
 
             // 補助指標は取得だけ先に済ませ、計算は基準日ごとに行う（過去日の再計算に使い回すため）。
-            var sectorTask = FetchSectorRotationData();
+            var sectorTask = FetchSectorRotationData(bundle.Sp500);
             var creditTask = FetchCreditData();
             var volatilityTask = FetchVolatilityData();
             await Task.WhenAll(sectorTask, creditTask, volatilityTask);
             bundle.Sector = await sectorTask;
             bundle.Credit = await creditTask;
             bundle.Volatility = await volatilityTask;
-            bundle.Breadth = await FetchBreadthData();
+            var breadthFetch = await FetchBreadthData();
+            bundle.Breadth = breadthFetch.Data;
+            bundle.BreadthUnavailableReason = breadthFetch.UnavailableReason;
 
             DateTime latestDate = bundle.Sp500[^1].Date.Date;
             string marketDataAsOf = latestDate.ToString("yyyy-MM-dd");
@@ -337,7 +380,7 @@ class Program
             var snapshot = BuildSnapshot(bundle, latestDate, putCallOutput, verbose: true)
                 ?? throw new InvalidDataException("当日の市場スナップショットを算出できませんでした。");
 
-            ApplyTodayRiskScoreSnapshot(historyPreparation.Entries, snapshot.RiskScore);
+            ApplyTodayRiskScoreSnapshot(historyPreparation.Entries, snapshot.RiskScore, marketDataAsOf);
 
             // 過去分をまとめて再計算し、検証機能に十分な標本を与える。
             var existingMarketDates = historyPreparation.Entries
@@ -347,10 +390,11 @@ class Program
             var backfilled = BuildBackfillEntries(bundle, existingMarketDates);
             Console.WriteLine($"Backfilled {backfilled.Count} past sessions.");
 
-            var allEntries = historyPreparation.Entries.Concat(backfilled)
-                .OrderBy(entry => entry.Date, StringComparer.Ordinal).ToList();
+            // BuildMarketRiskChange / ApplyTodayRiskScoreSnapshot は Date で Single を取るため、
+            // 連結直後に畳んでおかないと、ここだけ重複が素通りして例外で更新全体が落ちる。
+            var allEntries = DeduplicateHistoryByDate(historyPreparation.Entries.Concat(backfilled).ToList());
             UpdateScoreValidationOutcomes(allEntries, bundle.Sp500, bundle.Nasdaq);
-            var marketRiskChange = BuildMarketRiskChange(allEntries);
+            var marketRiskChange = BuildMarketRiskChange(allEntries, marketDataAsOf);
             var scoreValidation = BuildScoreValidation(allEntries);
             PersistHistory(allEntries);
             Console.WriteLine("history.json has been updated.");
@@ -412,11 +456,13 @@ class Program
             }
             finally
             {
+                // 後始末は best-effort。ここで例外を抜けさせると、最終試行のときだけ
+                // 下の退避付き直接書き込みに到達できず、復旧できるはずの状況で更新を失う。
                 try
                 {
                     if (File.Exists(tempPath)) File.Delete(tempPath);
                 }
-                catch (IOException ex) when (attempt < 3)
+                catch (IOException ex)
                 {
                     lastIoException = ex;
                 }
@@ -508,15 +554,28 @@ class Program
                 decimal adjustedClose = i < (adjustedCloses?.Length ?? 0) && adjustedCloses![i].HasValue
                     ? adjustedCloses[i]!.Value
                     : closes[i]!.Value;
-                if (adjustedClose <= 0m)
+                decimal rawClose = closes[i]!.Value;
+                if (adjustedClose <= 0m || rawClose <= 0m)
                     throw new InvalidDataException($"0以下の終値を受信しました ({symbol}, {date:yyyy-MM-dd})。");
                 if (volumes[i]!.Value < 0)
                     throw new InvalidDataException($"負の出来高を受信しました ({symbol}, {date:yyyy-MM-dd})。");
-                dailyData.Add(new DailyData(date, adjustedClose, volumes[i]!.Value));
+                dailyData.Add(new DailyData(date, adjustedClose, rawClose, volumes[i]!.Value));
             }
         }
 
         var ordered = dailyData.OrderBy(x => x.Date).ToList();
+
+        // 引け前に返ってくる当日の途中経過バーは終値ではないので落とす。
+        // 鮮度チェックより前に行い、残ったバーだけで基準日を決める。
+        int unsettled = 0;
+        while (ordered.Count > 0 && IsUnsettledSession(ordered[^1].Date))
+        {
+            ordered.RemoveAt(ordered.Count - 1);
+            unsettled++;
+        }
+        if (unsettled > 0)
+            Console.WriteLine($"[{symbol}] 未確定バー{unsettled}本を除外しました（米国市場の引け前）。");
+
         if (ordered.Count < 100)
         {
             throw new Exception($"計算に必要な100日分のデータが不足しています ({symbol})。");
@@ -526,7 +585,8 @@ class Program
         if (ordered[^1].Date > DateTime.UtcNow.Date.AddDays(1))
             throw new InvalidDataException($"未来日付の市場データを受信しました ({symbol})。");
         if ((DateTime.UtcNow.Date - ordered[^1].Date).TotalDays > MAX_MARKET_DATA_AGE_CALENDAR_DAYS)
-            throw new InvalidDataException($"市場データが{MAX_MARKET_DATA_AGE_CALENDAR_DAYS}日超古いため更新を中止しました ({symbol}: {ordered[^1].Date:yyyy-MM-dd})。");
+            throw new InvalidDataException($"市場データが{MAX_MARKET_DATA_AGE_CALENDAR_DAYS}日超古いため更新を中止しました ({symbol}: {ordered[^1].Date:yyyy-MM-dd})。" +
+                (unsettled > 0 ? "（未確定の当日バーを除外した結果です。米国市場の引け後に再実行してください）" : ""));
         if (requirePositiveVolume && ordered.Any(d => d.Volume <= 0))
             throw new InvalidDataException($"出来高が0以下の日を受信したため、出来高ベース判定を中止しました ({symbol})。");
         return ordered;
@@ -621,8 +681,8 @@ class Program
                 var crumb = await GetYahooCrumb();
                 if (crumb == null)
                 {
-                    Console.WriteLine($"[PutCallRatio] attempt {attempt}/3: crumbが取得できませんでした。");
-                    if (attempt < 3) { await Task.Delay(TimeSpan.FromSeconds(3 * attempt)); continue; }
+                    Console.WriteLine($"[PutCallRatio] attempt {attempt}/{PUT_CALL_MAX_ATTEMPTS}: crumbが取得できませんでした。");
+                    if (attempt < PUT_CALL_MAX_ATTEMPTS) { await Task.Delay(TimeSpan.FromSeconds(3 * attempt)); continue; }
                     return null;
                 }
 
@@ -630,14 +690,14 @@ class Program
                 using var response = await httpClient.GetAsync(url);
                 if (!response.IsSuccessStatusCode)
                 {
-                    Console.WriteLine($"[PutCallRatio] attempt {attempt}/3: HTTPステータス {(int)response.StatusCode} が返されました。");
+                    Console.WriteLine($"[PutCallRatio] attempt {attempt}/{PUT_CALL_MAX_ATTEMPTS}: HTTPステータス {(int)response.StatusCode} が返されました。");
                     if ((int)response.StatusCode == 401 || (int)response.StatusCode == 403)
                     {
                         // crumbが無効化された可能性があるため、キャッシュを破棄して次のリトライで取り直す
                         Console.WriteLine("[PutCallRatio] 認証エラーの可能性があるため、crumbキャッシュを破棄します。");
                         _yahooCrumb = null;
                     }
-                    if (attempt < 3) { await Task.Delay(TimeSpan.FromSeconds(3 * attempt)); continue; }
+                    if (attempt < PUT_CALL_MAX_ATTEMPTS) { await Task.Delay(TimeSpan.FromSeconds(3 * attempt)); continue; }
                     return null;
                 }
 
@@ -683,7 +743,9 @@ class Program
 
     // 取得と計算を分離する。過去日のスコアを再計算するために、同じ生データへ何度も
     // 別の基準日を当てて計算できるようにしておく必要がある。
-    static async Task<SectorRotationData?> FetchSectorRotationData()
+    // SPYは指数側で取得済みのものを渡す。ここで取り直すと同じ銘柄を2回叩くうえ、
+    // 2回の取得の間に日付が進むと最終日がズレ、TruncateToが失敗してセクター全体が欠測になる。
+    static async Task<SectorRotationData?> FetchSectorRotationData(List<DailyData> spyData)
     {
         try
         {
@@ -712,8 +774,7 @@ class Program
 
             var sectorTasks = SECTOR_ETFS.Select(item => FetchInto(sectors, item.Key, item.Value));
             var proxyTasks = BREADTH_PROXY_ETFS.Select(item => FetchInto(proxies, item.Key, item.Value));
-            var spyTask = FetchYahooDataWithRetry("SPY", BACKFILL_RANGE, maxAttempts: OPTIONAL_YAHOO_MAX_ATTEMPTS);
-            await Task.WhenAll(sectorTasks.Concat(proxyTasks).Append(spyTask));
+            await Task.WhenAll(sectorTasks.Concat(proxyTasks));
 
             if (sectors.Count == 0)
             {
@@ -723,7 +784,7 @@ class Program
 
             return new SectorRotationData
             {
-                SpyData = await spyTask,
+                SpyData = spyData,
                 Sectors = sectors,
                 Proxies = proxies
             };
@@ -813,7 +874,7 @@ class Program
     }
 
     // 指定した基準日までの系列を切り出す。基準日に取引が無い銘柄はnullを返して集計から外す。
-    // （鮮度チェックが5営業日まで許容するため、日付をそろえないと別々の日の合成になる）
+    // （鮮度チェックは暦日3日まで許容するため、日付をそろえないと別々の日の合成になる）
     static List<DailyData>? TruncateTo(List<DailyData> data, DateTime asOf)
     {
         int index = data.FindLastIndex(day => day.Date.Date <= asOf.Date);
@@ -1051,31 +1112,46 @@ class Program
 
     // ================= Nasdaq-100 真の市場ブレッドス =================
 
-    static async Task<BreadthData?> FetchBreadthData()
+    // 失敗理由を呼び出し元へ返す。構成銘柄リストの失効はダッシュボード上で
+    // 「取得数が不足」と誤って説明されると気づけないまま37点分の配点が消えるため、
+    // 理由をそのまま画面の注記に出せるようにする。
+    static async Task<(BreadthData? Data, string? UnavailableReason)> FetchBreadthData()
     {
         try
         {
             string universePath = ResolveContentPath(NASDAQ100_UNIVERSE_FILE);
-            string universeAsOf = ReadUniverseAsOf(universePath);
+            string universeAsOf;
+            try
+            {
+                universeAsOf = ReadUniverseAsOf(universePath);
+            }
+            catch (InvalidDataException ex)
+            {
+                // 失効と「基準日の行が読めない」の両方がここに来るため、原因は例外文をそのまま渡す。
+                // 100銘柄を取りに行く前に落ちるので、無駄なリクエストも発生しない。
+                Console.WriteLine($"[Breadth] ★構成銘柄リストを採用できません: {ex.Message}");
+                return (null, $"Nasdaq-100の構成銘柄リスト（{NASDAQ100_UNIVERSE_FILE}）を採用できないため、ブレッドス・機関需給・市場構造の集計を停止しました。ファイルを最新のNDX構成に更新してください（{ex.Message}）。");
+            }
 
             var symbols = File.ReadLines(universePath)
                 .Select(line => line.Trim())
                 .Where(line => !string.IsNullOrWhiteSpace(line) && !line.StartsWith('#'))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
-            if (symbols.Count == 0) return null;
+            if (symbols.Count == 0)
+                return (null, $"{NASDAQ100_UNIVERSE_FILE} に銘柄が1つも記載されていません。");
 
-            return new BreadthData
+            return (new BreadthData
             {
                 UniverseAsOf = universeAsOf,
                 ExpectedConstituents = symbols.Count,
                 Symbols = await FetchYahooBreadthData(symbols)
-            };
+            }, null);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"[Breadth] fetch failed (non-fatal): {ex.Message}");
-            return null;
+            return (null, $"構成銘柄データの取得に失敗しました: {ex.Message}");
         }
     }
 
@@ -1105,7 +1181,7 @@ class Program
         try
         {
             // 基準日に取引が成立している銘柄だけを使う。
-            // 鮮度チェックは5営業日まで許容するため、売買停止・上場廃止などで数日前の終値のまま返る銘柄が混ざる。
+            // 鮮度チェックは暦日3日まで許容するため、売買停止・上場廃止などで数日前の終値のまま返る銘柄が混ざる。
             // それを「今日の上昇/下落」として数えるとA/Dラインと騰落数が別々の日の合成になってしまう。
             var analyzed = new List<List<DailyData>>();
             foreach (var raw in source.Symbols.Values)
@@ -1438,7 +1514,7 @@ class Program
 
         var breadth = bundle.Breadth == null ? null : ComputeBreadth(bundle.Breadth, asOf, verbose);
         var breadthOutput = breadth == null
-            ? new MarketBreadthOutput { Status = "unavailable", Note = "Nasdaq-100構成銘柄の取得数が不足したため、真の市場ブレッドスを算出できませんでした。" }
+            ? new MarketBreadthOutput { Status = "unavailable", Note = bundle.BreadthUnavailableReason ?? "Nasdaq-100構成銘柄の取得数が不足したため、真の市場ブレッドスを算出できませんでした。" }
             : new MarketBreadthOutput
             {
                 Status = breadth.CoveragePct >= 95 ? "ok" : "partial",
@@ -1490,16 +1566,16 @@ class Program
         for (int i = start; i < bundle.Sp500.Count; i++)
         {
             DateTime asOf = bundle.Sp500[i].Date.Date;
-            string key = asOf.ToString("yyyy-MM-dd");
-            if (existingMarketDates.Contains(key)) continue;
+            string marketKey = asOf.ToString("yyyy-MM-dd");
+            if (existingMarketDates.Contains(marketKey)) continue;
 
             var snapshot = BuildSnapshot(bundle, asOf, unavailablePutCall, verbose: false);
             if (snapshot == null || snapshot.RiskScore.AvailableMaxPoints <= 0m) continue;
 
             entries.Add(new HistoryEntry
             {
-                Date = key,
-                MarketDataAsOf = key,
+                Date = marketKey,
+                MarketDataAsOf = marketKey,
                 Source = "backfill",
                 RubricVersion = RUBRIC_VERSION,
                 CombinedStatus = snapshot.CombinedStatus,
@@ -1517,6 +1593,17 @@ class Program
 
         return entries;
     }
+
+    // 万一 Date が重複しても更新ジョブを恒久停止させないための最終防波堤。
+    // Date は市場基準日に統一したので通常は衝突しないが、手で編集したファイルにも耐えさせる。
+    // ライブ記録（Put/Callを含み、当時の実データで採点された記録）を優先して残す。
+    static List<HistoryEntry> DeduplicateHistoryByDate(List<HistoryEntry> history) => history
+        .GroupBy(entry => entry.Date, StringComparer.Ordinal)
+        .Select(group => group.Count() == 1
+            ? group.First()
+            : group.FirstOrDefault(entry => string.Equals(entry.Source, "live", StringComparison.Ordinal)) ?? group.Last())
+        .OrderBy(entry => entry.Date, StringComparer.Ordinal)
+        .ToList();
 
     // ================= 総合市場リスク・スコア =================
 
@@ -1783,75 +1870,57 @@ class Program
             }
         }
 
+        // --- 52週高値（各日について、その日を含む直近252営業日の最大値） ---
+        // 系列全体のMaxを使うと、渡された履歴が2年分あるときに「2年高値」になってしまい、
+        // 1年以上前に天井をつけた下落局面（この指標が最も必要な場面）でだけ値が狂う。
+        // 過去日の再計算で毎日この窓を総当たりすると重いため、単調減少デックでO(n)に保つ。
+        //
+        // 高値・ドローダウンも無調整終値で求める。調整後終値は古いバーほど分配金の分だけ
+        // 切り下がるため、1年前に付けた高値との比較では価格ベースの下落率より最大1pp程度浅く出る。
+        // それはトレンド解除(-8%)・復帰(-2%)の安全弁が最も効くべき局面そのもので、
+        // 画面の「52週高値からの下落」も読み手は価格の下落率として読む。
+        // 売り抜け日／FTDを無調整終値で判定しているので、ここも価格ベースで揃える。
+        var high52 = new decimal[n];
+        var maxIndices = new int[n];
+        int maxHead = 0, maxTail = 0;
+        for (int i = 0; i < n; i++)
+        {
+            if (maxHead < maxTail && maxIndices[maxHead] <= i - HIGH_52W_WINDOW) maxHead++;
+            while (maxHead < maxTail && data[maxIndices[maxTail - 1]].Close <= data[i].Close) maxTail--;
+            maxIndices[maxTail++] = i;
+            high52[i] = data[maxIndices[maxHead]].Close;
+        }
+
+        // 解除・復帰・表示で3回同じ式を書くと、片方だけ直して食い違う。1本に集約する。
+        decimal DrawdownPctAt(int i) => (data[i].Close - high52[i]) / high52[i] * 100m;
+
         // --- 売り抜け日の「生」判定を先に1回だけ計算 ---
         // チャート表示用マーカーとアクティブ集計の両方でこの結果を使い回すことで、
         // 判定式が2箇所に重複してどちらか一方だけ修正され矛盾する事故を防ぐ
+        //
+        // ここだけ調整後終値ではなく無調整終値を使う。調整後終値の前日比は
+        // 「価格リターン＋配当利回り」になるため、権利落ち日は当日のリターンが分配金の分だけ
+        // かさ上げされ、実際には-0.4%下げた日が0.2%のしきい値を通らなくなる（年4回取りこぼす）。
+        // 水準どうしの比較（50日線・5%反発・52週高値）は系列全体が同じ係数で調整されるため、
+        // 調整後終値のままで両辺の整合が取れる。
+        //
+        // 判定・強度・最大下落率がそれぞれ別の式を持つと、片方だけ調整後終値のまま残って
+        // 権利落ち日に符号が食い違う。下落率はこのローカル関数1本に集約する。
+        decimal DropPctAt(int i) => (data[i - 1].Close - data[i].Close) / data[i - 1].Close * 100m;
+
         var isRawDistDay = new bool[n];
         for (int i = 1; i < n; i++)
         {
-            decimal dropPct = (data[i - 1].AdjustedClose - data[i].AdjustedClose) / data[i - 1].AdjustedClose * 100m;
-            isRawDistDay[i] = dropPct >= DIST_DAY_DROP_PCT && data[i].Volume > data[i - 1].Volume;
+            isRawDistDay[i] = DropPctAt(i) >= DIST_DAY_DROP_PCT && data[i].Volume > data[i - 1].Volume;
         }
 
-        // --- 売り抜け日（失効ルール込みでアクティブな件数を日次で追跡） ---
+        // --- 売り抜け日の追跡 と ラリー・アテンプト / フォロースルーデー のステートマシン ---
+        // この2つは独立ではないので、必ず同じループで回す。IBDでは相場がCorrectionに入り、
+        // FTDで新しい上昇トレンドが確認された時点で売り抜け日のカウントは数え直しになる。
+        // 別々のループにすると、前のトレンドで積み上がった売り抜け日が新トレンドの初日から
+        // 持ち越され、52週高値を更新している最中でも Under Pressure と表示されてしまう。
         var distDaysActive = new int[n];
         var activeDDs = new List<(int idx, decimal close)>();
-        for (int i = 1; i < n; i++)
-        {
-            // 25営業日経過 または そのDDの終値から5%以上反発 したものは無効化
-            activeDDs.RemoveAll(dd => (i - dd.idx) > DIST_DAY_WINDOW || data[i].AdjustedClose >= dd.close * (1 + DIST_DAY_INVALIDATE_RALLY_PCT / 100m));
-
-            if (isRawDistDay[i])
-            {
-                activeDDs.Add((i, data[i].AdjustedClose));
-            }
-            distDaysActive[i] = activeDDs.Count;
-        }
-
-        // ループ終了時点のactiveDDsが「最新日時点でアクティブな売り抜け日」そのもの。
-        // チャートでの有効/失効の視覚区別と、深刻さ（最大下落率）の算出に使う
-        var activeDDIndices = activeDDs.Select(dd => dd.idx).ToHashSet();
-
-        // --- 売り抜け日の「強度」（出来高加重） ---
-        // 日数カウントだけでは -0.3%×平常出来高 の日と -2.0%×1.8倍出来高 の日が同じ「1日」になる。
-        // 下落率×出来高比で重み付けし、機関の売りの本気度を数値化する。
-        var volumeSma50 = new decimal?[n];
-        if (n >= 50)
-        {
-            decimal volumeWindowSum = 0m;
-            for (int i = 0; i < 50; i++) volumeWindowSum += data[i].Volume;
-            volumeSma50[49] = volumeWindowSum / 50m;
-            for (int i = 50; i < n; i++)
-            {
-                volumeWindowSum += data[i].Volume - data[i - 50].Volume;
-                volumeSma50[i] = volumeWindowSum / 50m;
-            }
-        }
-
-        decimal distributionIntensity = 0m;
-        foreach (var (idx, _) in activeDDs)
-        {
-            decimal dropPct = (data[idx - 1].AdjustedClose - data[idx].AdjustedClose) / data[idx - 1].AdjustedClose * 100m;
-            decimal volumeRatio = volumeSma50[idx].HasValue && volumeSma50[idx]!.Value > 0m
-                ? data[idx].Volume / volumeSma50[idx]!.Value
-                : 1m;
-            distributionIntensity += dropPct * volumeRatio;
-        }
-        distributionIntensity = Math.Round(distributionIntensity, 2);
-
-        decimal? worstActiveDropPct = null;
-        string? worstActiveDropDate = null;
-        if (activeDDs.Count > 0)
-        {
-            int worstIdx = activeDDs
-                .Select(dd => dd.idx)
-                .OrderByDescending(idx => (data[idx - 1].AdjustedClose - data[idx].AdjustedClose) / data[idx - 1].AdjustedClose)
-                .First();
-            worstActiveDropPct = Math.Round((data[worstIdx - 1].AdjustedClose - data[worstIdx].AdjustedClose) / data[worstIdx - 1].AdjustedClose * 100m, 2);
-            worstActiveDropDate = data[worstIdx].Date.ToString("yyyy-MM-dd");
-        }
-
-        // --- ラリー・アテンプト / フォロースルーデー のステートマシン ---
         var states = new string[n];
         states[0] = "Correction";
         string currentState = "Correction";
@@ -1859,23 +1928,71 @@ class Program
         decimal? day1Low = null;
         DateTime? lastFtdDate = null;
 
+        // 新しい上昇トレンドの起点で売り抜け日を数え直す。
+        // FTD経路と価格回復経路の2箇所に同じ処理を書くと、片方だけ直して食い違う。
+        // 確認日そのものが売り抜け日だったときは、新トレンドの1本目として残す。
+        // （FTDは+1.25%以上の上昇日なので該当しないが、価格回復による確認は下落日にも起こりうる。
+        //   52週高値が窓から外れて高値が切り下がると、下落日にドローダウンが改善して復帰しうるため）
+        void RestartDistributionCount(int index)
+        {
+            activeDDs.Clear();
+            if (isRawDistDay[index]) activeDDs.Add((index, data[index].AdjustedClose));
+            distDaysActive[index] = activeDDs.Count;
+        }
+
         for (int i = 1; i < n; i++)
         {
-            // Confirmed Uptrend からの「格下げ」判定（50日線割れ + 売り抜け日蓄積）
-            if (currentState == "ConfirmedUptrend" && sma50[i].HasValue)
+            // 25営業日経過 または そのDDの終値から5%以上反発 したものは無効化。
+            // 窓はDD当日を1日目として数えるため、経過日数が25に達した時点で外す（当日+24日＝25セッション）。
+            activeDDs.RemoveAll(dd => (i - dd.idx) >= DIST_DAY_WINDOW || data[i].AdjustedClose >= dd.close * (1 + DIST_DAY_INVALIDATE_RALLY_PCT / 100m));
+
+            if (isRawDistDay[i])
             {
-                bool aboveSma = data[i].AdjustedClose >= sma50[i]!.Value;
-                if (!aboveSma && distDaysActive[i] >= DIST_DAY_BREAKDOWN_THRESHOLD)
+                activeDDs.Add((i, data[i].AdjustedClose));
+            }
+            distDaysActive[i] = activeDDs.Count;
+
+            // Confirmed Uptrend からの「格下げ」判定
+            if (currentState == "ConfirmedUptrend")
+            {
+                bool belowSma50 = sma50[i].HasValue && data[i].AdjustedClose < sma50[i]!.Value;
+                decimal drawdownPct = DrawdownPctAt(i);
+                // 50日線割れ + 売り抜け日蓄積 が本来の経路。
+                // 加えて、売り抜け日が規定数まで積み上がらないまま価格だけが崩れる下げ
+                // （ギャップ主体で前日比の出来高が増えない、あるいは途中の反発で5%ルールにより
+                // DDが次々失効する下げ）を取りこぼさないための安全弁を持たせる。
+                // IBDも指数の明確なブレイクダウンでは、DD数によらずCorrectionへ移す。
+                bool distributionBreakdown = belowSma50 && distDaysActive[i] >= DIST_DAY_BREAKDOWN_THRESHOLD;
+                bool priceBreakdown = drawdownPct <= UPTREND_BREAKDOWN_DRAWDOWN_PCT;
+                if (distributionBreakdown || priceBreakdown)
                 {
                     currentState = "Correction";
                     day1Index = null;
                     day1Low = null;
+                    // 現在の上昇トレンドは終わったので、それを確認したFTDの日付も持ち越さない。
+                    // 残すと調整局面のあいだ「直近FTD」が緑のまま居座り、確認済みに見えてしまう。
+                    lastFtdDate = null;
                 }
             }
 
             if (currentState != "ConfirmedUptrend")
             {
-                if (day1Index == null)
+                // 価格側の復帰安全弁（-8%ブレイクダウンの逆向き）。
+                // 52週高値の目前まで戻り、かつ50日線の上にある相場を「調整局面」と呼び続けるのは実態に合わない。
+                // FTDの連言（+1.25% かつ 出来高増 を4〜25営業日目に）は低ボラの上昇では何か月も成立せず、
+                // 実測では新高値を更新した日にCorrection判定が出ていた。IBDはそのような表示をしない。
+                bool aboveSma50Now = sma50[i].HasValue && data[i].AdjustedClose >= sma50[i]!.Value;
+                decimal recoveryDrawdownPct = DrawdownPctAt(i);
+                if (aboveSma50Now && recoveryDrawdownPct >= UPTREND_RECOVERY_DRAWDOWN_PCT)
+                {
+                    currentState = "ConfirmedUptrend";
+                    day1Index = null;
+                    day1Low = null;
+                    // FTDではなく価格の回復による確認なので、FTD日付は付けない。
+                    lastFtdDate = null;
+                    RestartDistributionCount(i);
+                }
+                else if (day1Index == null)
                 {
                     // Day1候補：前日が直近10日の安値で、当日が陽転した日
                     // （LINQのSkip/Take/Minは短い区間でも毎回列挙用オブジェクトを作るため、単純なforループで代替）
@@ -1912,11 +2029,15 @@ class Program
                         }
                         else if (attemptDay >= FTD_MIN_DAY)
                         {
-                            decimal gainPct = (data[i].AdjustedClose - data[i - 1].AdjustedClose) / data[i - 1].AdjustedClose * 100m;
+                            // 売り抜け日と同じ理由で、前日比の判定には無調整終値を使う。
+                            decimal gainPct = (data[i].Close - data[i - 1].Close) / data[i - 1].Close * 100m;
                             if (gainPct >= FTD_GAIN_PCT && data[i].Volume > data[i - 1].Volume)
                             {
                                 currentState = "ConfirmedUptrend";
                                 lastFtdDate = data[i].Date;
+                                // ここが新しい上昇トレンドの起点。前のトレンド／調整局面で積み上がった
+                                // 売り抜け日は持ち越さず、この日から数え直す（IBD Current Outlookの流儀）。
+                                RestartDistributionCount(i);
                             }
                         }
                     }
@@ -1924,6 +2045,50 @@ class Program
             }
 
             states[i] = currentState;
+        }
+
+        // ループ終了時点のactiveDDsが「最新日時点でアクティブな売り抜け日」そのもの。
+        // チャートでの有効/失効の視覚区別と、深刻さ（最大下落率）の算出に使う。
+        // FTDでクリアされた分は「失効」側のマーカーとして表示される。
+        var activeDDIndices = activeDDs.Select(dd => dd.idx).ToHashSet();
+
+        // --- 売り抜け日の「強度」（出来高加重） ---
+        // 日数カウントだけでは -0.3%×平常出来高 の日と -2.0%×1.8倍出来高 の日が同じ「1日」になる。
+        // 下落率×出来高比で重み付けし、機関の売りの本気度を数値化する。
+        var volumeSma50 = new decimal?[n];
+        if (n >= 50)
+        {
+            decimal volumeWindowSum = 0m;
+            for (int i = 0; i < 50; i++) volumeWindowSum += data[i].Volume;
+            volumeSma50[49] = volumeWindowSum / 50m;
+            for (int i = 50; i < n; i++)
+            {
+                volumeWindowSum += data[i].Volume - data[i - 50].Volume;
+                volumeSma50[i] = volumeWindowSum / 50m;
+            }
+        }
+
+        decimal distributionIntensity = 0m;
+        foreach (var (idx, _) in activeDDs)
+        {
+            decimal dropPct = DropPctAt(idx);
+            decimal volumeRatio = volumeSma50[idx].HasValue && volumeSma50[idx]!.Value > 0m
+                ? data[idx].Volume / volumeSma50[idx]!.Value
+                : 1m;
+            distributionIntensity += dropPct * volumeRatio;
+        }
+        distributionIntensity = Math.Round(distributionIntensity, 2);
+
+        decimal? worstActiveDropPct = null;
+        string? worstActiveDropDate = null;
+        if (activeDDs.Count > 0)
+        {
+            int worstIdx = activeDDs
+                .Select(dd => dd.idx)
+                .OrderByDescending(DropPctAt)
+                .First();
+            worstActiveDropPct = Math.Round(DropPctAt(worstIdx), 2);
+            worstActiveDropDate = data[worstIdx].Date.ToString("yyyy-MM-dd");
         }
 
         // --- 最新日のステータス判定 ---
@@ -1935,9 +2100,9 @@ class Program
 
         bool isAboveSma50 = sma50[n - 1].HasValue && data[n - 1].AdjustedClose >= sma50[n - 1]!.Value;
 
-        // --- 52週高値からのドローダウン（取得済みの1年分データからそのまま算出、追加取得コスト無し） ---
-        decimal high52Week = data.Max(d => d.AdjustedClose);
-        decimal drawdownFromHighPct = Math.Round((data[n - 1].AdjustedClose - high52Week) / high52Week * 100m, 2);
+        // --- 52週高値からのドローダウン（上で求めた252営業日の移動最大値を使う） ---
+        decimal high52Week = high52[n - 1];
+        decimal drawdownFromHighPct = Math.Round(DrawdownPctAt(n - 1), 2);
 
         // --- チャート表示用（直近100日） ---
         int chartStart = Math.Max(0, n - 100);
@@ -1967,7 +2132,7 @@ class Program
             LatestAdjustedClose = data[n - 1].AdjustedClose,
             Sma50 = sma50[n - 1],
             IsAboveSma50 = isAboveSma50,
-            High52WeekAdjusted = high52Week,
+            High52WeekPrice = high52Week,
             DrawdownFromHighPct = drawdownFromHighPct,
             DistributionDaysActive = lastDistDays,
             DistributionIntensity = distributionIntensity,
@@ -2000,18 +2165,34 @@ class Program
                 ?? throw new InvalidDataException("history.json が空または配列ではありません。ファイルを確認してください。");
             if (existing.Any(entry => !IsValidHistoryEntry(entry)))
                 throw new InvalidDataException("history.json に不正な日付・市場ステータス・数値が含まれています。更新を中止しました。");
-            if (existing.Select(entry => entry.Date).Distinct(StringComparer.Ordinal).Count() != existing.Count)
-                throw new InvalidDataException("history.json に同じ日付の重複があります。更新を中止しました。");
+            // 旧バージョンはライブ記録を「JSTの実行日」で採番していた。実行時刻によって
+            // 市場基準日との差が0日にも1日にもなるため、キーとして一意にならない。
+            // 市場観測の自然な主キーである市場基準日へ寄せ、過去分もその場で正規化する。
+            int renamed = 0;
+            foreach (var entry in existing)
+            {
+                if (string.IsNullOrEmpty(entry.MarketDataAsOf) || entry.Date == entry.MarketDataAsOf) continue;
+                entry.Date = entry.MarketDataAsOf!;
+                renamed++;
+            }
+            if (renamed > 0)
+                Console.WriteLine($"[History] 旧採番のライブ記録 {renamed} 件を市場基準日キーへ移行しました。");
 
-            history = existing.OrderBy(entry => entry.Date).ToList();
+            // 重複日をここで例外にすると、一度崩れたファイルのせいで以後すべての更新が失敗し続ける。
+            // 決定的に畳んで復旧させ、記録だけ残す。
+            history = DeduplicateHistoryByDate(existing);
+            if (history.Count != existing.Count)
+                Console.WriteLine($"[History] 既存の history.json にあった重複日 {existing.Count - history.Count} 件を畳みました（ライブ記録を優先）。");
         }
 
-        string today = JstNow().ToString("yyyy-MM-dd");
-        history.RemoveAll(h => h.Date == today); // 同日再実行時は上書き
+        // 同じ市場基準日での再実行は上書きする。
+        // JST実行日で採番していたときは、場中実行と定時実行が別キーになり、
+        // 未確定バーから作った記録が消えずに残っていた。
+        history.RemoveAll(h => h.Date == marketDataAsOf);
 
         history.Add(new HistoryEntry
         {
-            Date = today,
+            Date = marketDataAsOf,
             MarketDataAsOf = marketDataAsOf,
             Source = "live",
             RubricVersion = RUBRIC_VERSION,
@@ -2082,13 +2263,12 @@ class Program
         !string.IsNullOrWhiteSpace(metric.Group) && !string.IsNullOrWhiteSpace(metric.Name) &&
         metric.Score >= 0m && metric.MaxPoints > 0m && metric.Score <= metric.MaxPoints;
 
-    static void ApplyTodayRiskScoreSnapshot(List<HistoryEntry> history, MarketRiskScore riskScore)
+    static void ApplyTodayRiskScoreSnapshot(List<HistoryEntry> history, MarketRiskScore riskScore, string marketDataAsOf)
     {
         if (riskScore.Score < 0m || riskScore.Score > 100m || riskScore.AvailableMaxPoints <= 0m)
             throw new ArgumentOutOfRangeException(nameof(riskScore), "市場リスクスコアまたは採点カバレッジが不正です。");
 
-        string today = JstNow().ToString("yyyy-MM-dd");
-        var todayEntry = history.SingleOrDefault(entry => entry.Date == today)
+        var todayEntry = history.SingleOrDefault(entry => entry.Date == marketDataAsOf)
             ?? throw new InvalidDataException("当日の履歴が見つからないため、市場リスクスコアを保存できません。");
         todayEntry.MarketRiskScore = Math.Round(riskScore.Score, 1);
         todayEntry.MarketRiskAvailableMaxPoints = Math.Round(riskScore.AvailableMaxPoints, 1);
@@ -2158,15 +2338,14 @@ class Program
         setMaxDrawdown(Math.Round(maxDrawdown, 2));
     }
 
-    static MarketRiskChange BuildMarketRiskChange(List<HistoryEntry> history)
+    static MarketRiskChange BuildMarketRiskChange(List<HistoryEntry> history, string marketDataAsOf)
     {
-        string today = JstNow().ToString("yyyy-MM-dd");
-        var current = history.SingleOrDefault(entry => entry.Date == today);
+        var current = history.SingleOrDefault(entry => entry.Date == marketDataAsOf);
         // 週末や休日に再実行すると市場基準日が前回と同じになる。
         // その比較は必ず「変化なし」になり、相場が動いていないかのように読めてしまうため、
         // 市場基準日が実際に進んでいる直近の記録とだけ比較する。
         var previous = history
-            .Where(entry => entry.Date != today && entry.MarketRiskScore.HasValue &&
+            .Where(entry => entry.Date != marketDataAsOf && entry.MarketRiskScore.HasValue &&
                 !string.Equals(entry.MarketDataAsOf, current?.MarketDataAsOf, StringComparison.Ordinal))
             .OrderByDescending(entry => entry.Date, StringComparer.Ordinal).FirstOrDefault();
 
@@ -2256,50 +2435,6 @@ class Program
             CoverageChange = coverageChange,
             Factors = factors.OrderByDescending(factor => Math.Abs(factor.ChangeInRiskPoints)).Take(4).ToList(),
             Note = note
-        };
-    }
-
-    static ScoreValidationOutput BuildLegacyScoreValidation(List<HistoryEntry> history)
-    {
-        // 同じ市場基準日を複数回更新した場合は最後の記録だけを使い、休日・再実行による重複集計を防ぐ。
-        // 配点体系が違うスコアは同じ箱に入れない（分母が変わると同じ点数でも意味が変わるため）。
-        var observations = history
-            .Where(entry => entry.MarketRiskScore.HasValue && !string.IsNullOrEmpty(entry.MarketDataAsOf) &&
-                entry.SpyAdjustedClose.HasValue && entry.QqqAdjustedClose.HasValue &&
-                (entry.RubricVersion ?? 0) == RUBRIC_VERSION)
-            .GroupBy(entry => entry.MarketDataAsOf!, StringComparer.Ordinal)
-            .Select(group => group.OrderBy(entry => entry.Date).Last())
-            .OrderBy(entry => entry.MarketDataAsOf)
-            .ToList();
-        int backfilledCount = observations.Count(entry => entry.Source == "backfill");
-
-        var bands = new[]
-        {
-            (Label: "0–20", Matches: new Func<decimal, bool>(score => score <= 20m)),
-            (Label: "21–40", Matches: new Func<decimal, bool>(score => score > 20m && score <= 40m)),
-            (Label: "41–60", Matches: new Func<decimal, bool>(score => score > 40m && score <= 60m)),
-            (Label: "61–80", Matches: new Func<decimal, bool>(score => score > 60m && score <= 80m)),
-            (Label: "81–100", Matches: new Func<decimal, bool>(score => score > 80m))
-        };
-
-        var bandResults = bands.Select(band => BuildScoreBandValidation(
-            band.Label, observations.Where(entry => band.Matches(entry.MarketRiskScore!.Value)).ToList())).ToList();
-        int oneMonthMatured = observations.Count(entry => entry.SpyReturn1m.HasValue && entry.QqqReturn1m.HasValue);
-        int threeMonthMatured = observations.Count(entry => entry.SpyReturn3m.HasValue && entry.QqqReturn3m.HasValue);
-        string status = oneMonthMatured >= SCORE_VALIDATION_RECOMMENDED_MIN_SAMPLES ? "preliminary" : "collecting";
-
-        return new ScoreValidationOutput
-        {
-            Status = status,
-            ObservationCount = observations.Count,
-            OneMonthMaturedCount = oneMonthMatured,
-            ThreeMonthMaturedCount = threeMonthMatured,
-            RecommendedMinSamples = SCORE_VALIDATION_RECOMMENDED_MIN_SAMPLES,
-            BackfilledCount = backfilledCount,
-            Bands = bandResults,
-            Note = backfilledCount == 0
-                ? "各スコア記録日の調整後終値から21・63営業日後までの実績です。過去実績であり、将来のリターンや投資成果を保証するものではありません。"
-                : $"{observations.Count}件中{backfilledCount}件は過去データからの再計算です。構成銘柄リストが現時点のものなので生存者バイアスが乗り、ブレッドス系は実際より良く出ます。また日次観測は期間が重なるため独立ではなく、1か月先の実質的な独立標本数は概ね「件数÷21」にとどまります。閾値の最適化には使わず、傾向の確認にとどめてください。"
         };
     }
 
@@ -2394,7 +2529,11 @@ class Program
         if (history.Any(entry => !IsValidHistoryEntry(entry)))
             throw new InvalidDataException("history.json に不正なデータがあるため、市場リスクスコアを保存できません。");
 
-        var trimmed = history.OrderBy(entry => entry.Date, StringComparer.Ordinal).TakeLast(HISTORY_MAX_ENTRIES).ToList();
+        var deduplicated = DeduplicateHistoryByDate(history);
+        if (deduplicated.Count != history.Count)
+            Console.WriteLine($"[History] 重複した日付を {history.Count - deduplicated.Count} 件まとめました（ライブ記録を優先）。");
+
+        var trimmed = deduplicated.TakeLast(HISTORY_MAX_ENTRIES).ToList();
 
         // 採点内訳（marketRiskMetrics）は「今日のスコア変動理由」でしか使わず、必要なのは直近数件だけ。
         // 1件あたり19項目×説明文で数KBになり、全件保持するとファイルが1MB近くまで膨らんで
@@ -2452,13 +2591,134 @@ class Program
         Assert(validation.ExcludedBackfilledCount == 1, "backfills are explicitly excluded from validation");
         Assert(validation.IncompatibleLiveCount == 1, "live entries with another schema are excluded");
 
-        DateTime today = JstNow().Date;
-        var previous = TestHistoryEntry(today.AddDays(-1).ToString("yyyy-MM-dd"), "live", schemaA);
+        var previous = TestHistoryEntry("2026-08-17", "live", schemaA);
         previous.MarketRiskMetrics = new List<MarketRiskMetric> { metricA };
-        var current = TestHistoryEntry(today.ToString("yyyy-MM-dd"), "live", schemaB);
+        var current = TestHistoryEntry("2026-08-18", "live", schemaB);
         current.MarketRiskMetrics = new List<MarketRiskMetric> { metricA };
-        MarketRiskChange change = BuildMarketRiskChange(new List<HistoryEntry> { previous, current });
+        MarketRiskChange change = BuildMarketRiskChange(new List<HistoryEntry> { previous, current }, "2026-08-18");
         Assert(change.Status == "coverage_changed", "score deltas are withheld when schemas differ");
+        Assert(change.PreviousDate == "2026-08-17", "the comparison target is keyed by market date, not the JST run date");
+
+        // --- IBD Current Outlook のロジック回帰テスト ---
+
+        // 52週高値は「渡された系列全体の最大」ではなく252営業日の窓で求める。
+        // 先頭に外れ高値を置き、窓から出た時点で参照されなくなることを確認する。
+        var longHistory = new List<(decimal, long)> { (200m, 1_000L) };
+        for (int i = 1; i < 400; i++) longHistory.Add((100m, 1_000L));
+        IndexAnalysis windowed = AnalyzeIndex("test", TestIndexSeries(longHistory));
+        Assert(windowed.High52WeekPrice == 100m, "52-week high uses a 252-session window, not the whole series");
+        Assert(windowed.DrawdownFromHighPct == 0m, "drawdown is measured from the 52-week window high");
+
+        // 売り抜け日は「DD当日を1日目」として25セッション有効。26セッション目には外れる。
+        List<(decimal, long)> BuildSingleDistributionDay(int trailingFlatBars)
+        {
+            var bars = new List<(decimal, long)>();
+            for (int i = 0; i < 251; i++) bars.Add((100m, 1_000L));
+            bars.Add((99m, 2_000L)); // index 251: -1.0% を出来高増で＝売り抜け日
+            for (int i = 0; i < trailingFlatBars; i++) bars.Add((99m, 1_000L));
+            return bars;
+        }
+        Assert(AnalyzeIndex("test", TestIndexSeries(BuildSingleDistributionDay(24))).DistributionDaysActive == 1,
+            "a distribution day stays active through its 25th session");
+        Assert(AnalyzeIndex("test", TestIndexSeries(BuildSingleDistributionDay(25))).DistributionDaysActive == 0,
+            "a distribution day expires once 25 sessions have elapsed");
+
+        // 調整局面で積み上げた売り抜け日を、フォロースルーデーの成立時点でリセットする。
+        var ftdReset = new List<(decimal, long)>();
+        for (int i = 0; i < 251; i++) ftdReset.Add((100m, 1_000L));
+        decimal stepDown = 99m;
+        for (int i = 0; i < 6; i++) // 売り抜け日6本（間に陽転日を挟み、都度アンダーカットで仕切り直す）
+        {
+            ftdReset.Add((stepDown, 2_000L));
+            ftdReset.Add((stepDown + 0.2m, 1_000L));
+            stepDown -= 1m;
+        }
+        var beforeFtd = AnalyzeIndex("test", TestIndexSeries(ftdReset));
+        Assert(beforeFtd.DistributionDaysActive == 6 && beforeFtd.TrendState != "ConfirmedUptrend",
+            "the fixture accumulates six distribution days while the market is not in a confirmed uptrend");
+        ftdReset.Add((93.2m, 1_000L)); // 直近安値（出来高が増えないので売り抜け日にはならない）
+        ftdReset.Add((93.3m, 1_000L)); // Day1：安値からの陽転
+        ftdReset.Add((93.4m, 1_000L)); // Day2
+        ftdReset.Add((93.5m, 1_000L)); // Day3
+        ftdReset.Add((94.9m, 2_000L)); // Day4・+1.50%・出来高増＝フォロースルーデー
+        var afterFtd = AnalyzeIndex("test", TestIndexSeries(ftdReset));
+        Assert(afterFtd.TrendState == "ConfirmedUptrend", "the fixture produces a follow-through day");
+        // 経路を固定しないと、価格回復の安全弁で確認された場合にもこのテストが通ってしまい、
+        // FTDでのリセットを検証しなくなる。
+        Assert(afterFtd.LastFollowThroughDate != null, "the fixture confirms via a follow-through day, not the price failsafe");
+        Assert(afterFtd.DistributionDaysActive == 0, "the distribution day count restarts at a follow-through day");
+        Assert(afterFtd.StatusId == "Uptrend", "a fresh confirmed uptrend is not reported as under pressure");
+
+        // 売り抜け日が積み上がらないまま価格が崩れた場合の安全弁。
+        var priceBreakdown = new List<(decimal, long)>(ftdReset);
+        decimal falling = 94m;
+        long shrinkingVolume = 900L;
+        while (falling >= 91m) // 出来高は縮小し続けるので新たな売り抜け日は発生しない
+        {
+            priceBreakdown.Add((falling, shrinkingVolume));
+            falling -= 1m;
+            shrinkingVolume -= 100L;
+        }
+        var broken = AnalyzeIndex("test", TestIndexSeries(priceBreakdown));
+        Assert(broken.DistributionDaysActive == 0, "the price-breakdown fixture creates no new distribution days");
+        Assert(broken.DrawdownFromHighPct <= UPTREND_BREAKDOWN_DRAWDOWN_PCT, "the price-breakdown fixture exceeds the drawdown failsafe");
+        Assert(broken.TrendState == "Correction" && broken.StatusId == "Correction",
+            "a deep drawdown ends a confirmed uptrend even without six distribution days");
+        Assert(broken.LastFollowThroughDate == null, "the confirming follow-through date is cleared when the uptrend ends");
+
+        // --- 価格側の復帰安全弁 ---
+        // 下げてCorrectionに入ったあと、+1.25%の日も出来高増も一度も無いまま
+        // じりじり戻して新高値を更新する系列。FTDは絶対に成立しない。
+        var grind = new List<(decimal, long)>();
+        for (int i = 0; i < 100; i++) grind.Add((100m, 1_000L));          // 平坦（この間に上昇トレンド確認）
+        for (int k = 1; k <= 30; k++) grind.Add((100m - 0.4m * k, 1_000L - k)); // -12%まで下落。出来高は減り続ける
+        var bottomed = AnalyzeIndex("test", TestIndexSeries(grind));
+        Assert(bottomed.TrendState == "Correction" && bottomed.DistributionDaysActive == 0,
+            "the grind fixture enters a correction on price alone");
+
+        for (int k = 1; k <= 170; k++) grind.Add((88m + 0.0765m * k, 500L)); // 88→101へ微増。出来高一定＝FTD不成立
+        int midpoint = 100 + 30 + 92;
+        var midRecovery = AnalyzeIndex("test", TestIndexSeries(grind.Take(midpoint)));
+        Assert(midRecovery.DrawdownFromHighPct < UPTREND_RECOVERY_DRAWDOWN_PCT && midRecovery.TrendState == "Correction",
+            "a partial recovery still short of the 52-week high stays in correction");
+
+        var recovered = AnalyzeIndex("test", TestIndexSeries(grind));
+        Assert(recovered.DrawdownFromHighPct >= UPTREND_RECOVERY_DRAWDOWN_PCT, "the grind fixture returns to its 52-week high");
+        Assert(recovered.TrendState == "ConfirmedUptrend" && recovered.StatusId == "Uptrend",
+            "reclaiming the 52-week high above the 50-day line ends the correction without a follow-through day");
+        Assert(recovered.LastFollowThroughDate == null, "a price-driven recovery does not fabricate a follow-through date");
+
+        // --- 権利落ち日の売り抜け日を取りこぼさない ---
+        // 調整後終値の前日比は「価格リターン＋配当利回り」なので、権利落ち日は当日のリターンが
+        // かさ上げされる。判定を調整後終値に戻すと、下の-0.5%の下げが+0.1%に見えて検出できなくなる。
+        var exDividend = new List<(decimal Close, decimal AdjustedClose, long Volume)>();
+        for (int i = 0; i < 260; i++) exDividend.Add((100m, 99.4m, 1_000L)); // 分配金の分だけ調整後が低い
+        exDividend.Add((99.5m, 99.5m, 2_000L));  // 無調整では-0.50%、調整後では+0.10%（出来高増）
+        var exDivAnalysis = AnalyzeIndex("test", TestIndexSeries(exDividend));
+        Assert(exDivAnalysis.DistributionDaysActive == 1,
+            "an ex-dividend decline is detected as a distribution day on the unadjusted close");
+        Assert(exDivAnalysis.WorstActiveDropPct == 0.50m,
+            "the distribution day drop is measured on the unadjusted close");
+        // 52週高値・ドローダウンも価格ベースであること（調整後基準なら高値99.4で下落率が正になる）。
+        Assert(exDivAnalysis.High52WeekPrice == 100m && exDivAnalysis.DrawdownFromHighPct == -0.50m,
+            "the 52-week high and drawdown are measured on the unadjusted close");
+
+        // --- 未確定バーの除外 ---
+        // タイムゾーンが引けないと IsUnsettledSession が常にfalseになり、機能が黙って無効化される。
+        Assert(LazyEasternTimeZone.Value != null, "the US Eastern time zone resolves so unsettled bars can be detected");
+        Assert(!IsUnsettledSession(DateTime.UtcNow.Date.AddDays(-10)), "a session from ten days ago is never treated as unsettled");
+
+        // --- 履歴の日付キー ---
+        // ライブもバックフィルも市場基準日で採番する。実行時刻に依存しないので衝突しない。
+        var collided = new List<HistoryEntry>
+        {
+            TestHistoryEntry("2026-08-11", "backfill", schemaA),
+            TestHistoryEntry("2026-08-11", "live", schemaA),
+            TestHistoryEntry("2026-08-12", "backfill", schemaA)
+        };
+        var healed = DeduplicateHistoryByDate(collided);
+        Assert(healed.Count == 2, "duplicate dates are folded instead of breaking the next run");
+        Assert(healed[0].Source == "live", "the live record wins when a date collides");
 
         var sectorSource = new SectorRotationData { SpyData = TestPriceSeries(100m) };
         foreach (string symbol in SECTOR_ETFS.Keys.Take(8)) sectorSource.Sectors[symbol] = TestPriceSeries(110m);
@@ -2487,10 +2747,23 @@ class Program
     };
 
     static List<DailyData> TestPriceSeries(decimal firstClose) => Enumerable.Range(0, 70)
-        .Select(index => new DailyData(new DateTime(2025, 1, 1).AddDays(index), firstClose + index, 1_000_000L))
+        .Select(index => new DailyData(new DateTime(2025, 1, 1).AddDays(index), firstClose + index, firstClose + index, 1_000_000L))
         .ToList();
 
-    record DailyData(DateTime Date, decimal AdjustedClose, long Volume);
+    // 終値と出来高だけを並べた検証用の系列。AnalyzeIndexは日付の連続性を見ないため暦日で採番する。
+    static List<DailyData> TestIndexSeries(IEnumerable<(decimal Close, long Volume)> bars) => bars
+        .Select((bar, index) => new DailyData(new DateTime(2024, 1, 1).AddDays(index), bar.Close, bar.Close, bar.Volume))
+        .ToList();
+
+    // 調整後終値と無調整終値が食い違う系列（権利落ちの再現）。
+    // 両者が同じ値のフィクスチャだけだと、判定をどちらで行っているか検証できない。
+    static List<DailyData> TestIndexSeries(IEnumerable<(decimal Close, decimal AdjustedClose, long Volume)> bars) => bars
+        .Select((bar, index) => new DailyData(new DateTime(2024, 1, 1).AddDays(index), bar.AdjustedClose, bar.Close, bar.Volume))
+        .ToList();
+
+    // AdjustedClose: 分配金・分割を反映した終値。水準比較・リターン・移動平均に使う。
+    // Close: 無調整終値。売り抜け日／FTDの「前日比」判定だけに使う（権利落ち日の取りこぼし防止）。
+    record DailyData(DateTime Date, decimal AdjustedClose, decimal Close, long Volume);
 
     class IndexAnalysis
     {
@@ -2499,7 +2772,7 @@ class Program
         public decimal LatestAdjustedClose { get; set; }
         public decimal? Sma50 { get; set; }
         public bool IsAboveSma50 { get; set; }
-        public decimal High52WeekAdjusted { get; set; }
+        public decimal High52WeekPrice { get; set; }
         public decimal DrawdownFromHighPct { get; set; } // 0以下の値（52週高値からの下落率）
         public int DistributionDaysActive { get; set; }
         // アクティブな売り抜け日の Σ(下落率 × 出来高/50日平均出来高)。大きいほど売りが重い。
@@ -2568,6 +2841,8 @@ class Program
         public CreditData? Credit { get; set; }
         public VolatilityData? Volatility { get; set; }
         public BreadthData? Breadth { get; set; }
+        // ブレッドスが取れなかった理由。画面の注記にそのまま出して原因を隠さない。
+        public string? BreadthUnavailableReason { get; set; }
     }
 
     // ある基準日時点の市場評価一式。実運用日もバックフィル日も同じ関数で作るため、比較可能性が保たれる。
