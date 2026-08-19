@@ -1,7 +1,8 @@
-# .NETのビルド時に自動生成されるフォルダ（コミット不要）
 bin/
 obj/
+*.tmp
+*.BAK
 
-# OSが生成する不要ファイル
-.DS_Store
-Thumbs.db
+# WriteTextAtomically が異常終了時に残しうる作業ファイル
+*.marketpulse-pending
+*.marketpulse-backup
