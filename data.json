@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-08-20 07:31:31",
+  "lastUpdated": "2026-08-20 08:01:56",
   "marketDataAsOf": "2026-08-19",
   "combinedStatus": "Uptrend",
   "combinedDrivenBy": "SPY\u3068QQQ\u306F\u540C\u3058\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9",
@@ -1078,9 +1078,9 @@
     "spyReturn1m": 2.78,
     "spyReturn3m": 5.09,
     "defensiveReturn1m": 3.53,
-    "cyclicalReturn1m": 1.77,
-    "rotationSpread1m": 1.76,
-    "rotationSpread3m": 2.76,
+    "cyclicalReturn1m": 2.22,
+    "rotationSpread1m": 1.31,
+    "rotationSpread3m": 1.13,
     "sectors": [
       {
         "symbol": "XLV",
@@ -1099,36 +1099,28 @@
         "relStrength3m": 7.79
       },
       {
+        "symbol": "XLI",
+        "name": "\u8CC7\u672C\u8CA1",
+        "return1m": 1.84,
+        "return3m": 8.09,
+        "relStrength1m": -0.94,
+        "relStrength3m": 3.00
+      },
+      {
+        "symbol": "XLB",
+        "name": "\u7D20\u6750",
+        "return1m": 4.83,
+        "return3m": 7.50,
+        "relStrength1m": 2.05,
+        "relStrength3m": 2.41
+      },
+      {
         "symbol": "XLK",
         "name": "\u30C6\u30AF\u30CE\u30ED\u30B8\u30FC",
         "return1m": 1.58,
         "return3m": 6.13,
         "relStrength1m": -1.20,
         "relStrength3m": 1.04
-      },
-      {
-        "symbol": "XLRE",
-        "name": "\u4E0D\u52D5\u7523",
-        "return1m": -0.95,
-        "return3m": 4.98,
-        "relStrength1m": -3.73,
-        "relStrength3m": -0.11
-      },
-      {
-        "symbol": "XLB",
-        "name": "\u7D20\u6750",
-        "return1m": 3.94,
-        "return3m": 4.80,
-        "relStrength1m": 1.16,
-        "relStrength3m": -0.29
-      },
-      {
-        "symbol": "XLI",
-        "name": "\u8CC7\u672C\u8CA1",
-        "return1m": 1.00,
-        "return3m": 4.52,
-        "relStrength1m": -1.78,
-        "relStrength3m": -0.57
       },
       {
         "symbol": "XLE",
@@ -1139,12 +1131,20 @@
         "relStrength3m": -0.61
       },
       {
+        "symbol": "XLRE",
+        "name": "\u4E0D\u52D5\u7523",
+        "return1m": -0.53,
+        "return3m": 3.74,
+        "relStrength1m": -3.31,
+        "relStrength3m": -1.35
+      },
+      {
         "symbol": "XLY",
         "name": "\u4E00\u822C\u6D88\u8CBB\u8CA1",
-        "return1m": 2.73,
-        "return3m": 1.97,
-        "relStrength1m": -0.05,
-        "relStrength3m": -3.12
+        "return1m": 3.24,
+        "return3m": 3.30,
+        "relStrength1m": 0.46,
+        "relStrength3m": -1.79
       },
       {
         "symbol": "XLP",
@@ -1165,20 +1165,20 @@
       {
         "symbol": "XLC",
         "name": "\u901A\u4FE1\u30B5\u30FC\u30D3\u30B9",
-        "return1m": 0.61,
-        "return3m": -3.85,
-        "relStrength1m": -2.17,
-        "relStrength3m": -8.94
+        "return1m": 0.47,
+        "return3m": -4.59,
+        "relStrength1m": -2.31,
+        "relStrength3m": -9.68
       }
     ],
     "breadthProxies": [
       {
         "symbol": "RSP",
         "name": "S\u0026P500\u5747\u7B49\u52A0\u91CD",
-        "return1m": 4.08,
-        "return3m": 10.60,
-        "relStrength1m": 1.30,
-        "relStrength3m": 5.51
+        "return1m": 4.38,
+        "return3m": 10.57,
+        "relStrength1m": 1.60,
+        "relStrength3m": 5.48
       },
       {
         "symbol": "IWM",
@@ -1195,28 +1195,28 @@
     "status": "partial",
     "hygReturn1m": 0.56,
     "hygReturn3m": 1.93,
-    "lqdReturn1m": -0.87,
-    "lqdReturn3m": -1.11,
-    "spread1m": 1.43,
-    "spread3m": 3.04,
+    "lqdReturn1m": 0.17,
+    "lqdReturn3m": 0.65,
+    "spread1m": 0.39,
+    "spread3m": 1.28,
     "hyOasPct": null,
     "hyOasChange1mBps": null,
     "hyOasDate": null,
     "note": "HYG\u3068\u6295\u8CC7\u9069\u683C\u793E\u50B5ETF(LQD)\u306E\u76F8\u5BFE\u30EA\u30BF\u30FC\u30F3\u306B\u3001ICE BofA US High Yield OAS\u3092\u8FFD\u52A0\u3057\u307E\u3057\u305F\u3002TLT\u6BD4\u8F03\u3088\u308A\u91D1\u5229\u30C7\u30E5\u30EC\u30FC\u30B7\u30E7\u30F3\u5DEE\u306E\u5F71\u97FF\u3092\u6291\u3048\u3001\u4FE1\u7528\u30EA\u30B9\u30AF\u3092\u8AAD\u307F\u53D6\u308A\u3084\u3059\u304F\u3057\u307E\u3059\u3002"
   },
   "volatilityRegime": {
-    "status": "partial",
+    "status": "ok",
     "vix": 14.890000343322754,
     "vixSma20": 16.31,
-    "vix3m": null,
-    "realizedVolShortPct": 7.12,
-    "realizedVolLongPct": 13.73,
+    "vix3m": 18.56999969482422,
+    "realizedVolShortPct": null,
+    "realizedVolLongPct": null,
     "realizedVol21Pct": 13.28,
     "varianceRiskPremium": 1.61,
-    "termSlopePct": -48.14,
+    "termSlopePct": -19.82,
     "termStructure": "Contango",
-    "termSource": "RealizedVol",
-    "note": "^VIX3M\u306E\u914D\u4FE1\u304C\u505C\u6B62\u3057\u3066\u3044\u308B\u305F\u3081\u3001SPY\u306E10\u65E5\uFF0F63\u65E5\u5B9F\u73FE\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3\u6BD4\u3067\u671F\u9650\u69CB\u9020\u3092\u4EE3\u66FF\u3057\u3066\u3044\u307E\u3059\u3002\u5B9F\u73FE\u30DC\u30E9\u306E\u77ED\u671F\u512A\u52E2\u306F\u672C\u7269\u306EVIX\u9006\u8EE2\u3088\u308A\u9AD8\u983B\u5EA6\u3067\u8D77\u304D\u308B\u305F\u3081\u3001\u4E56\u96E2\u5E45\u306B\u5FDC\u3058\u3066\u6BB5\u968E\u7684\u306B\u8B66\u6212\u5EA6\u3092\u5224\u5B9A\u3057\u307E\u3059\u3002"
+    "termSource": "VIX3M",
+    "note": "VIX\u3068VIX3M\u306E\u6BD4\u8F03\u306B\u3088\u308B\u671F\u9650\u69CB\u9020\u306E\u8FD1\u4F3C\u3067\u3059\u3002\u9006\u8EE2\uFF08Backwardation\uFF09\u306F\u5E02\u5834\u30B9\u30C8\u30EC\u30B9\u306E\u8B66\u6212\u706F\u3068\u3057\u3066\u6271\u3044\u3001\u5358\u72EC\u306E\u58F2\u8CB7\u30B7\u30B0\u30CA\u30EB\u306B\u306F\u4F7F\u3044\u307E\u305B\u3093\u3002"
   },
   "marketBreadth": {
     "status": "ok",
@@ -1225,23 +1225,23 @@
     "expectedConstituents": 101,
     "analyzedConstituents": 100,
     "coveragePct": 99.0,
-    "aboveSma50Pct": 60.0,
+    "aboveSma50Pct": 61.0,
     "aboveSma200Pct": 70.0,
     "newHighs52Week": 4,
     "newLows52Week": 0,
     "advances": 60,
     "declines": 39,
     "advanceDeclineNet": 21,
-    "adLineChange20d": 139,
-    "avgPairwiseCorrelation": 0.066,
-    "accumulationPct": 50.0,
-    "stealthDistributionPct": 30.0,
+    "adLineChange20d": 140,
+    "avgPairwiseCorrelation": 0.076,
+    "accumulationPct": 52.0,
+    "stealthDistributionPct": 27.9,
     "advanceRatioSma10": 0.530,
     "breadthThrustDetected": false
   },
   "marketRiskScore": {
-    "score": 12.8,
-    "rawScore": 12.0,
+    "score": 10.6,
+    "rawScore": 10.0,
     "availableMaxPoints": 94.0,
     "dataCoveragePct": 94.0,
     "label": "\u826F\u597D",
@@ -1280,7 +1280,7 @@
         "name": "50\u65E5\u7DDA\u4E0A\u6BD4\u7387",
         "score": 0,
         "maxPoints": 6,
-        "detail": "60.0%"
+        "detail": "61.0%"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
@@ -1301,7 +1301,7 @@
         "name": "20\u65E5A/D\u30E9\u30A4\u30F3",
         "score": 0,
         "maxPoints": 3,
-        "detail": "20\u65E5\u5909\u5316 \u002B139"
+        "detail": "20\u65E5\u5909\u5316 \u002B140"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
@@ -1315,21 +1315,21 @@
         "name": "\u30A2\u30AD\u30E5\u30E0\u30EC\u30FC\u30B7\u30E7\u30F3\u9298\u67C4\u6BD4\u7387",
         "score": 2,
         "maxPoints": 5,
-        "detail": "50.0%\uFF0850\u65E5\u306E\u51FA\u6765\u9AD8\u304C\u4E0A\u6607\u65E5\u306B\u504F\u308B\u9298\u67C4\uFF09"
+        "detail": "52.0%\uFF0850\u65E5\u306E\u51FA\u6765\u9AD8\u304C\u4E0A\u6607\u65E5\u306B\u504F\u308B\u9298\u67C4\uFF09"
       },
       {
         "group": "\u6A5F\u95A2\u9700\u7D66",
         "name": "\u30B9\u30C6\u30EB\u30B9\u914D\u5206",
         "score": 2.5,
         "maxPoints": 4,
-        "detail": "30.0%\uFF0850\u65E5\u7DDA\u4E0A\u3060\u304C\u58F2\u308A\u512A\u52E2\uFF09"
+        "detail": "27.9%\uFF0850\u65E5\u7DDA\u4E0A\u3060\u304C\u58F2\u308A\u512A\u52E2\uFF09"
       },
       {
         "group": "\u5E02\u5834\u69CB\u9020",
         "name": "\u9298\u67C4\u9593\u76F8\u95A2",
         "score": 0,
         "maxPoints": 7,
-        "detail": "\u5E73\u5747\u30DA\u30A2\u76F8\u95A2 0.066\uFF0821\u65E5\uFF09"
+        "detail": "\u5E73\u5747\u30DA\u30A2\u76F8\u95A2 0.076\uFF0821\u65E5\uFF09"
       },
       {
         "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
@@ -1343,7 +1343,7 @@
         "name": "VIX\u671F\u9650\u69CB\u9020",
         "score": 0,
         "maxPoints": 5,
-        "detail": "Contango\uFF08SPY\u5B9F\u73FE\u30DC\u30E9 \u77ED\u671F\u5BFE\u9577\u671F -48.14%\uFF09"
+        "detail": "Contango\uFF08VIX\u5BFEVIX3M -19.82%\uFF09"
       },
       {
         "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
@@ -1357,28 +1357,28 @@
         "name": "HY\u5BFEIG\u76F8\u5BFE\u30EA\u30BF\u30FC\u30F3",
         "score": 0,
         "maxPoints": 6,
-        "detail": "3\u304B\u6708 \u002B3.04%"
+        "detail": "3\u304B\u6708 \u002B1.28%"
       },
       {
         "group": "\u30BB\u30AF\u30BF\u30FC",
         "name": "\u5BFESPY\u3067\u512A\u4F4D\u306A\u30BB\u30AF\u30BF\u30FC\u6570",
-        "score": 2.5,
+        "score": 1.5,
         "maxPoints": 4,
-        "detail": "3/11\u30BB\u30AF\u30BF\u30FC"
+        "detail": "5/11\u30BB\u30AF\u30BF\u30FC"
       },
       {
         "group": "\u30BB\u30AF\u30BF\u30FC",
         "name": "RSP\u30FBIWM\u306E\u76F8\u5BFE\u5F37\u5EA6",
         "score": 0,
         "maxPoints": 3.0,
-        "detail": "RSP \u002B5.51% / IWM \u002B5.69%"
+        "detail": "RSP \u002B5.48% / IWM \u002B5.69%"
       },
       {
         "group": "\u30BB\u30AF\u30BF\u30FC",
         "name": "\u30C7\u30A3\u30D5\u30A7\u30F3\u30B7\u30D6\u512A\u4F4D\u5EA6",
-        "score": 2,
+        "score": 1,
         "maxPoints": 3,
-        "detail": "1\u304B\u6708 \u002B1.76%\uFF08\u5B88\u308A 3.53% \u5BFE \u653B\u3081 1.77%\uFF09"
+        "detail": "1\u304B\u6708 \u002B1.31%\uFF08\u5B88\u308A 3.53% \u5BFE \u653B\u3081 2.22%\uFF09"
       },
       {
         "group": "\u9700\u7D66",
@@ -1393,7 +1393,7 @@
     "status": "coverage_changed",
     "previousDate": "2026-08-19",
     "previousScore": 9.3,
-    "scoreChange": 3.5,
+    "scoreChange": 1.3,
     "coverageChange": 5.0,
     "factors": [],
     "note": "\u63A1\u70B9\u306B\u5229\u7528\u3067\u304D\u305F\u6307\u6A19\u307E\u305F\u306F\u914D\u70B9\u304C\u524D\u56DE\u3068\u7570\u306A\u308B\u305F\u3081\u3001\u30B9\u30B3\u30A2\u5DEE\u5206\u306E\u8981\u56E0\u5206\u89E3\u306F\u4FDD\u7559\u3057\u3066\u3044\u307E\u3059\u3002"
