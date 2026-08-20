@@ -7112,7 +7112,7 @@
         "name": "50\u65E5\u7DDA\u4E0A\u6BD4\u7387",
         "score": 1.8,
         "maxPoints": 6,
-        "detail": "55.0%"
+        "detail": "56.0%"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
@@ -7133,7 +7133,7 @@
         "name": "20\u65E5A/D\u30E9\u30A4\u30F3",
         "score": 0,
         "maxPoints": 3,
-        "detail": "20\u65E5\u5909\u5316 \u002B138"
+        "detail": "20\u65E5\u5909\u5316 \u002B144"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
@@ -7147,35 +7147,35 @@
         "name": "\u30A2\u30AD\u30E5\u30E0\u30EC\u30FC\u30B7\u30E7\u30F3\u9298\u67C4\u6BD4\u7387",
         "score": 2,
         "maxPoints": 5,
-        "detail": "51.0%\uFF0850\u65E5\u306E\u51FA\u6765\u9AD8\u304C\u4E0A\u6607\u65E5\u306B\u504F\u308B\u9298\u67C4\uFF09"
+        "detail": "53.0%\uFF0850\u65E5\u306E\u51FA\u6765\u9AD8\u304C\u4E0A\u6607\u65E5\u306B\u504F\u308B\u9298\u67C4\uFF09"
       },
       {
         "group": "\u6A5F\u95A2\u9700\u7D66",
         "name": "\u30B9\u30C6\u30EB\u30B9\u914D\u5206",
         "score": 2.5,
         "maxPoints": 4,
-        "detail": "29.1%\uFF0850\u65E5\u7DDA\u4E0A\u3060\u304C\u58F2\u308A\u512A\u52E2\uFF09"
+        "detail": "26.8%\uFF0850\u65E5\u7DDA\u4E0A\u3060\u304C\u58F2\u308A\u512A\u52E2\uFF09"
       },
       {
         "group": "\u5E02\u5834\u69CB\u9020",
         "name": "\u9298\u67C4\u9593\u76F8\u95A2",
         "score": 0,
         "maxPoints": 7,
-        "detail": "\u5E73\u5747\u30DA\u30A2\u76F8\u95A2 0.081\uFF0821\u65E5\uFF09"
+        "detail": "\u5E73\u5747\u30DA\u30A2\u76F8\u95A2 0.072\uFF0821\u65E5\uFF09"
       },
       {
         "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
         "name": "VIX\u5BFE20\u65E5\u5E73\u5747",
         "score": 0,
         "maxPoints": 4,
-        "detail": "VIX 16.01 / 20\u65E5\u5E73\u5747 16.18"
+        "detail": "VIX 16.01 / 20\u65E5\u5E73\u5747 16.31"
       },
       {
         "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
         "name": "VIX\u671F\u9650\u69CB\u9020",
         "score": 0,
         "maxPoints": 5,
-        "detail": "Contango\uFF08VIX\u5BFEVIX3M -16.00%\uFF09"
+        "detail": "Contango\uFF08SPY\u5B9F\u73FE\u30DC\u30E9 \u77ED\u671F\u5BFE\u9577\u671F -39.80%\uFF09"
       },
       {
         "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
@@ -7189,7 +7189,7 @@
         "name": "HY\u5BFEIG\u76F8\u5BFE\u30EA\u30BF\u30FC\u30F3",
         "score": 0,
         "maxPoints": 6,
-        "detail": "3\u304B\u6708 \u002B1.69%"
+        "detail": "3\u304B\u6708 \u002B2.44%"
       },
       {
         "group": "\u30BB\u30AF\u30BF\u30FC",
@@ -7203,14 +7203,14 @@
         "name": "RSP\u30FBIWM\u306E\u76F8\u5BFE\u5F37\u5EA6",
         "score": 0,
         "maxPoints": 3.0,
-        "detail": "RSP \u002B5.34% / IWM \u002B3.46%"
+        "detail": "RSP \u002B5.89% / IWM \u002B3.46%"
       },
       {
         "group": "\u30BB\u30AF\u30BF\u30FC",
         "name": "\u30C7\u30A3\u30D5\u30A7\u30F3\u30B7\u30D6\u512A\u4F4D\u5EA6",
         "score": 1,
         "maxPoints": 3,
-        "detail": "1\u304B\u6708 \u002B0.04%\uFF08\u5B88\u308A 1.51% \u5BFE \u653B\u3081 1.47%\uFF09"
+        "detail": "1\u304B\u6708 \u002B0.32%\uFF08\u5B88\u308A 1.51% \u5BFE \u653B\u3081 1.19%\uFF09"
       }
     ],
     "spyAdjustedClose": 762.5999755859375,
