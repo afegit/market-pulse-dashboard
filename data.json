@@ -1,26 +1,25 @@
 {
-  "lastUpdated": "2026-08-20 08:01:56",
-  "marketDataAsOf": "2026-08-19",
+  "lastUpdated": "2026-08-21 07:31:33",
+  "marketDataAsOf": "2026-08-20",
   "combinedStatus": "Uptrend",
   "combinedDrivenBy": "SPY\u3068QQQ\u306F\u540C\u3058\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9",
   "sp500": {
     "name": "S\u0026P 500\uFF08SPY\uFF09",
-    "dataAsOf": "2026-08-19",
-    "latestAdjustedClose": 769.0599975585938,
-    "sma50": 750.17,
+    "dataAsOf": "2026-08-20",
+    "latestAdjustedClose": 762.5999755859375,
+    "sma50": 750.72,
     "isAboveSma50": true,
-    "high52WeekAdjusted": 777.8800048828125,
-    "drawdownFromHighPct": -1.13,
-    "distributionDaysActive": 4,
-    "distributionIntensity": 2.50,
-    "worstActiveDropPct": 0.99,
-    "worstActiveDropDate": "2026-07-17",
+    "high52WeekPrice": 777.8800048828125,
+    "drawdownFromHighPct": -1.96,
+    "distributionDaysActive": 3,
+    "distributionIntensity": 1.61,
+    "worstActiveDropPct": 0.84,
+    "worstActiveDropDate": "2026-08-20",
     "trendState": "ConfirmedUptrend",
-    "lastFollowThroughDate": "2026-08-04",
+    "lastFollowThroughDate": null,
     "statusId": "Uptrend",
     "chart": {
       "labels": [
-        "03-27",
         "03-30",
         "03-31",
         "04-01",
@@ -119,10 +118,10 @@
         "08-14",
         "08-17",
         "08-18",
-        "08-19"
+        "08-19",
+        "08-20"
       ],
       "prices": [
-        632.4606323242188,
         630.3460693359375,
         648.6688842773438,
         653.5562744140625,
@@ -221,10 +220,10 @@
         776.3400268554688,
         772.6699829101562,
         767.4500122070312,
-        769.0599975585938
+        769.0599975585938,
+        762.5999755859375
       ],
       "sma50": [
-        676.14,
         674.98,
         674.19,
         673.78,
@@ -323,7 +322,8 @@
         748.54,
         748.90,
         749.53,
-        750.17
+        750.17,
+        750.72
       ],
       "distMarksActive": [
         null,
@@ -401,8 +401,7 @@
         null,
         null,
         null,
-        750.719970703125,
-        743.2899780273438,
+        null,
         null,
         null,
         null,
@@ -425,10 +424,10 @@
         null,
         772.6699829101562,
         767.4500122070312,
-        null
+        null,
+        762.5999755859375
       ],
       "distMarksExpired": [
-        632.4606323242188,
         null,
         null,
         null,
@@ -503,8 +502,8 @@
         749.1699829101562,
         null,
         null,
-        null,
-        null,
+        750.719970703125,
+        743.2899780273438,
         null,
         null,
         null,
@@ -527,20 +526,21 @@
         null,
         null,
         null,
+        null,
         null
       ]
     }
   },
   "nasdaq": {
     "name": "Nasdaq-100\uFF08QQQ\uFF09",
-    "dataAsOf": "2026-08-19",
-    "latestAdjustedClose": 716.0800170898438,
-    "sma50": 712.86,
-    "isAboveSma50": true,
-    "high52WeekAdjusted": 745.3408813476562,
-    "drawdownFromHighPct": -3.93,
-    "distributionDaysActive": 4,
-    "distributionIntensity": 3.80,
+    "dataAsOf": "2026-08-20",
+    "latestAdjustedClose": 710.9299926757812,
+    "sma50": 712.94,
+    "isAboveSma50": false,
+    "high52WeekPrice": 746.1599731445312,
+    "drawdownFromHighPct": -4.72,
+    "distributionDaysActive": 2,
+    "distributionIntensity": 2.13,
     "worstActiveDropPct": 1.69,
     "worstActiveDropDate": "2026-08-18",
     "trendState": "ConfirmedUptrend",
@@ -548,7 +548,6 @@
     "statusId": "Uptrend",
     "chart": {
       "labels": [
-        "03-27",
         "03-30",
         "03-31",
         "04-01",
@@ -647,10 +646,10 @@
         "08-14",
         "08-17",
         "08-18",
-        "08-19"
+        "08-19",
+        "08-20"
       ],
       "prices": [
-        561.9624633789062,
         557.6671752929688,
         576.54638671875,
         583.6685791015625,
@@ -749,10 +748,10 @@
         731.0700073242188,
         729.8699951171875,
         717.510009765625,
-        716.0800170898438
+        716.0800170898438,
+        710.9299926757812
       ],
       "sma50": [
-        605.11,
         603.86,
         603.00,
         602.54,
@@ -851,7 +850,8 @@
         712.78,
         712.58,
         712.84,
-        712.86
+        712.86,
+        712.94
       ],
       "distMarksActive": [
         null,
@@ -928,8 +928,7 @@
         null,
         null,
         null,
-        717.739990234375,
-        705.9400024414062,
+        null,
         null,
         null,
         null,
@@ -953,10 +952,10 @@
         null,
         null,
         717.510009765625,
+        null,
         null
       ],
       "distMarksExpired": [
-        561.9624633789062,
         null,
         null,
         null,
@@ -1030,8 +1029,8 @@
         null,
         711.739990234375,
         null,
-        null,
-        null,
+        717.739990234375,
+        705.9400024414062,
         695.3300170898438,
         null,
         null,
@@ -1055,6 +1054,7 @@
         null,
         null,
         null,
+        null,
         null
       ]
     }
@@ -1062,12 +1062,12 @@
   "putCallRatio": {
     "status": "ok",
     "underlying": "SPY",
-    "callVolume": 3240328,
-    "putVolume": 3532679,
-    "ratio": 1.090,
-    "sma10": 1.134,
-    "percentileRank": 40,
-    "historyDays": 10,
+    "callVolume": 3088632,
+    "putVolume": 4051532,
+    "ratio": 1.312,
+    "sma10": null,
+    "percentileRank": null,
+    "historyDays": 9,
     "note": "SPY\u306E\u76F4\u8FD1\u9650\u6708\u306E\u307F\u3092\u96C6\u8A08\u3057\u305F\u51FA\u6765\u9AD8\u30D9\u30FC\u30B9\u306E\u53C2\u8003\u6307\u6A19\u3067\u3059\u30020DTE\u30FB\u30D8\u30C3\u30B8\u30FB\u6E80\u671F\u69CB\u6210\u306E\u5F71\u97FF\u3092\u53D7\u3051\u308B\u305F\u3081\u3001\u65B9\u5411\u4E88\u60F3\u306E\u4E3B\u30B7\u30B0\u30CA\u30EB\u306B\u306F\u4F7F\u308F\u305A\u3001\u6975\u7AEF\u306A\u9700\u7D66\u306E\u88DC\u52A9\u78BA\u8A8D\u306B\u9650\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
   },
   "sectorRotation": {
@@ -1075,130 +1075,130 @@
     "expectedSectors": 11,
     "analyzedSectors": 11,
     "coveragePct": 100,
-    "spyReturn1m": 2.78,
-    "spyReturn3m": 5.09,
-    "defensiveReturn1m": 3.53,
-    "cyclicalReturn1m": 2.22,
-    "rotationSpread1m": 1.31,
-    "rotationSpread3m": 1.13,
+    "spyReturn1m": 2.03,
+    "spyReturn3m": 3.15,
+    "defensiveReturn1m": 1.51,
+    "cyclicalReturn1m": 1.47,
+    "rotationSpread1m": 0.04,
+    "rotationSpread3m": 2.99,
     "sectors": [
       {
         "symbol": "XLV",
         "name": "\u30D8\u30EB\u30B9\u30B1\u30A2",
-        "return1m": 9.63,
-        "return3m": 19.78,
-        "relStrength1m": 6.85,
-        "relStrength3m": 14.69
+        "return1m": 8.13,
+        "return3m": 17.69,
+        "relStrength1m": 6.10,
+        "relStrength3m": 14.54
       },
       {
         "symbol": "XLF",
         "name": "\u91D1\u878D",
-        "return1m": 2.44,
-        "return3m": 12.88,
-        "relStrength1m": -0.34,
-        "relStrength3m": 7.79
-      },
-      {
-        "symbol": "XLI",
-        "name": "\u8CC7\u672C\u8CA1",
-        "return1m": 1.84,
-        "return3m": 8.09,
-        "relStrength1m": -0.94,
-        "relStrength3m": 3.00
-      },
-      {
-        "symbol": "XLB",
-        "name": "\u7D20\u6750",
-        "return1m": 4.83,
-        "return3m": 7.50,
-        "relStrength1m": 2.05,
-        "relStrength3m": 2.41
-      },
-      {
-        "symbol": "XLK",
-        "name": "\u30C6\u30AF\u30CE\u30ED\u30B8\u30FC",
-        "return1m": 1.58,
-        "return3m": 6.13,
-        "relStrength1m": -1.20,
-        "relStrength3m": 1.04
+        "return1m": 1.61,
+        "return3m": 10.63,
+        "relStrength1m": -0.42,
+        "relStrength3m": 7.48
       },
       {
         "symbol": "XLE",
         "name": "\u30A8\u30CD\u30EB\u30AE\u30FC",
-        "return1m": 8.68,
-        "return3m": 4.48,
-        "relStrength1m": 5.90,
-        "relStrength3m": -0.61
+        "return1m": 7.69,
+        "return3m": 7.37,
+        "relStrength1m": 5.66,
+        "relStrength3m": 4.22
+      },
+      {
+        "symbol": "XLB",
+        "name": "\u7D20\u6750",
+        "return1m": 3.15,
+        "return3m": 5.82,
+        "relStrength1m": 1.12,
+        "relStrength3m": 2.67
+      },
+      {
+        "symbol": "XLI",
+        "name": "\u8CC7\u672C\u8CA1",
+        "return1m": 0.51,
+        "return3m": 5.55,
+        "relStrength1m": -1.52,
+        "relStrength3m": 2.40
+      },
+      {
+        "symbol": "XLK",
+        "name": "\u30C6\u30AF\u30CE\u30ED\u30B8\u30FC",
+        "return1m": 1.57,
+        "return3m": 3.49,
+        "relStrength1m": -0.46,
+        "relStrength3m": 0.34
       },
       {
         "symbol": "XLRE",
         "name": "\u4E0D\u52D5\u7523",
-        "return1m": -0.53,
-        "return3m": 3.74,
-        "relStrength1m": -3.31,
-        "relStrength3m": -1.35
-      },
-      {
-        "symbol": "XLY",
-        "name": "\u4E00\u822C\u6D88\u8CBB\u8CA1",
-        "return1m": 3.24,
-        "return3m": 3.30,
-        "relStrength1m": 0.46,
-        "relStrength3m": -1.79
+        "return1m": -0.27,
+        "return3m": 3.49,
+        "relStrength1m": -2.30,
+        "relStrength3m": 0.34
       },
       {
         "symbol": "XLP",
         "name": "\u751F\u6D3B\u5FC5\u9700\u54C1",
-        "return1m": 2.95,
-        "return3m": 1.22,
-        "relStrength1m": 0.17,
-        "relStrength3m": -3.87
+        "return1m": 1.11,
+        "return3m": 0.46,
+        "relStrength1m": -0.92,
+        "relStrength3m": -2.69
+      },
+      {
+        "symbol": "XLY",
+        "name": "\u4E00\u822C\u6D88\u8CBB\u8CA1",
+        "return1m": 2.33,
+        "return3m": -0.87,
+        "relStrength1m": 0.30,
+        "relStrength3m": -4.02
       },
       {
         "symbol": "XLU",
         "name": "\u516C\u76CA\u4E8B\u696D",
-        "return1m": -2.00,
-        "return3m": -0.09,
-        "relStrength1m": -4.78,
-        "relStrength3m": -5.18
+        "return1m": -4.70,
+        "return3m": -1.03,
+        "relStrength1m": -6.73,
+        "relStrength3m": -4.18
       },
       {
         "symbol": "XLC",
         "name": "\u901A\u4FE1\u30B5\u30FC\u30D3\u30B9",
-        "return1m": 0.47,
-        "return3m": -4.59,
-        "relStrength1m": -2.31,
-        "relStrength3m": -9.68
+        "return1m": 0.59,
+        "return3m": -4.21,
+        "relStrength1m": -1.44,
+        "relStrength3m": -7.36
       }
     ],
     "breadthProxies": [
       {
         "symbol": "RSP",
         "name": "S\u0026P500\u5747\u7B49\u52A0\u91CD",
-        "return1m": 4.38,
-        "return3m": 10.57,
-        "relStrength1m": 1.60,
-        "relStrength3m": 5.48
+        "return1m": 3.56,
+        "return3m": 8.49,
+        "relStrength1m": 1.53,
+        "relStrength3m": 5.34
       },
       {
         "symbol": "IWM",
         "name": "\u5C0F\u578B\u682A(Russell 2000)",
-        "return1m": 1.75,
-        "return3m": 10.78,
-        "relStrength1m": -1.03,
-        "relStrength3m": 5.69
+        "return1m": 1.32,
+        "return3m": 6.61,
+        "relStrength1m": -0.71,
+        "relStrength3m": 3.46
       }
     ],
     "note": "SPDR\u30BB\u30AF\u30BF\u30FCETF11\u9298\u67C4\u306ESPY\u306B\u5BFE\u3059\u308B\u76F8\u5BFE\u30EA\u30BF\u30FC\u30F3(\u81EA\u524D\u7B97\u51FA)\u3002CAN SLIM\u306E\u300CL(Leader)\u300D\u306B\u5BFE\u5FDC\u3059\u308B\u88DC\u52A9\u6307\u6A19\u3067\u3059\u3002"
   },
   "creditRiskAppetite": {
     "status": "partial",
-    "hygReturn1m": 0.56,
-    "hygReturn3m": 1.93,
-    "lqdReturn1m": 0.17,
-    "lqdReturn3m": 0.65,
-    "spread1m": 0.39,
-    "spread3m": 1.28,
+    "hygReturn1m": 0.54,
+    "hygReturn3m": 1.09,
+    "lqdReturn1m": -0.14,
+    "lqdReturn3m": -0.60,
+    "spread1m": 0.68,
+    "spread3m": 1.69,
     "hyOasPct": null,
     "hyOasChange1mBps": null,
     "hyOasDate": null,
@@ -1206,14 +1206,14 @@
   },
   "volatilityRegime": {
     "status": "ok",
-    "vix": 14.890000343322754,
-    "vixSma20": 16.31,
-    "vix3m": 18.56999969482422,
+    "vix": 16.010000228881836,
+    "vixSma20": 16.18,
+    "vix3m": 19.059999465942383,
     "realizedVolShortPct": null,
     "realizedVolLongPct": null,
-    "realizedVol21Pct": 13.28,
-    "varianceRiskPremium": 1.61,
-    "termSlopePct": -19.82,
+    "realizedVol21Pct": 13.68,
+    "varianceRiskPremium": 2.33,
+    "termSlopePct": -16.00,
     "termStructure": "Contango",
     "termSource": "VIX3M",
     "note": "VIX\u3068VIX3M\u306E\u6BD4\u8F03\u306B\u3088\u308B\u671F\u9650\u69CB\u9020\u306E\u8FD1\u4F3C\u3067\u3059\u3002\u9006\u8EE2\uFF08Backwardation\uFF09\u306F\u5E02\u5834\u30B9\u30C8\u30EC\u30B9\u306E\u8B66\u6212\u706F\u3068\u3057\u3066\u6271\u3044\u3001\u5358\u72EC\u306E\u58F2\u8CB7\u30B7\u30B0\u30CA\u30EB\u306B\u306F\u4F7F\u3044\u307E\u305B\u3093\u3002"
@@ -1225,27 +1225,27 @@
     "expectedConstituents": 101,
     "analyzedConstituents": 100,
     "coveragePct": 99.0,
-    "aboveSma50Pct": 61.0,
-    "aboveSma200Pct": 70.0,
-    "newHighs52Week": 4,
+    "aboveSma50Pct": 55.0,
+    "aboveSma200Pct": 67.0,
+    "newHighs52Week": 0,
     "newLows52Week": 0,
-    "advances": 60,
-    "declines": 39,
-    "advanceDeclineNet": 21,
-    "adLineChange20d": 140,
-    "avgPairwiseCorrelation": 0.076,
-    "accumulationPct": 52.0,
-    "stealthDistributionPct": 27.9,
-    "advanceRatioSma10": 0.530,
+    "advances": 32,
+    "declines": 68,
+    "advanceDeclineNet": -36,
+    "adLineChange20d": 138,
+    "avgPairwiseCorrelation": 0.081,
+    "accumulationPct": 51.0,
+    "stealthDistributionPct": 29.1,
+    "advanceRatioSma10": 0.517,
     "breadthThrustDetected": false
   },
   "marketRiskScore": {
-    "score": 10.6,
-    "rawScore": 10.0,
-    "availableMaxPoints": 94.0,
-    "dataCoveragePct": 94.0,
+    "score": 11.8,
+    "rawScore": 10.5,
+    "availableMaxPoints": 89.0,
+    "dataCoveragePct": 89.0,
     "label": "\u826F\u597D",
-    "schemaId": "v3:30E9BB5142C08C4A|\u30AF\u30EC\u30B8\u30C3\u30C8\u001FHY\u5BFEIG\u76F8\u5BFE\u30EA\u30BF\u30FC\u30F3\u001F6|\u30BB\u30AF\u30BF\u30FC\u001FRSP\u30FBIWM\u306E\u76F8\u5BFE\u5F37\u5EA6\u001F3.0|\u30BB\u30AF\u30BF\u30FC\u001F\u30C7\u30A3\u30D5\u30A7\u30F3\u30B7\u30D6\u512A\u4F4D\u5EA6\u001F3|\u30BB\u30AF\u30BF\u30FC\u001F\u5BFESPY\u3067\u512A\u4F4D\u306A\u30BB\u30AF\u30BF\u30FC\u6570\u001F4|\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3\u001FVIX\u5BFE20\u65E5\u5E73\u5747\u001F4|\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3\u001FVIX\u671F\u9650\u69CB\u9020\u001F5|\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3\u001F\u5206\u6563\u30EA\u30B9\u30AF\u30D7\u30EC\u30DF\u30A2\u30E0\u001F3|\u5E02\u5834\u30C8\u30EC\u30F3\u30C9\u001F50\u65E5\u7DDA\u001F4|\u5E02\u5834\u30C8\u30EC\u30F3\u30C9\u001F\u58F2\u308A\u629C\u3051\u5F37\u5EA6\u001F3|\u5E02\u5834\u30C8\u30EC\u30F3\u30C9\u001F\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9\u001F14|\u5E02\u5834\u30C8\u30EC\u30F3\u30C9\u001F\u6709\u52B9Distribution Day\u001F3|\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9\u001F10\u65E5\u9A30\u843D\u30EC\u30B7\u30AA\u001F3|\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9\u001F200\u65E5\u7DDA\u4E0A\u6BD4\u7387\u001F5|\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9\u001F20\u65E5A/D\u30E9\u30A4\u30F3\u001F3|\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9\u001F50\u65E5\u7DDA\u4E0A\u6BD4\u7387\u001F6|\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9\u001F52\u9031\u65B0\u9AD8\u5024\u30FB\u65B0\u5B89\u5024\u001F4|\u5E02\u5834\u69CB\u9020\u001F\u9298\u67C4\u9593\u76F8\u95A2\u001F7|\u6A5F\u95A2\u9700\u7D66\u001F\u30A2\u30AD\u30E5\u30E0\u30EC\u30FC\u30B7\u30E7\u30F3\u9298\u67C4\u6BD4\u7387\u001F5|\u6A5F\u95A2\u9700\u7D66\u001F\u30B9\u30C6\u30EB\u30B9\u914D\u5206\u001F4|\u9700\u7D66\u001FPut/Call\u6975\u7AEF\u5024\u001F5",
+    "schemaId": "v3:B377CC8CB8ADC78C|\u30AF\u30EC\u30B8\u30C3\u30C8\u001FHY\u5BFEIG\u76F8\u5BFE\u30EA\u30BF\u30FC\u30F3\u001F6|\u30BB\u30AF\u30BF\u30FC\u001FRSP\u30FBIWM\u306E\u76F8\u5BFE\u5F37\u5EA6\u001F3.0|\u30BB\u30AF\u30BF\u30FC\u001F\u30C7\u30A3\u30D5\u30A7\u30F3\u30B7\u30D6\u512A\u4F4D\u5EA6\u001F3|\u30BB\u30AF\u30BF\u30FC\u001F\u5BFESPY\u3067\u512A\u4F4D\u306A\u30BB\u30AF\u30BF\u30FC\u6570\u001F4|\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3\u001FVIX\u5BFE20\u65E5\u5E73\u5747\u001F4|\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3\u001FVIX\u671F\u9650\u69CB\u9020\u001F5|\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3\u001F\u5206\u6563\u30EA\u30B9\u30AF\u30D7\u30EC\u30DF\u30A2\u30E0\u001F3|\u5E02\u5834\u30C8\u30EC\u30F3\u30C9\u001F50\u65E5\u7DDA\u001F4|\u5E02\u5834\u30C8\u30EC\u30F3\u30C9\u001F\u58F2\u308A\u629C\u3051\u5F37\u5EA6\u001F3|\u5E02\u5834\u30C8\u30EC\u30F3\u30C9\u001F\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9\u001F14|\u5E02\u5834\u30C8\u30EC\u30F3\u30C9\u001F\u6709\u52B9Distribution Day\u001F3|\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9\u001F10\u65E5\u9A30\u843D\u30EC\u30B7\u30AA\u001F3|\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9\u001F200\u65E5\u7DDA\u4E0A\u6BD4\u7387\u001F5|\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9\u001F20\u65E5A/D\u30E9\u30A4\u30F3\u001F3|\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9\u001F50\u65E5\u7DDA\u4E0A\u6BD4\u7387\u001F6|\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9\u001F52\u9031\u65B0\u9AD8\u5024\u30FB\u65B0\u5B89\u5024\u001F4|\u5E02\u5834\u69CB\u9020\u001F\u9298\u67C4\u9593\u76F8\u95A2\u001F7|\u6A5F\u95A2\u9700\u7D66\u001F\u30A2\u30AD\u30E5\u30E0\u30EC\u30FC\u30B7\u30E7\u30F3\u9298\u67C4\u6BD4\u7387\u001F5|\u6A5F\u95A2\u9700\u7D66\u001F\u30B9\u30C6\u30EB\u30B9\u914D\u5206\u001F4",
     "metrics": [
       {
         "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
@@ -1257,144 +1257,137 @@
       {
         "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
         "name": "50\u65E5\u7DDA",
-        "score": 0,
+        "score": 2,
         "maxPoints": 4,
-        "detail": "SPY: \u4E0A / QQQ: \u4E0A"
+        "detail": "SPY: \u4E0A / QQQ: \u4E0B"
       },
       {
         "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
         "name": "\u6709\u52B9Distribution Day",
-        "score": 2,
+        "score": 1.2,
         "maxPoints": 3,
-        "detail": "SPY: 4\u65E5 / QQQ: 4\u65E5"
+        "detail": "SPY: 3\u65E5 / QQQ: 2\u65E5"
       },
       {
         "group": "\u5E02\u5834\u30C8\u30EC\u30F3\u30C9",
         "name": "\u58F2\u308A\u629C\u3051\u5F37\u5EA6",
-        "score": 1.0,
+        "score": 0,
         "maxPoints": 3,
-        "detail": "SPY: 2.5 / QQQ: 3.8\uFF08\u4E0B\u843D\u7387\u00D7\u51FA\u6765\u9AD8\u6BD4\u306E\u5408\u8A08\uFF09"
+        "detail": "SPY: 1.6 / QQQ: 2.1\uFF08\u4E0B\u843D\u7387\u00D7\u51FA\u6765\u9AD8\u6BD4\u306E\u5408\u8A08\uFF09"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
         "name": "50\u65E5\u7DDA\u4E0A\u6BD4\u7387",
-        "score": 0,
+        "score": 1.8,
         "maxPoints": 6,
-        "detail": "61.0%"
+        "detail": "55.0%"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
         "name": "200\u65E5\u7DDA\u4E0A\u6BD4\u7387",
         "score": 0,
         "maxPoints": 5,
-        "detail": "70.0%"
+        "detail": "67.0%"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
         "name": "52\u9031\u65B0\u9AD8\u5024\u30FB\u65B0\u5B89\u5024",
         "score": 0,
         "maxPoints": 4,
-        "detail": "\u65B0\u9AD8\u5024 4 / \u65B0\u5B89\u5024 0"
+        "detail": "\u65B0\u9AD8\u5024 0 / \u65B0\u5B89\u5024 0"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
         "name": "20\u65E5A/D\u30E9\u30A4\u30F3",
         "score": 0,
         "maxPoints": 3,
-        "detail": "20\u65E5\u5909\u5316 \u002B140"
+        "detail": "20\u65E5\u5909\u5316 \u002B138"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
         "name": "10\u65E5\u9A30\u843D\u30EC\u30B7\u30AA",
         "score": 0,
         "maxPoints": 3,
-        "detail": "0.530"
+        "detail": "0.517"
       },
       {
         "group": "\u6A5F\u95A2\u9700\u7D66",
         "name": "\u30A2\u30AD\u30E5\u30E0\u30EC\u30FC\u30B7\u30E7\u30F3\u9298\u67C4\u6BD4\u7387",
         "score": 2,
         "maxPoints": 5,
-        "detail": "52.0%\uFF0850\u65E5\u306E\u51FA\u6765\u9AD8\u304C\u4E0A\u6607\u65E5\u306B\u504F\u308B\u9298\u67C4\uFF09"
+        "detail": "51.0%\uFF0850\u65E5\u306E\u51FA\u6765\u9AD8\u304C\u4E0A\u6607\u65E5\u306B\u504F\u308B\u9298\u67C4\uFF09"
       },
       {
         "group": "\u6A5F\u95A2\u9700\u7D66",
         "name": "\u30B9\u30C6\u30EB\u30B9\u914D\u5206",
         "score": 2.5,
         "maxPoints": 4,
-        "detail": "27.9%\uFF0850\u65E5\u7DDA\u4E0A\u3060\u304C\u58F2\u308A\u512A\u52E2\uFF09"
+        "detail": "29.1%\uFF0850\u65E5\u7DDA\u4E0A\u3060\u304C\u58F2\u308A\u512A\u52E2\uFF09"
       },
       {
         "group": "\u5E02\u5834\u69CB\u9020",
         "name": "\u9298\u67C4\u9593\u76F8\u95A2",
         "score": 0,
         "maxPoints": 7,
-        "detail": "\u5E73\u5747\u30DA\u30A2\u76F8\u95A2 0.076\uFF0821\u65E5\uFF09"
+        "detail": "\u5E73\u5747\u30DA\u30A2\u76F8\u95A2 0.081\uFF0821\u65E5\uFF09"
       },
       {
         "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
         "name": "VIX\u5BFE20\u65E5\u5E73\u5747",
         "score": 0,
         "maxPoints": 4,
-        "detail": "VIX 14.89 / 20\u65E5\u5E73\u5747 16.31"
+        "detail": "VIX 16.01 / 20\u65E5\u5E73\u5747 16.18"
       },
       {
         "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
         "name": "VIX\u671F\u9650\u69CB\u9020",
         "score": 0,
         "maxPoints": 5,
-        "detail": "Contango\uFF08VIX\u5BFEVIX3M -19.82%\uFF09"
+        "detail": "Contango\uFF08VIX\u5BFEVIX3M -16.00%\uFF09"
       },
       {
         "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
         "name": "\u5206\u6563\u30EA\u30B9\u30AF\u30D7\u30EC\u30DF\u30A2\u30E0",
         "score": 0,
         "maxPoints": 3,
-        "detail": "\u002B1.61\uFF08VIX 14.89 \u2212 \u5B9F\u73FE\u30DC\u30E9 13.28\uFF09"
+        "detail": "\u002B2.33\uFF08VIX 16.01 \u2212 \u5B9F\u73FE\u30DC\u30E9 13.68\uFF09"
       },
       {
         "group": "\u30AF\u30EC\u30B8\u30C3\u30C8",
         "name": "HY\u5BFEIG\u76F8\u5BFE\u30EA\u30BF\u30FC\u30F3",
         "score": 0,
         "maxPoints": 6,
-        "detail": "3\u304B\u6708 \u002B1.28%"
+        "detail": "3\u304B\u6708 \u002B1.69%"
       },
       {
         "group": "\u30BB\u30AF\u30BF\u30FC",
         "name": "\u5BFESPY\u3067\u512A\u4F4D\u306A\u30BB\u30AF\u30BF\u30FC\u6570",
-        "score": 1.5,
+        "score": 0,
         "maxPoints": 4,
-        "detail": "5/11\u30BB\u30AF\u30BF\u30FC"
+        "detail": "7/11\u30BB\u30AF\u30BF\u30FC"
       },
       {
         "group": "\u30BB\u30AF\u30BF\u30FC",
         "name": "RSP\u30FBIWM\u306E\u76F8\u5BFE\u5F37\u5EA6",
         "score": 0,
         "maxPoints": 3.0,
-        "detail": "RSP \u002B5.48% / IWM \u002B5.69%"
+        "detail": "RSP \u002B5.34% / IWM \u002B3.46%"
       },
       {
         "group": "\u30BB\u30AF\u30BF\u30FC",
         "name": "\u30C7\u30A3\u30D5\u30A7\u30F3\u30B7\u30D6\u512A\u4F4D\u5EA6",
         "score": 1,
         "maxPoints": 3,
-        "detail": "1\u304B\u6708 \u002B1.31%\uFF08\u5B88\u308A 3.53% \u5BFE \u653B\u3081 2.22%\uFF09"
-      },
-      {
-        "group": "\u9700\u7D66",
-        "name": "Put/Call\u6975\u7AEF\u5024",
-        "score": 0,
-        "maxPoints": 5,
-        "detail": "\u81EA\u5DF1\u5C65\u6B74\u306E40.0\u30D1\u30FC\u30BB\u30F3\u30BF\u30A4\u30EB"
+        "detail": "1\u304B\u6708 \u002B0.04%\uFF08\u5B88\u308A 1.51% \u5BFE \u653B\u3081 1.47%\uFF09"
       }
     ]
   },
   "marketRiskChange": {
     "status": "coverage_changed",
     "previousDate": "2026-08-19",
-    "previousScore": 9.3,
-    "scoreChange": 1.3,
-    "coverageChange": 5.0,
+    "previousScore": 10.6,
+    "scoreChange": 1.2,
+    "coverageChange": -5.0,
     "factors": [],
     "note": "\u63A1\u70B9\u306B\u5229\u7528\u3067\u304D\u305F\u6307\u6A19\u307E\u305F\u306F\u914D\u70B9\u304C\u524D\u56DE\u3068\u7570\u306A\u308B\u305F\u3081\u3001\u30B9\u30B3\u30A2\u5DEE\u5206\u306E\u8981\u56E0\u5206\u89E3\u306F\u4FDD\u7559\u3057\u3066\u3044\u307E\u3059\u3002"
   },
@@ -1405,7 +1398,7 @@
     "threeMonthMaturedCount": 0,
     "recommendedMinSamples": 10,
     "excludedBackfilledCount": 248,
-    "incompatibleLiveCount": 7,
+    "incompatibleLiveCount": 8,
     "backfilledCount": 0,
     "bands": [
       {
