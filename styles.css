@@ -52,13 +52,17 @@ button, input, select { font: inherit; }
 .eyebrow { display: none; }
 h1 { margin: 6px 0 7px; font-size: clamp(28px, 4vw, 42px); letter-spacing: -.045em; line-height: 1.05; }
 .hero > p { max-width: 720px; margin: 0; color: var(--muted); font-size: 16px; }
+/* 障害時の通知なので、狭い幅で日本語が2行に折り返しても行が詰まって見えないよう
+   本文より広い行間と余白を取る（body既定の1.45では和文2行がくっついて読めない）。 */
 .alert {
-  display: none; margin-top: 18px; padding: 11px 14px; border: 1px solid rgba(255, 201, 92, .34);
-  border-radius: 10px; color: #ffe0a2; background: rgba(255, 201, 92, .08); font-size: 14px;
+  display: none; margin-top: 18px; padding: 14px 16px; border: 1px solid rgba(255, 201, 92, .34);
+  border-radius: 10px; color: #ffe0a2; background: rgba(255, 201, 92, .08); font-size: 14px; line-height: 1.75;
 }
 
 .grid { display: grid; gap: 16px; }
-.overview { grid-template-columns: 1.4fr 1fr 1fr; margin-bottom: 16px; }
+/* 並びは 市場ステータス → リスクスコア → データ状態。
+   スコアパネルはリングと本文が横並びなので、置かれた2列目を広く取る。 */
+.overview { grid-template-columns: 1fr 1.4fr 1fr; margin-bottom: 16px; }
 .two-col { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 16px; }
 .three-col { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 16px; }
 .panel {
@@ -123,6 +127,21 @@ h1 { margin: 6px 0 7px; font-size: clamp(28px, 4vw, 42px); letter-spacing: -.045
 .risk-bar { width: 90px; height: 5px; margin-top: 5px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.08); }
 .risk-bar > i { display: block; height: 100%; border-radius: inherit; }
 
+/* 推奨エクスポージャーのラダー。初期値から何段下げたかを1本のバーで示す。 */
+.ladder { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; margin-bottom: 4px; }
+.ladder-step {
+  padding: 10px 4px; border: 1px solid var(--line); border-radius: 9px;
+  background: rgba(3, 11, 22, .24); color: var(--faint);
+  font-size: 13px; font-weight: 700; text-align: center; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ladder-step.is-removed { color: var(--muted); border-style: dashed; text-decoration: line-through; opacity: .7; }
+.ladder-step.is-current { border-color: currentColor; border-width: 2px; background: rgba(255, 255, 255, .05); }
+.ladder-step.is-current.tone-good { color: var(--green); }
+.ladder-step.is-current.tone-warn { color: var(--amber); }
+.ladder-step.is-current.tone-risk { color: var(--red); }
+@media (max-width: 700px) { .ladder { grid-template-columns: repeat(3, minmax(0, 1fr)); } .ladder-step { font-size: 12px; } }
+
 .score-change-summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px 14px; padding: 13px 14px; border: 1px solid var(--line); border-radius: 11px; background: rgba(3, 11, 22, .24); }
 .score-change-summary strong { font-size: 24px; font-variant-numeric: tabular-nums; }
 .score-change-summary span { color: var(--muted); font-size: 14px; }
@@ -173,7 +192,7 @@ h1 { margin: 6px 0 7px; font-size: clamp(28px, 4vw, 42px); letter-spacing: -.045
 section[aria-label="History charts"] > article:first-child { grid-column: 1 / -1; }
 section[aria-label="History charts"] > article:last-child { display: none; }
 
-@media (max-width: 1050px) { .overview { grid-template-columns: 1.25fr 1fr; } .overview > :last-child { grid-column: span 2; } .three-col { grid-template-columns: 1fr 1fr; } .three-col > :last-child { grid-column: span 2; } }
+@media (max-width: 1050px) { .overview { grid-template-columns: 1fr 1.25fr; } .overview > :last-child { grid-column: span 2; } .three-col { grid-template-columns: 1fr 1fr; } .three-col > :last-child { grid-column: span 2; } }
 @media (max-width: 700px) {
   .app { padding: 0 14px 32px; } .topbar { margin: 0 -14px; padding: 0 14px; }
   .overview, .two-col, .three-col { grid-template-columns: 1fr; } .overview > :last-child, .three-col > :last-child { grid-column: auto; }

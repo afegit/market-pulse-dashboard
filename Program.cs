@@ -15,8 +15,28 @@ using System.Threading;
 class Program
 {
     // ===== IBD Market Pulse ロジックのパラメータ =====
+    // IBDが売り抜け日を数える対象は S&P 500 と Nasdaq「総合」の2指数で、出来高は市場全体の出来高。
+    // SPY/QQQのETF出来高は設定・解約やヘッジ発注で動くため、指数出来高とは別物になり、
+    // 同じ日をIBDが売り抜け日と数えてもこちらでは数えない（逆も起きる）ズレの主因だった。
+    // 判定・トレンドは指数側で行い、SPY/QQQは実績検証用の売買可能な価格系列としてのみ使う。
+    const string SP500_INDEX_SYMBOL = "^GSPC";
+    const string NASDAQ_INDEX_SYMBOL = "^IXIC";
+    const string SP500_PROXY_SYMBOL = "SPY";
+    const string NASDAQ_PROXY_SYMBOL = "QQQ";
+    const string SP500_DISPLAY_NAME = "S&P 500";
+    const string NASDAQ_DISPLAY_NAME = "Nasdaq総合";
     // 売り抜け日(Distribution Day)判定の下落率しきい値
     const decimal DIST_DAY_DROP_PCT = 0.2m;
+    // ---- stalling day（出来高を伴う失速日）----
+    // IBDは「重い出来高なのに値幅を伴わず、安値圏で引けた日」も売り抜けとして数える。
+    // 下落日だけを数えると、高値圏で上値が重くなる典型的な天井の作られ方を取りこぼす。
+    // 上昇幅の上限、終値が日中レンジのどこで引けたか、そして高値圏であることの3条件で絞る。
+    const decimal STALL_DAY_MAX_GAIN_PCT = 0.25m;
+    const decimal STALL_DAY_MAX_CLOSE_POSITION = 0.5m;
+    const decimal STALL_DAY_MAX_DRAWDOWN_PCT = -5.0m;
+    // 値幅がこれ未満の日は、そもそも「日中のどこで引けたか」に意味が無い。
+    // この下限が無いと、出来高も値幅も動かない凪の日を延々と失速日として拾ってしまう。
+    const decimal STALL_DAY_MIN_RANGE_PCT = 0.25m;
     // 売り抜け日が有効とみなされる期間（営業日）。DD当日を1日目として数える。
     const int DIST_DAY_WINDOW = 25;
     // 売り抜け日が「失効（無効化）」する反発率（その日の終値からの上昇率）
@@ -124,6 +144,23 @@ class Program
     const int MAX_NASDAQ100_UNIVERSE_AGE_CALENDAR_DAYS = 180;
     // 出来高加重のアキュムレーション/ディストリビューション判定に使う期間（IBDのA/D Rating相当）。
     const int AD_VOLUME_WINDOW = 50;
+
+    // ===== 主導株（Leading Stocks）の健全性 =====
+    // IBDが推奨エクスポージャーを引き下げる最大の理由は、指数ではなく主導株の崩れ。
+    // 指数が高値圏にあっても、ブレイクアウトが失敗し主導株が50日線を割り始めた時点で削る。
+    // IBD 50の銘柄リストは購読者向けなので、構成銘柄の相対強度から代替の主導株群を作る。
+    //
+    // 制約（結果を読むときに必ず考慮すること）: 母集団はNasdaq-100の大型株であり、
+    // IBDが見ている中小型グロース株の主導株群とは一致しない。方向は一致しても振幅は鈍る。
+    // 相対強度の観測期間。IBDのRS Rating（12か月加重）に対し、直近の変化に反応する6か月を使う。
+    const int RS_LEADER_LOOKBACK_DAYS = 126;
+    // 上位何%を主導株とみなすか。IBDでRS Rating 80以上＝上位20%に対応させる。
+    const decimal RS_LEADER_TOP_PCT = 20m;
+    const int RS_LEADER_MIN_COUNT = 10;
+    // 「高値圏を維持している」とみなす52週高値からの下落率。IBDのベース形成の許容範囲に合わせる。
+    const decimal LEADER_NEAR_HIGH_DRAWDOWN_PCT = -10m;
+    // 直近この営業日数のうちに50日線の上から下へ抜けた銘柄を「新規に崩れた主導株」と数える。
+    const int LEADER_BREAKDOWN_LOOKBACK_DAYS = 15;
     // 銘柄間の平均ペア相関（ディスパージョン）の観測期間。
     const int CORRELATION_WINDOW = 21;
     const int CORRELATION_MIN_SYMBOLS = 20;
@@ -136,8 +173,8 @@ class Program
     const int REALIZED_VOL_VRP_WINDOW = 21;
     // 全指標が取得できたときの満点。採点カバレッジ率の分母として使う。
     // 配点を変更したときはここも必ず合わせる
-    // （トレンド24＋ブレッドス21＋機関需給9＋市場構造7＋ボラ12＋信用12＋セクター10＋需給5）。
-    const decimal MARKET_RISK_TOTAL_POINTS = 100m;
+    // （トレンド24＋ブレッドス21＋主導株10＋機関需給9＋市場構造7＋ボラ12＋信用12＋セクター10＋需給5）。
+    const decimal MARKET_RISK_TOTAL_POINTS = 110m;
     const int MAX_YAHOO_RESPONSE_BYTES = 5 * 1024 * 1024;
     const int MAX_FRED_RESPONSE_BYTES = 2 * 1024 * 1024;
     // Do not publish a dashboard from a quote feed that is more than one normal weekend behind.
@@ -170,7 +207,8 @@ class Program
     const int BACKFILL_MIN_HISTORY_BARS = 252;
     const int BACKFILL_MAX_DAYS = 260;
     // 現在の配点体系の版。配点を変更したら必ず上げる。異なる版のスコアは同じ箱で集計しない。
-    const int RUBRIC_VERSION = 3;
+    // v4: 判定対象をSPY/QQQから^GSPC/^IXICへ、失速日を売り抜け日に算入、主導株の配点を追加。
+    const int RUBRIC_VERSION = 4;
     // 変動理由の表示に使うのは直近数件だけなので、それ以外は採点内訳を捨ててファイルサイズを抑える。
     const int HISTORY_METRICS_RETAINED = 5;
     const int HISTORY_MAX_ENTRIES = 400;
@@ -317,21 +355,38 @@ class Program
         {
             Console.WriteLine("Fetching index data from Yahoo Finance...");
 
-            // 売り抜け日/FTDは出来高が必要なため、指数ではなく実際に売買できる流動性の高いETFを使用する。
-            // 判定価格には調整後終値を使い、分配金による相対リターンの歪みを避ける。
+            // 市場ステータス（売り抜け日・FTD・50日線）はIBDと同じ土俵に立たせるため、指数そのものを使う。
+            // Yahooは^GSPC/^IXICにも市場全体の出来高を返すので、ETFの売買株数を代用する必要はない。
+            // SPY/QQQは、スコアの事後検証で使う「実際に買えた価格」としてのみ保持する。
             // 過去日のスコアを再計算するため、必要な履歴の長さ（52週高値・200日線）を確保できる期間を取得する。
             var indexFetches = await Task.WhenAll(
-                FetchYahooDataWithRetry("SPY", BACKFILL_RANGE, requirePositiveVolume: true),
-                FetchYahooDataWithRetry("QQQ", BACKFILL_RANGE, requirePositiveVolume: true));
-            var bundle = new MarketDataBundle { Sp500 = indexFetches[0], Nasdaq = indexFetches[1] };
-            if (bundle.Sp500[^1].Date.Date != bundle.Nasdaq[^1].Date.Date)
-                throw new InvalidDataException($"SPYとQQQの基準日が一致しません（SPY: {bundle.Sp500[^1].Date:yyyy-MM-dd}, QQQ: {bundle.Nasdaq[^1].Date:yyyy-MM-dd}）。");
+                FetchYahooDataWithRetry(SP500_INDEX_SYMBOL, BACKFILL_RANGE, requirePositiveVolume: true),
+                FetchYahooDataWithRetry(NASDAQ_INDEX_SYMBOL, BACKFILL_RANGE, requirePositiveVolume: true),
+                FetchYahooDataWithRetry(SP500_PROXY_SYMBOL, BACKFILL_RANGE, requirePositiveVolume: true),
+                FetchYahooDataWithRetry(NASDAQ_PROXY_SYMBOL, BACKFILL_RANGE, requirePositiveVolume: true));
+            var bundle = new MarketDataBundle
+            {
+                Sp500 = indexFetches[0],
+                Nasdaq = indexFetches[1],
+                Spy = indexFetches[2],
+                Qqq = indexFetches[3]
+            };
+            // 4系列の基準日がそろっていないと、別々の日の合成でステータスと検証価格を作ってしまう。
+            var seriesByLabel = new (string Label, List<DailyData> Data)[]
+            {
+                (SP500_INDEX_SYMBOL, bundle.Sp500), (NASDAQ_INDEX_SYMBOL, bundle.Nasdaq),
+                (SP500_PROXY_SYMBOL, bundle.Spy), (NASDAQ_PROXY_SYMBOL, bundle.Qqq)
+            };
+            if (seriesByLabel.Select(item => item.Data[^1].Date.Date).Distinct().Count() != 1)
+                throw new InvalidDataException(
+                    "指数とETFの基準日が一致しません（" +
+                    string.Join(", ", seriesByLabel.Select(item => $"{item.Label}: {item.Data[^1].Date:yyyy-MM-dd}")) + "）。");
 
             // Put/Call Ratio（自前算出）。失敗しても既存のExposure機能全体を止めないよう内部で例外を握りつぶす設計
             var putCall = await FetchPutCallRatio();
 
             // 補助指標は取得だけ先に済ませ、計算は基準日ごとに行う（過去日の再計算に使い回すため）。
-            var sectorTask = FetchSectorRotationData(bundle.Sp500);
+            var sectorTask = FetchSectorRotationData(bundle.Spy);
             var creditTask = FetchCreditData();
             var volatilityTask = FetchVolatilityData();
             await Task.WhenAll(sectorTask, creditTask, volatilityTask);
@@ -347,12 +402,15 @@ class Program
 
             // 履歴はメモリ上で準備し、全指標の算出成功後に一度だけ保存する。
             // 途中失敗で当日分の最終スコアを失わないための原子性を持たせる。
-            var todaySp500 = AnalyzeIndex("S&P 500（SPY）", bundle.Sp500);
-            var todayNasdaq = AnalyzeIndex("Nasdaq-100（QQQ）", bundle.Nasdaq);
+            var todaySp500 = AnalyzeIndex(SP500_DISPLAY_NAME, bundle.Sp500);
+            var todayNasdaq = AnalyzeIndex(NASDAQ_DISPLAY_NAME, bundle.Nasdaq);
             int RankStatus(string status) => status switch { "Uptrend" => 2, "Pressure" => 1, _ => 0 };
             string todayCombined = RankStatus(todaySp500.StatusId) <= RankStatus(todayNasdaq.StatusId)
                 ? todaySp500.StatusId : todayNasdaq.StatusId;
-            var historyPreparation = PrepareHistory(todayCombined, todaySp500, todayNasdaq, putCall?.Ratio, marketDataAsOf);
+            // 検証用の基準価格は指数水準ではなく、実際に買えるSPY/QQQの調整後終値で記録する。
+            var historyPreparation = PrepareHistory(
+                todayCombined, todaySp500, todayNasdaq, putCall?.Ratio, marketDataAsOf,
+                bundle.Spy[^1].AdjustedClose, bundle.Qqq[^1].AdjustedClose);
             var putCallStats = historyPreparation.PutCallStats;
 
             var putCallOutput = putCall == null
@@ -380,7 +438,7 @@ class Program
             var snapshot = BuildSnapshot(bundle, latestDate, putCallOutput, verbose: true)
                 ?? throw new InvalidDataException("当日の市場スナップショットを算出できませんでした。");
 
-            ApplyTodayRiskScoreSnapshot(historyPreparation.Entries, snapshot.RiskScore, marketDataAsOf);
+            ApplyTodayRiskScoreSnapshot(historyPreparation.Entries, snapshot.RiskScore, snapshot.Exposure, marketDataAsOf);
 
             // 過去分をまとめて再計算し、検証機能に十分な標本を与える。
             var existingMarketDates = historyPreparation.Entries
@@ -393,7 +451,7 @@ class Program
             // BuildMarketRiskChange / ApplyTodayRiskScoreSnapshot は Date で Single を取るため、
             // 連結直後に畳んでおかないと、ここだけ重複が素通りして例外で更新全体が落ちる。
             var allEntries = DeduplicateHistoryByDate(historyPreparation.Entries.Concat(backfilled).ToList());
-            UpdateScoreValidationOutcomes(allEntries, bundle.Sp500, bundle.Nasdaq);
+            UpdateScoreValidationOutcomes(allEntries, bundle.Spy, bundle.Qqq);
             var marketRiskChange = BuildMarketRiskChange(allEntries, marketDataAsOf);
             var scoreValidation = BuildScoreValidation(allEntries);
             PersistHistory(allEntries);
@@ -412,6 +470,7 @@ class Program
                 creditRiskAppetite = snapshot.Credit,
                 volatilityRegime = snapshot.Volatility,
                 marketBreadth = snapshot.Breadth,
+                exposure = snapshot.Exposure,
                 marketRiskScore = snapshot.RiskScore,
                 marketRiskChange,
                 scoreValidation
@@ -543,6 +602,9 @@ class Program
         var volumes = quote.Volume ?? throw new Exception($"volume配列が取得できませんでした ({symbol})。");
 
         var adjustedCloses = result.Indicators.AdjClose?.FirstOrDefault()?.AdjustedClose;
+        // 日中の高値・安値は失速日判定にしか使わないので、欠けていても取得自体は失敗させない。
+        var highs = quote.High;
+        var lows = quote.Low;
         var dailyData = new List<DailyData>();
         for (int i = 0; i < timestamps.Length; i++)
         {
@@ -559,7 +621,11 @@ class Program
                     throw new InvalidDataException($"0以下の終値を受信しました ({symbol}, {date:yyyy-MM-dd})。");
                 if (volumes[i]!.Value < 0)
                     throw new InvalidDataException($"負の出来高を受信しました ({symbol}, {date:yyyy-MM-dd})。");
-                dailyData.Add(new DailyData(date, adjustedClose, rawClose, volumes[i]!.Value));
+                decimal? high = i < (highs?.Length ?? 0) && highs![i].HasValue ? highs[i]!.Value : null;
+                decimal? low = i < (lows?.Length ?? 0) && lows![i].HasValue ? lows[i]!.Value : null;
+                // 高値<安値のような壊れたバーは、失速日判定を誤らせるので両方捨てる。
+                if (high.HasValue && low.HasValue && high.Value < low.Value) { high = null; low = null; }
+                dailyData.Add(new DailyData(date, adjustedClose, rawClose, volumes[i]!.Value, high, low));
             }
         }
 
@@ -1269,6 +1335,11 @@ class Program
                 }
             }
 
+            // ---- 主導株（相対強度の上位群）の健全性 ----
+            // 指数が高値圏でも主導株が50日線を割り始めていれば、上昇を牽引する資金が
+            // 抜けている。IBDが Confirmed Uptrend のままエクスポージャーを削る局面がこれ。
+            var leaderStats = ComputeLeaderHealth(analyzed);
+
             // ---- 10日騰落レシオ と Zweig Breadth Thrust ----
             var advanceDeclineByDate = new SortedDictionary<DateTime, (int Advances, int Declines)>();
             foreach (var data in analyzed)
@@ -1312,6 +1383,10 @@ class Program
 
             return new MarketBreadthResult
             {
+                RsLeaderCount = leaderStats.LeaderCount,
+                RsLeaderAboveSma50Pct = leaderStats.AboveSma50Pct,
+                RsLeaderNearHighPct = leaderStats.NearHighPct,
+                RsLeaderBreakdownPct = leaderStats.BreakdownPct,
                 AvgPairwiseCorrelation = AveragePairwiseCorrelation(analyzed, CORRELATION_WINDOW),
                 AccumulationPct = adRatioEligible == 0 ? null : Math.Round((decimal)accumulationCount / adRatioEligible * 100m, 1),
                 StealthDistributionPct = aboveSma50ForStealth == 0 ? null : Math.Round((decimal)stealthDistributionCount / aboveSma50ForStealth * 100m, 1),
@@ -1336,6 +1411,64 @@ class Program
             if (verbose) Console.WriteLine($"[Breadth] compute failed (non-fatal): {ex.Message}");
             return null;
         }
+    }
+
+    // 相対強度の上位群＝主導株の健全性を測る。
+    // ・50日線上比率：主導株がまだ機関に支えられているか
+    // ・高値圏比率  ：ブレイクアウトが維持されているか（新規の買い場が生きているか）
+    // ・新規崩れ比率：直近で50日線を「上から下へ」抜けた比率＝失敗ブレイクアウトの代理
+    // 3つ目だけは水準ではなく変化を見る。水準だけだと、長く弱いままの相場と
+    // 今まさに崩れ始めた相場を区別できず、IBDが動く瞬間に反応できない。
+    static LeaderHealth ComputeLeaderHealth(List<List<DailyData>> analyzed)
+    {
+        var eligible = analyzed
+            .Where(data => data.Count >= RS_LEADER_LOOKBACK_DAYS + 1 && data.Count >= 50)
+            .Select(data =>
+            {
+                decimal past = data[^(RS_LEADER_LOOKBACK_DAYS + 1)].AdjustedClose;
+                return (Data: data, Return: past > 0m ? (data[^1].AdjustedClose - past) / past * 100m : (decimal?)null);
+            })
+            .Where(item => item.Return.HasValue)
+            .OrderByDescending(item => item.Return!.Value)
+            .ToList();
+
+        int leaderCount = (int)Math.Round(eligible.Count * RS_LEADER_TOP_PCT / 100m, MidpointRounding.AwayFromZero);
+        if (leaderCount < RS_LEADER_MIN_COUNT) return new LeaderHealth();
+
+        var leaders = eligible.Take(leaderCount).Select(item => item.Data).ToList();
+        int aboveSma50 = 0, nearHigh = 0, brokeDown = 0;
+
+        foreach (var data in leaders)
+        {
+            decimal latest = data[^1].AdjustedClose;
+            decimal sma50 = data.TakeLast(50).Average(d => d.AdjustedClose);
+            bool isAbove = latest >= sma50;
+            if (isAbove) aboveSma50++;
+
+            decimal high52 = data.TakeLast(Math.Min(252, data.Count)).Max(d => d.AdjustedClose);
+            if (high52 > 0m && (latest - high52) / high52 * 100m >= LEADER_NEAR_HIGH_DRAWDOWN_PCT) nearHigh++;
+
+            // 今は50日線の下にいて、直近の参照期間内に一度でも上にいた＝この波で崩れた銘柄。
+            if (isAbove) continue;
+            int lookbackStart = Math.Max(50, data.Count - LEADER_BREAKDOWN_LOOKBACK_DAYS);
+            decimal windowSum = 0m;
+            for (int k = lookbackStart - 50; k < lookbackStart; k++) windowSum += data[k].AdjustedClose;
+            for (int i = lookbackStart; i < data.Count - 1; i++)
+            {
+                // 各日の50日線をスライドさせながら求める（毎日50本を数え直さない）。
+                windowSum += data[i].AdjustedClose - data[i - 50].AdjustedClose;
+                if (data[i].AdjustedClose >= windowSum / 50m) { brokeDown++; break; }
+            }
+        }
+
+        decimal Pct(int count) => Math.Round((decimal)count / leaderCount * 100m, 1);
+        return new LeaderHealth
+        {
+            LeaderCount = leaderCount,
+            AboveSma50Pct = Pct(aboveSma50),
+            NearHighPct = Pct(nearHigh),
+            BreakdownPct = Pct(brokeDown)
+        };
     }
 
     // 構成銘柄どうしの平均ペア相関（ディスパージョンの逆数的な指標）。
@@ -1415,19 +1548,163 @@ class Program
             : null;
     }
 
+    // ================= 推奨エクスポージャー（IBD "The Big Picture" 準拠） =================
+    //
+    // 設計方針：IBDのエクスポージャーは市場ステータスから独立した裁量値で、
+    // Confirmed Uptrend を保ったまま 80-100% → 60-80% → 40-60% と段階的に落ちる。
+    // 旧実装はステータスごとの上限（Uptrend=100%）とリスクスコアの積だったため、
+    // 「Uptrendならほぼ自動的に90-100%」「Pressureに落ちた瞬間に60%へ一段落ち」となり、
+    // IBDが実際に使う中間段（80%・70%・50%）が構造的に存在しなかった。
+    //
+    // ここではIBDと同じ20%刻みのバンドを持ち、ステータスで初期値を決めたうえで、
+    // IBDが実際に減量理由として挙げる項目だけで段階的に引き下げる。
+    // 各引き下げ理由を保存し、画面に「なぜ下げたか」をそのまま出す。
+    static readonly (int MinPct, int MaxPct)[] ExposureBands =
+    {
+        (0, 0), (0, 20), (20, 40), (40, 60), (60, 80), (80, 100)
+    };
+
+    const int EXPOSURE_BAND_UPTREND = 5;   // 80-100%
+    const int EXPOSURE_BAND_PRESSURE = 3;  // 40-60%
+    const int EXPOSURE_BAND_CORRECTION = 1;// 0-20%
+    // Confirmed Uptrend を保っている限り、IBDはここより下げない。
+    const int EXPOSURE_FLOOR_UPTREND = 2;  // 20-40%
+    const int EXPOSURE_FLOOR_PRESSURE = 1; // 0-20%
+    // 調整局面のうち、ここまで崩れたら現金100%（バンド0）にする。
+    const decimal EXPOSURE_CASH_DRAWDOWN_PCT = -12m;
+
+    static string ExposureBandLabelOf(int band) =>
+        ExposureBands[band].MaxPct == 0 ? "0%" : $"{ExposureBands[band].MinPct}-{ExposureBands[band].MaxPct}%";
+
+    static readonly HashSet<string> ExposureBandLabels =
+        Enumerable.Range(0, ExposureBands.Length).Select(ExposureBandLabelOf).ToHashSet(StringComparer.Ordinal);
+
+    static ExposureOutput CalculateExposure(
+        string combinedStatus,
+        IndexAnalysis sp500,
+        IndexAnalysis nasdaq,
+        MarketBreadthOutput breadth,
+        VolatilityOutput volatility,
+        CreditRiskAppetiteOutput credit)
+    {
+        var reasons = new List<ExposureReason>();
+        void Demote(int steps, string code, string detail)
+        {
+            if (steps <= 0) return;
+            reasons.Add(new ExposureReason { Code = code, Steps = steps, Detail = detail });
+        }
+
+        int baseline = combinedStatus switch
+        {
+            "Uptrend" => EXPOSURE_BAND_UPTREND,
+            "Pressure" => EXPOSURE_BAND_PRESSURE,
+            _ => EXPOSURE_BAND_CORRECTION
+        };
+
+        decimal worstDrawdown = Math.Min(sp500.DrawdownFromHighPct, nasdaq.DrawdownFromHighPct);
+
+        // 調整局面は減点を積まない。IBDもCorrection中は「現金、反発の確認待ち」の一段だけ。
+        if (combinedStatus == "Correction")
+        {
+            bool cash = worstDrawdown <= EXPOSURE_CASH_DRAWDOWN_PCT;
+            int correctionBand = cash ? 0 : EXPOSURE_BAND_CORRECTION;
+            if (cash)
+                Demote(1, "deep_correction", $"52週高値から{worstDrawdown:F1}%下落。反発が確認できるまで現金。");
+            return BuildExposure(correctionBand, baseline, reasons, combinedStatus);
+        }
+
+        // (1) 売り抜け日。IBDが最初に数える材料。失速日を含む本数で見る。
+        int maxDistDays = Math.Max(sp500.DistributionDaysActive, nasdaq.DistributionDaysActive);
+        string distDetail = $"{sp500.Name} {sp500.DistributionDaysActive}本 / {nasdaq.Name} {nasdaq.DistributionDaysActive}本";
+        if (maxDistDays >= 6) Demote(2, "distribution_heavy", $"売り抜け日が6本以上（{distDetail}）。");
+        else if (maxDistDays >= 4) Demote(1, "distribution_building", $"売り抜け日が積み上がっている（{distDetail}）。");
+
+        // (2) 主導株が50日線を維持できているか。IBDの減量理由として最も重い。
+        decimal? leaderAbove = breadth.RsLeaderAboveSma50Pct;
+        if (leaderAbove.HasValue)
+        {
+            if (leaderAbove.Value < 40m) Demote(2, "leaders_broken", $"主導株の50日線上比率が{leaderAbove.Value:F1}%（40%未満）。");
+            else if (leaderAbove.Value < 60m) Demote(1, "leaders_slipping", $"主導株の50日線上比率が{leaderAbove.Value:F1}%（60%未満）。");
+        }
+
+        // (3) ブレイクアウトが維持できているか＝新規の買い場が生きているか。
+        decimal? nearHigh = breadth.RsLeaderNearHighPct;
+        decimal? breakdown = breadth.RsLeaderBreakdownPct;
+        if (nearHigh.HasValue && breakdown.HasValue)
+        {
+            string detail = $"主導株の高値圏維持{nearHigh.Value:F1}% / 直近の50日線割れ{breakdown.Value:F1}%";
+            if (nearHigh.Value < 25m && breakdown.Value >= 35m) Demote(2, "breakouts_failing_hard", $"ブレイクアウトが総崩れ（{detail}）。");
+            else if (nearHigh.Value < 40m || breakdown.Value >= 25m) Demote(1, "breakouts_failing", $"ブレイクアウトが続かない（{detail}）。");
+        }
+
+        // (4) 指数自身の傷み。50日線割れは新規買いを止める水準。
+        if (!sp500.IsAboveSma50 || !nasdaq.IsAboveSma50)
+        {
+            string below = string.Join("・", new[]
+            {
+                sp500.IsAboveSma50 ? null : sp500.Name,
+                nasdaq.IsAboveSma50 ? null : nasdaq.Name
+            }.Where(item => item != null));
+            Demote(1, "index_below_sma50", $"{below}が50日線を割り込み。");
+        }
+        if (worstDrawdown <= -8m) Demote(1, "index_drawdown", $"指数が52週高値から{worstDrawdown:F1}%下落。");
+
+        // (5) リスクオフの追認。単独では動かさず、上の傷みが出ているときの裏付けに使う。
+        bool volStress = volatility.Status is "ok" or "partial" && volatility.TermStructure == "Backwardation";
+        bool creditStress = credit.Status is "ok" or "partial" && credit.Spread3m.HasValue && credit.Spread3m.Value < 0m;
+        if (volStress || creditStress)
+        {
+            string detail = string.Join("・", new[]
+            {
+                volStress ? "VIX期限構造が逆転" : null,
+                creditStress ? $"ハイイールド債が投資適格債を{credit.Spread3m:F2}%下回る" : null
+            }.Where(item => item != null));
+            Demote(1, "risk_off", $"{detail}。");
+        }
+
+        int floor = combinedStatus == "Uptrend" ? EXPOSURE_FLOOR_UPTREND : EXPOSURE_FLOOR_PRESSURE;
+        int band = Math.Max(floor, baseline - reasons.Sum(reason => reason.Steps));
+        return BuildExposure(band, baseline, reasons, combinedStatus);
+    }
+
+    static ExposureOutput BuildExposure(int band, int baseline, List<ExposureReason> reasons, string combinedStatus)
+    {
+        var (minPct, maxPct) = ExposureBands[band];
+        // 実際に適用された引き下げ段数。床に当たって効かなかった分は「効いた分」として数えない。
+        int appliedSteps = baseline - band;
+        return new ExposureOutput
+        {
+            Status = combinedStatus,
+            BandLabel = ExposureBandLabelOf(band),
+            BandMinPct = minPct,
+            BandMaxPct = maxPct,
+            MidpointPct = (minPct + maxPct) / 2,
+            BaselineBandLabel = ExposureBandLabelOf(baseline),
+            StepsDown = appliedSteps,
+            Reasons = reasons,
+            Note = "IBD『The Big Picture』の推奨エクスポージャーに合わせた20%刻みのバンドです。" +
+                   "市場ステータスで初期値を決め、売り抜け日・主導株の崩れ・指数の傷みで段階的に引き下げます。" +
+                   "主導株はNasdaq-100構成銘柄の相対強度上位20%で代用しているため、IBDが見る中小型グロース株の主導株群とは母集団が異なります。"
+        };
+    }
+
     // ================= 基準日ごとの市場スナップショット =================
 
     // 実運用日もバックフィル日も必ずこの関数を通す。
     // 過去分だけ別の計算経路を用意すると、両者を比較した瞬間に意味が失われるため。
     static MarketSnapshot? BuildSnapshot(MarketDataBundle bundle, DateTime asOf, PutCallOutput putCall, bool verbose)
     {
-        var spyData = TruncateTo(bundle.Sp500, asOf);
-        var qqqData = TruncateTo(bundle.Nasdaq, asOf);
-        if (spyData == null || qqqData == null) return null;
-        if (spyData.Count < BACKFILL_MIN_HISTORY_BARS || qqqData.Count < BACKFILL_MIN_HISTORY_BARS) return null;
+        var sp500Data = TruncateTo(bundle.Sp500, asOf);
+        var nasdaqData = TruncateTo(bundle.Nasdaq, asOf);
+        // ETF側は検証用の基準価格と実現ボラにしか使わないが、日付がそろわない日は
+        // 記録そのものを作らない（後日の検証で別の日を起点にしてしまうため）。
+        var spyData = TruncateTo(bundle.Spy, asOf);
+        var qqqData = TruncateTo(bundle.Qqq, asOf);
+        if (sp500Data == null || nasdaqData == null || spyData == null || qqqData == null) return null;
+        if (sp500Data.Count < BACKFILL_MIN_HISTORY_BARS || nasdaqData.Count < BACKFILL_MIN_HISTORY_BARS) return null;
 
-        var sp500 = AnalyzeIndex("S&P 500（SPY）", spyData);
-        var nasdaq = AnalyzeIndex("Nasdaq-100（QQQ）", qqqData);
+        var sp500 = AnalyzeIndex(SP500_DISPLAY_NAME, sp500Data);
+        var nasdaq = AnalyzeIndex(NASDAQ_DISPLAY_NAME, nasdaqData);
         if (!string.Equals(sp500.DataAsOf, nasdaq.DataAsOf, StringComparison.Ordinal)) return null;
 
         // 2指数のうち「悪い方（より弱気な方）」を採用するのがIBD Market Pulseの流儀
@@ -1440,7 +1717,7 @@ class Program
         if (rankSp == rankNq)
         {
             combinedStatus = sp500.StatusId;
-            combinedDrivenBy = "SPYとQQQは同じ市場ステータス";
+            combinedDrivenBy = $"{SP500_DISPLAY_NAME}と{NASDAQ_DISPLAY_NAME}は同じ市場ステータス";
         }
         else if (rankSp < rankNq)
         {
@@ -1530,6 +1807,10 @@ class Program
                 Declines = breadth.Declines,
                 AdvanceDeclineNet = breadth.AdvanceDeclineNet,
                 AdLineChange20d = breadth.AdLineChange20d,
+                RsLeaderCount = breadth.RsLeaderCount,
+                RsLeaderAboveSma50Pct = breadth.RsLeaderAboveSma50Pct,
+                RsLeaderNearHighPct = breadth.RsLeaderNearHighPct,
+                RsLeaderBreakdownPct = breadth.RsLeaderBreakdownPct,
                 AvgPairwiseCorrelation = breadth.AvgPairwiseCorrelation,
                 AccumulationPct = breadth.AccumulationPct,
                 StealthDistributionPct = breadth.StealthDistributionPct,
@@ -1550,7 +1831,10 @@ class Program
             Volatility = volatilityOutput,
             Breadth = breadthOutput,
             PutCall = putCall,
-            RiskScore = CalculateMarketRiskScore(sp500, nasdaq, putCall, sectorOutput, creditOutput, volatilityOutput, breadthOutput)
+            SpyAdjustedClose = spyData[^1].AdjustedClose,
+            QqqAdjustedClose = qqqData[^1].AdjustedClose,
+            RiskScore = CalculateMarketRiskScore(sp500, nasdaq, putCall, sectorOutput, creditOutput, volatilityOutput, breadthOutput),
+            Exposure = CalculateExposure(combinedStatus, sp500, nasdaq, breadthOutput, volatilityOutput, creditOutput)
         };
     }
 
@@ -1586,8 +1870,10 @@ class Program
                 MarketRiskScore = Math.Round(snapshot.RiskScore.Score, 1),
                 MarketRiskAvailableMaxPoints = Math.Round(snapshot.RiskScore.AvailableMaxPoints, 1),
                 MarketRiskSchema = snapshot.RiskScore.SchemaId,
-                SpyAdjustedClose = snapshot.Sp500.LatestAdjustedClose,
-                QqqAdjustedClose = snapshot.Nasdaq.LatestAdjustedClose
+                ExposureBandLabel = snapshot.Exposure.BandLabel,
+                ExposureMidpointPct = snapshot.Exposure.MidpointPct,
+                SpyAdjustedClose = snapshot.SpyAdjustedClose,
+                QqqAdjustedClose = snapshot.QqqAdjustedClose
             });
         }
 
@@ -1616,7 +1902,7 @@ class Program
         VolatilityOutput volatility,
         MarketBreadthOutput breadth)
     {
-        // 配点: トレンド24、ブレッドス21、機関需給9、市場構造7、ボラティリティ12、信用12、セクター10、需給5＝100。
+        // 配点: トレンド24、ブレッドス21、主導株10、機関需給9、市場構造7、ボラティリティ12、信用12、セクター10、需給5＝110。
         // 欠損データを低リスク（0点）と誤認しないよう、利用可能な配点で100点換算する。
         // 配点を変更したら MARKET_RISK_TOTAL_POINTS も必ず合わせること。
         var metrics = new List<MarketRiskMetric>();
@@ -1646,13 +1932,13 @@ class Program
         decimal smaRisk = (sp500.IsAboveSma50 ? 0m : 2m) + (nasdaq.IsAboveSma50 ? 0m : 2m);
         decimal ddRisk = Math.Min(1.5m, sp500.DistributionDaysActive / 4m) + Math.Min(1.5m, nasdaq.DistributionDaysActive / 4m);
         Add("市場トレンド", "市場ステータス", StatusRisk(sp500) + StatusRisk(nasdaq), 14m,
-            $"SPY: {sp500.StatusId} / QQQ: {nasdaq.StatusId}");
+            $"{sp500.Name}: {sp500.StatusId} / {nasdaq.Name}: {nasdaq.StatusId}");
         Add("市場トレンド", "50日線", smaRisk, 4m,
-            $"SPY: {(sp500.IsAboveSma50 ? "上" : "下")} / QQQ: {(nasdaq.IsAboveSma50 ? "上" : "下")}");
+            $"{sp500.Name}: {(sp500.IsAboveSma50 ? "上" : "下")} / {nasdaq.Name}: {(nasdaq.IsAboveSma50 ? "上" : "下")}");
         Add("市場トレンド", "有効Distribution Day", ddRisk, 3m,
-            $"SPY: {sp500.DistributionDaysActive}日 / QQQ: {nasdaq.DistributionDaysActive}日");
+            $"{sp500.Name}: {sp500.DistributionDaysActive}日 / {nasdaq.Name}: {nasdaq.DistributionDaysActive}日");
         Add("市場トレンド", "売り抜け強度", IntensityRisk(sp500.DistributionIntensity) + IntensityRisk(nasdaq.DistributionIntensity), 3m,
-            $"SPY: {sp500.DistributionIntensity:F1} / QQQ: {nasdaq.DistributionIntensity:F1}（下落率×出来高比の合計）");
+            $"{sp500.Name}: {sp500.DistributionIntensity:F1} / {nasdaq.Name}: {nasdaq.DistributionIntensity:F1}（下落率×出来高比の合計）");
 
         if (breadth.Status is "ok" or "partial")
         {
@@ -1702,6 +1988,27 @@ class Program
                 decimal stealthRisk = stealth >= 40m ? 4m : stealth >= 25m ? 2.5m : stealth >= 15m ? 1m : 0m;
                 Add("機関需給", "ステルス配分", stealthRisk, 4m,
                     $"{stealth:F1}%（50日線上だが売り優勢）");
+            }
+
+            // 主導株の状態はブレッドス全体より先に崩れる。指数と平均が持ちこたえていても
+            // ここが割れていれば、上昇を牽引していた資金がすでに降りている。
+            if (breadth.RsLeaderAboveSma50Pct.HasValue)
+            {
+                decimal leaderAbove = breadth.RsLeaderAboveSma50Pct.Value;
+                decimal leaderRisk = leaderAbove < 30m ? 6m : leaderAbove < 40m ? 4.5m : leaderAbove < 60m ? 3m : leaderAbove < 75m ? 1.5m : 0m;
+                Add("主導株", "主導株の50日線上比率", leaderRisk, 6m,
+                    $"{leaderAbove:F1}%（RS上位{RS_LEADER_TOP_PCT:F0}%・{breadth.RsLeaderCount}銘柄）");
+            }
+
+            if (breadth.RsLeaderNearHighPct.HasValue && breadth.RsLeaderBreakdownPct.HasValue)
+            {
+                decimal nearHigh = breadth.RsLeaderNearHighPct.Value;
+                decimal breakdownPct = breadth.RsLeaderBreakdownPct.Value;
+                // 高値圏から落ちたこと（水準）と、いま崩れつつあること（変化）の両方を見る。
+                decimal failureRisk = (nearHigh < 30m ? 2m : nearHigh < 50m ? 1m : 0m)
+                    + (breakdownPct >= 35m ? 2m : breakdownPct >= 20m ? 1m : 0m);
+                Add("主導株", "ブレイクアウトの失敗", failureRisk, 4m,
+                    $"高値圏維持 {nearHigh:F1}% / 直近{LEADER_BREAKDOWN_LOOKBACK_DAYS}日の50日線割れ {breakdownPct:F1}%");
             }
 
             if (breadth.AvgPairwiseCorrelation.HasValue)
@@ -1908,11 +2215,39 @@ class Program
         // 権利落ち日に符号が食い違う。下落率はこのローカル関数1本に集約する。
         decimal DropPctAt(int i) => (data[i - 1].Close - data[i].Close) / data[i - 1].Close * 100m;
 
+        // stalling day（失速日）: 出来高は前日以上なのに値幅が伴わず、日中レンジの下半分で引けた高値圏の日。
+        // IBDはこれも売り抜けとして数える。下落日だけを数えていると、指数がじりじり上げながら
+        // 上値が重くなっていく「高値圏での配分」を丸ごと取りこぼす。
+        // 日中の高値・安値が無い日は判定できないので、失速日とはみなさない。
+        bool IsStallDayAt(int i)
+        {
+            if (!data[i].High.HasValue || !data[i].Low.HasValue) return false;
+            // IBDの失速日は「終値が上昇した日」。横ばい・下落はここでは扱わない
+            // （下落は通常の売り抜け日で拾う）。
+            decimal gainPct = -DropPctAt(i);
+            if (gainPct <= 0m || gainPct > STALL_DAY_MAX_GAIN_PCT) return false;
+            // 出来高は売り抜け日と同じく「前日より重い」ことを要求する。同水準は重いとは言わない。
+            if (data[i].Volume <= data[i - 1].Volume) return false;
+            if (DrawdownPctAt(i) < STALL_DAY_MAX_DRAWDOWN_PCT) return false;
+            decimal high = data[i].High!.Value;
+            decimal low = data[i].Low!.Value;
+            decimal range = high - low;
+            if (range <= 0m || range / data[i].Close * 100m < STALL_DAY_MIN_RANGE_PCT) return false;
+            return (data[i].Close - low) / range <= STALL_DAY_MAX_CLOSE_POSITION;
+        }
+
         var isRawDistDay = new bool[n];
+        var isStallDay = new bool[n];
         for (int i = 1; i < n; i++)
         {
             isRawDistDay[i] = DropPctAt(i) >= DIST_DAY_DROP_PCT && data[i].Volume > data[i - 1].Volume;
+            // 下落による売り抜け日と失速日は排他。二重計上させない。
+            isStallDay[i] = !isRawDistDay[i] && IsStallDayAt(i);
         }
+
+        // 有効期限・5%反発ルール・チャート表示は両者を同じ扱いにするため、統合フラグを持つ。
+        var isDistributionEvent = new bool[n];
+        for (int i = 1; i < n; i++) isDistributionEvent[i] = isRawDistDay[i] || isStallDay[i];
 
         // --- 売り抜け日の追跡 と ラリー・アテンプト / フォロースルーデー のステートマシン ---
         // この2つは独立ではないので、必ず同じループで回す。IBDでは相場がCorrectionに入り、
@@ -1936,7 +2271,7 @@ class Program
         void RestartDistributionCount(int index)
         {
             activeDDs.Clear();
-            if (isRawDistDay[index]) activeDDs.Add((index, data[index].AdjustedClose));
+            if (isDistributionEvent[index]) activeDDs.Add((index, data[index].AdjustedClose));
             distDaysActive[index] = activeDDs.Count;
         }
 
@@ -1946,7 +2281,7 @@ class Program
             // 窓はDD当日を1日目として数えるため、経過日数が25に達した時点で外す（当日+24日＝25セッション）。
             activeDDs.RemoveAll(dd => (i - dd.idx) >= DIST_DAY_WINDOW || data[i].AdjustedClose >= dd.close * (1 + DIST_DAY_INVALIDATE_RALLY_PCT / 100m));
 
-            if (isRawDistDay[i])
+            if (isDistributionEvent[i])
             {
                 activeDDs.Add((i, data[i].AdjustedClose));
             }
@@ -1990,7 +2325,12 @@ class Program
                     day1Low = null;
                     // FTDではなく価格の回復による確認なので、FTD日付は付けない。
                     lastFtdDate = null;
-                    RestartDistributionCount(i);
+                    // ここで売り抜け日を数え直してはいけない。
+                    // IBDが数え直すのはFTDで新しい上昇トレンドが確認されたときだけで、
+                    // 「高値圏に戻っただけ」は新トレンドの起点ではない。リセットすると
+                    // 指数が高値圏に張り付きながら売り抜けが積み上がる局面（IBDが最も
+                    // エクスポージャーを落とす場面）が、そのまま0本＝万全と表示されてしまう。
+                    // これは本アプリ独自の安全弁なので、表示だけ整えて計数は素通しにする。
                 }
                 else if (day1Index == null)
                 {
@@ -2071,7 +2411,9 @@ class Program
         decimal distributionIntensity = 0m;
         foreach (var (idx, _) in activeDDs)
         {
-            decimal dropPct = DropPctAt(idx);
+            // 失速日は下落していない（DropPctAtが0以下）ので、そのまま掛けると強度が減ってしまう。
+            // 「値幅が出なかったこと自体が重い」ので、下落率の代わりにしきい値分の重みを最低限与える。
+            decimal dropPct = isStallDay[idx] ? DIST_DAY_DROP_PCT : DropPctAt(idx);
             decimal volumeRatio = volumeSma50[idx].HasValue && volumeSma50[idx]!.Value > 0m
                 ? data[idx].Volume / volumeSma50[idx]!.Value
                 : 1m;
@@ -2079,11 +2421,15 @@ class Program
         }
         distributionIntensity = Math.Round(distributionIntensity, 2);
 
+        int stallingDaysActive = activeDDs.Count(dd => isStallDay[dd.idx]);
+
         decimal? worstActiveDropPct = null;
         string? worstActiveDropDate = null;
-        if (activeDDs.Count > 0)
+        // 「最大の売り圧力」は下落幅の話なので、下落していない失速日は候補から外す。
+        var droppingActiveDDs = activeDDs.Where(dd => !isStallDay[dd.idx]).ToList();
+        if (droppingActiveDDs.Count > 0)
         {
-            int worstIdx = activeDDs
+            int worstIdx = droppingActiveDDs
                 .Select(dd => dd.idx)
                 .OrderByDescending(DropPctAt)
                 .First();
@@ -2119,8 +2465,8 @@ class Program
             chartSma50.Add(sma50[i]);
             // 同じ「売り抜け日」でも、最新日時点でまだアクティブなものと、
             // 25日経過または5%反発で既に失効したものを別データセットとして分ける
-            bool isActive = isRawDistDay[i] && activeDDIndices.Contains(i);
-            bool isExpired = isRawDistDay[i] && !activeDDIndices.Contains(i);
+            bool isActive = isDistributionEvent[i] && activeDDIndices.Contains(i);
+            bool isExpired = isDistributionEvent[i] && !activeDDIndices.Contains(i);
             distMarksActive.Add(isActive ? data[i].AdjustedClose : (decimal?)null);
             distMarksExpired.Add(isExpired ? data[i].AdjustedClose : (decimal?)null);
         }
@@ -2135,6 +2481,7 @@ class Program
             High52WeekPrice = high52Week,
             DrawdownFromHighPct = drawdownFromHighPct,
             DistributionDaysActive = lastDistDays,
+            StallingDaysActive = stallingDaysActive,
             DistributionIntensity = distributionIntensity,
             WorstActiveDropPct = worstActiveDropPct,
             WorstActiveDropDate = worstActiveDropDate,
@@ -2154,7 +2501,9 @@ class Program
 
     // ================= 履歴保存 =================
 
-    static HistoryPreparation PrepareHistory(string combinedStatus, IndexAnalysis sp500, IndexAnalysis nasdaq, decimal? putCallRatio, string marketDataAsOf)
+    static HistoryPreparation PrepareHistory(
+        string combinedStatus, IndexAnalysis sp500, IndexAnalysis nasdaq, decimal? putCallRatio, string marketDataAsOf,
+        decimal spyAdjustedClose, decimal qqqAdjustedClose)
     {
         string historyPath = GetOutputPath("history.json");
 
@@ -2202,8 +2551,8 @@ class Program
             NasdaqStatus = nasdaq.StatusId,
             NasdaqDistDays = nasdaq.DistributionDaysActive,
             PutCallRatio = putCallRatio,
-            SpyAdjustedClose = sp500.LatestAdjustedClose,
-            QqqAdjustedClose = nasdaq.LatestAdjustedClose
+            SpyAdjustedClose = spyAdjustedClose,
+            QqqAdjustedClose = qqqAdjustedClose
         });
 
         // ここではまだファイルへ書かず、全計算成功後に保存する。
@@ -2244,7 +2593,11 @@ class Program
         bool validNumbers = entry.Sp500DistDays >= 0 && entry.NasdaqDistDays >= 0 &&
             (!entry.PutCallRatio.HasValue || (entry.PutCallRatio.Value > 0m && entry.PutCallRatio.Value <= 100m)) &&
             (!entry.MarketRiskScore.HasValue || (entry.MarketRiskScore.Value >= 0m && entry.MarketRiskScore.Value <= 100m)) &&
-            (!entry.MarketRiskAvailableMaxPoints.HasValue || (entry.MarketRiskAvailableMaxPoints.Value > 0m && entry.MarketRiskAvailableMaxPoints.Value <= 100m)) &&
+            // 配点合計は改訂で増えうる。100固定にすると、配点を足した翌日から
+            // 自分で書いた履歴を「不正」と判定して更新が止まる。満点の定数と連動させる。
+            (!entry.MarketRiskAvailableMaxPoints.HasValue || (entry.MarketRiskAvailableMaxPoints.Value > 0m && entry.MarketRiskAvailableMaxPoints.Value <= MARKET_RISK_TOTAL_POINTS)) &&
+            (string.IsNullOrEmpty(entry.ExposureBandLabel) || ExposureBandLabels.Contains(entry.ExposureBandLabel)) &&
+            (!entry.ExposureMidpointPct.HasValue || (entry.ExposureMidpointPct.Value >= 0 && entry.ExposureMidpointPct.Value <= 100)) &&
             (!entry.SpyAdjustedClose.HasValue || entry.SpyAdjustedClose.Value > 0m) &&
             (!entry.QqqAdjustedClose.HasValue || entry.QqqAdjustedClose.Value > 0m) &&
             IsValidForwardReturn(entry.SpyReturn1m) && IsValidForwardReturn(entry.QqqReturn1m) &&
@@ -2263,7 +2616,9 @@ class Program
         !string.IsNullOrWhiteSpace(metric.Group) && !string.IsNullOrWhiteSpace(metric.Name) &&
         metric.Score >= 0m && metric.MaxPoints > 0m && metric.Score <= metric.MaxPoints;
 
-    static void ApplyTodayRiskScoreSnapshot(List<HistoryEntry> history, MarketRiskScore riskScore, string marketDataAsOf)
+    // 当日のライブ記録は履歴の準備時点ではまだスコアもエクスポージャーも決まっていない。
+    // 全指標の算出に成功したあとで、ここにまとめて書き戻す。
+    static void ApplyTodayRiskScoreSnapshot(List<HistoryEntry> history, MarketRiskScore riskScore, ExposureOutput exposure, string marketDataAsOf)
     {
         if (riskScore.Score < 0m || riskScore.Score > 100m || riskScore.AvailableMaxPoints <= 0m)
             throw new ArgumentOutOfRangeException(nameof(riskScore), "市場リスクスコアまたは採点カバレッジが不正です。");
@@ -2274,6 +2629,8 @@ class Program
         todayEntry.MarketRiskAvailableMaxPoints = Math.Round(riskScore.AvailableMaxPoints, 1);
         todayEntry.MarketRiskSchema = riskScore.SchemaId;
         todayEntry.MarketRiskMetrics = riskScore.Metrics.Select(CopyMarketRiskMetric).ToList();
+        todayEntry.ExposureBandLabel = exposure.BandLabel;
+        todayEntry.ExposureMidpointPct = exposure.MidpointPct;
     }
 
     static MarketRiskMetric CopyMarketRiskMetric(MarketRiskMetric metric) => new()
@@ -2688,6 +3045,91 @@ class Program
             "reclaiming the 52-week high above the 50-day line ends the correction without a follow-through day");
         Assert(recovered.LastFollowThroughDate == null, "a price-driven recovery does not fabricate a follow-through date");
 
+        // 価格の回復は「新しい上昇トレンドの起点」ではないので、売り抜け日を数え直してはいけない。
+        // ここをリセットすると、高値圏に張り付きながら売り抜けが積み上がる局面
+        // （IBDが最もエクスポージャーを落とす場面）が0本＝万全と表示されてしまう。
+        var recoveryWithDistribution = new List<(decimal, long)>();
+        for (int i = 0; i < 100; i++) recoveryWithDistribution.Add((100m, 1_000L));
+        for (int k = 1; k <= 30; k++) recoveryWithDistribution.Add((100m - 0.4m * k, 1_000L - k));
+        for (int k = 1; k <= 168; k++) recoveryWithDistribution.Add((88m + 0.0774m * k, 500L));
+        // 高値圏に戻ってから、出来高増を伴う-0.5%の下げを2本入れる。
+        recoveryWithDistribution.Add((100.5m, 900L));
+        recoveryWithDistribution.Add((99.9m, 1_200L));
+        var recoveredWithDd = AnalyzeIndex("test", TestIndexSeries(recoveryWithDistribution));
+        Assert(recoveredWithDd.TrendState == "ConfirmedUptrend",
+            "the price-recovery fixture is back in a confirmed uptrend");
+        Assert(recoveredWithDd.DistributionDaysActive >= 1,
+            "a price-driven recovery keeps counting distribution days instead of resetting them to zero");
+
+        // --- stalling day（出来高を伴う失速日）---
+        // 重い出来高なのに値幅が出ず、日中レンジの下半分で引けた高値圏の日はIBDでは売り抜け扱い。
+        var stalling = new List<(decimal Close, decimal High, decimal Low, long Volume)>();
+        for (int i = 0; i < 260; i++) stalling.Add((100m, 100.5m, 99.5m, 1_000L));
+        stalling.Add((100.1m, 101.2m, 99.9m, 2_000L)); // +0.10%・安値圏引け・出来高倍
+        var stallAnalysis = AnalyzeIndex("test", TestIntradaySeries(stalling));
+        Assert(stallAnalysis.DistributionDaysActive == 1 && stallAnalysis.StallingDaysActive == 1,
+            "a high-volume day that closes up but in the lower half of its range counts as distribution");
+        Assert(stallAnalysis.WorstActiveDropPct == null,
+            "a stalling day never becomes the worst active decline because it did not decline");
+
+        // 同じ日でも、高値圏で引ければ失速日ではない（レンジ上半分で引けたケース）。
+        var strongClose = new List<(decimal Close, decimal High, decimal Low, long Volume)>();
+        for (int i = 0; i < 260; i++) strongClose.Add((100m, 100.5m, 99.5m, 1_000L));
+        strongClose.Add((100.1m, 100.2m, 99.0m, 2_000L)); // 同じ+0.10%だがレンジ上端で引け
+        Assert(AnalyzeIndex("test", TestIntradaySeries(strongClose)).DistributionDaysActive == 0,
+            "the same small gain closing near the session high is not a stalling day");
+
+        // 日中の高値・安値が無い系列では失速日を判定しない（欠測を売り抜けと誤認しない）。
+        var noIntraday = new List<(decimal, long)>();
+        for (int i = 0; i < 260; i++) noIntraday.Add((100m, 1_000L));
+        noIntraday.Add((100.1m, 2_000L));
+        Assert(AnalyzeIndex("test", TestIndexSeries(noIntraday)).StallingDaysActive == 0,
+            "missing intraday high/low never produces a stalling day");
+
+        // --- 推奨エクスポージャーのラダー ---
+        // IBDはConfirmed Uptrendを保ったまま段階的に落とす。ここが1段ずつ動くことを確認する。
+        var cleanBreadth = TestBreadth(leaderAbove: 85m, nearHigh: 70m, breakdown: 5m);
+        var calmVol = new VolatilityOutput { Status = "ok", TermStructure = "Contango" };
+        var calmCredit = new CreditRiskAppetiteOutput { Status = "ok", Spread3m = 1.5m };
+        var healthyIndex = TestIndexAnalysis("S&P 500", "Uptrend", distDays: 1, drawdownPct: -1m, aboveSma50: true);
+        var healthyNasdaq = TestIndexAnalysis("Nasdaq総合", "Uptrend", distDays: 1, drawdownPct: -2m, aboveSma50: true);
+
+        Assert(CalculateExposure("Uptrend", healthyIndex, healthyNasdaq, cleanBreadth, calmVol, calmCredit).BandLabel == "80-100%",
+            "a clean confirmed uptrend stays fully invested");
+
+        // 主導株だけが崩れた場合。指数は無傷でも段階的に下がるのがIBDの挙動。
+        var slippingLeaders = TestBreadth(leaderAbove: 50m, nearHigh: 25m, breakdown: 35m);
+        var leaderDamaged = CalculateExposure("Uptrend", healthyIndex, healthyNasdaq, slippingLeaders, calmVol, calmCredit);
+        Assert(leaderDamaged.BandLabel == "40-60%" && leaderDamaged.StepsDown == 2,
+            "leaders losing the 50-day line cuts exposure two steps while the status stays a confirmed uptrend");
+        Assert(leaderDamaged.Reasons.Count == 2, "each exposure cut records the reason behind it");
+
+        // 売り抜け日が積み上がれば、同じUptrendのままさらに下がる。
+        var heavyDistribution = TestIndexAnalysis("S&P 500", "Uptrend", distDays: 4, drawdownPct: -1m, aboveSma50: true);
+        Assert(CalculateExposure("Uptrend", heavyDistribution, healthyNasdaq, slippingLeaders, calmVol, calmCredit).BandLabel == "20-40%",
+            "accumulating distribution days cuts exposure further within a confirmed uptrend");
+
+        // 床は割らない。Uptrendを名乗る限り20-40%より下げない。
+        var wrecked = TestBreadth(leaderAbove: 10m, nearHigh: 5m, breakdown: 90m);
+        var brokenIndex = TestIndexAnalysis("S&P 500", "Uptrend", distDays: 9, drawdownPct: -9m, aboveSma50: false);
+        Assert(CalculateExposure("Uptrend", brokenIndex, healthyNasdaq, wrecked, calmVol, calmCredit).BandLabel == "20-40%",
+            "a confirmed uptrend never falls below its exposure floor");
+
+        Assert(CalculateExposure("Pressure", healthyIndex, healthyNasdaq, cleanBreadth, calmVol, calmCredit).BandLabel == "40-60%",
+            "an uptrend under pressure starts at the same band IBD publishes for it");
+
+        var correctionIndex = TestIndexAnalysis("S&P 500", "Correction", distDays: 6, drawdownPct: -6m, aboveSma50: false);
+        Assert(CalculateExposure("Correction", correctionIndex, healthyNasdaq, cleanBreadth, calmVol, calmCredit).BandLabel == "0-20%",
+            "a correction sits at the lowest non-cash band while a rally can still start");
+        var deepCorrection = TestIndexAnalysis("S&P 500", "Correction", distDays: 8, drawdownPct: -15m, aboveSma50: false);
+        Assert(CalculateExposure("Correction", deepCorrection, healthyNasdaq, cleanBreadth, calmVol, calmCredit).BandLabel == "0%",
+            "a deep correction goes to cash");
+
+        // 主導株が取得できない日は、その理由でエクスポージャーを下げない（欠測＝弱気にしない）。
+        var noLeaders = TestBreadth(leaderAbove: null, nearHigh: null, breakdown: null);
+        Assert(CalculateExposure("Uptrend", healthyIndex, healthyNasdaq, noLeaders, calmVol, calmCredit).BandLabel == "80-100%",
+            "missing leader data never cuts exposure on its own");
+
         // --- 権利落ち日の売り抜け日を取りこぼさない ---
         // 調整後終値の前日比は「価格リターン＋配当利回り」なので、権利落ち日は当日のリターンが
         // かさ上げされる。判定を調整後終値に戻すと、下の-0.5%の下げが+0.1%に見えて検出できなくなる。
@@ -2761,9 +3203,35 @@ class Program
         .Select((bar, index) => new DailyData(new DateTime(2024, 1, 1).AddDays(index), bar.AdjustedClose, bar.Close, bar.Volume))
         .ToList();
 
+    // 日中の高値・安値を持つ系列（失速日の再現）。
+    static List<DailyData> TestIntradaySeries(IEnumerable<(decimal Close, decimal High, decimal Low, long Volume)> bars) => bars
+        .Select((bar, index) => new DailyData(new DateTime(2024, 1, 1).AddDays(index), bar.Close, bar.Close, bar.Volume, bar.High, bar.Low))
+        .ToList();
+
+    static MarketBreadthOutput TestBreadth(decimal? leaderAbove, decimal? nearHigh, decimal? breakdown) => new()
+    {
+        Status = "ok",
+        RsLeaderCount = leaderAbove.HasValue ? 20 : 0,
+        RsLeaderAboveSma50Pct = leaderAbove,
+        RsLeaderNearHighPct = nearHigh,
+        RsLeaderBreakdownPct = breakdown
+    };
+
+    static IndexAnalysis TestIndexAnalysis(string name, string statusId, int distDays, decimal drawdownPct, bool aboveSma50) => new()
+    {
+        Name = name,
+        StatusId = statusId,
+        DistributionDaysActive = distDays,
+        DrawdownFromHighPct = drawdownPct,
+        IsAboveSma50 = aboveSma50
+    };
+
     // AdjustedClose: 分配金・分割を反映した終値。水準比較・リターン・移動平均に使う。
     // Close: 無調整終値。売り抜け日／FTDの「前日比」判定だけに使う（権利落ち日の取りこぼし防止）。
-    record DailyData(DateTime Date, decimal AdjustedClose, decimal Close, long Volume);
+    // High/Low は IBD の stalling day（出来高を伴う失速日）判定にだけ使う。
+    // 応答に欠けることがあるため null 許容にし、欠けている日は失速日と判定しない
+    // （＝欠測を「売り抜けがあった」と誤認しない）。
+    record DailyData(DateTime Date, decimal AdjustedClose, decimal Close, long Volume, decimal? High = null, decimal? Low = null);
 
     class IndexAnalysis
     {
@@ -2774,7 +3242,10 @@ class Program
         public bool IsAboveSma50 { get; set; }
         public decimal High52WeekPrice { get; set; }
         public decimal DrawdownFromHighPct { get; set; } // 0以下の値（52週高値からの下落率）
+        // 下落による売り抜け日と stalling day（失速日）の合計。IBDの売り抜け日カウントと同じ定義。
         public int DistributionDaysActive { get; set; }
+        // うち失速日の本数。内訳を出さないと、下落していないのにカウントが増える理由が読めない。
+        public int StallingDaysActive { get; set; }
         // アクティブな売り抜け日の Σ(下落率 × 出来高/50日平均出来高)。大きいほど売りが重い。
         public decimal DistributionIntensity { get; set; }
         public decimal? WorstActiveDropPct { get; set; } // アクティブな売り抜け日の中での最大下落率
@@ -2835,8 +3306,12 @@ class Program
     // 全市場データをまとめて保持し、任意の基準日でスコアを再計算できるようにする。
     class MarketDataBundle
     {
+        // 市場ステータス（売り抜け日・FTD・50日線）の判定に使う指数系列。出来高は市場全体の出来高。
         public List<DailyData> Sp500 { get; set; } = new();
         public List<DailyData> Nasdaq { get; set; } = new();
+        // スコアの事後検証で使う「実際に買えた価格」。指数は売買できないのでETFで測る。
+        public List<DailyData> Spy { get; set; } = new();
+        public List<DailyData> Qqq { get; set; } = new();
         public SectorRotationData? Sector { get; set; }
         public CreditData? Credit { get; set; }
         public VolatilityData? Volatility { get; set; }
@@ -2858,6 +3333,10 @@ class Program
         public VolatilityOutput Volatility { get; set; } = new();
         public MarketBreadthOutput Breadth { get; set; } = new();
         public PutCallOutput PutCall { get; set; } = new();
+        public ExposureOutput Exposure { get; set; } = new();
+        // 検証で使う「実際に買えた価格」。指数水準ではなくSPY/QQQの調整後終値を保持する。
+        public decimal SpyAdjustedClose { get; set; }
+        public decimal QqqAdjustedClose { get; set; }
         public MarketRiskScore RiskScore { get; set; } = new();
     }
 
@@ -2959,9 +3438,26 @@ class Program
         public string Note { get; set; } = "";
     }
 
+    // 相対強度の上位群＝主導株の状態。母数が足りない日は全てnullにして「弱い」と誤読させない。
+    class LeaderHealth
+    {
+        public int LeaderCount { get; set; }
+        public decimal? AboveSma50Pct { get; set; }
+        public decimal? NearHighPct { get; set; }
+        public decimal? BreakdownPct { get; set; }
+    }
+
     class MarketBreadthResult
     {
         public string UniverseAsOf { get; set; } = "";
+        // ---- 主導株（相対強度の上位群）----
+        public int RsLeaderCount { get; set; }
+        // 主導株のうち50日線より上にある比率。低いほど上昇を牽引する資金が抜けている。
+        public decimal? RsLeaderAboveSma50Pct { get; set; }
+        // 主導株のうち52週高値から10%以内にとどまっている比率。ブレイクアウトが生きているか。
+        public decimal? RsLeaderNearHighPct { get; set; }
+        // 直近15営業日で50日線を上から下へ抜けた主導株の比率＝失敗ブレイクアウトの代理。
+        public decimal? RsLeaderBreakdownPct { get; set; }
         public int ExpectedConstituents { get; set; }
         public int AnalyzedConstituents { get; set; }
         public decimal CoveragePct { get; set; }
@@ -2987,6 +3483,28 @@ class Program
     class MarketBreadthOutput : MarketBreadthResult
     {
         public string Status { get; set; } = ""; // ok / partial / unavailable
+        public string Note { get; set; } = "";
+    }
+
+    class ExposureReason
+    {
+        public string Code { get; set; } = "";
+        // 引き下げた段数（1段＝20%）。
+        public int Steps { get; set; }
+        public string Detail { get; set; } = "";
+    }
+
+    class ExposureOutput
+    {
+        public string Status { get; set; } = "";
+        public string BandLabel { get; set; } = "";
+        public int BandMinPct { get; set; }
+        public int BandMaxPct { get; set; }
+        // 履歴のグラフ用に1点へ落とした値。判断にはバンドの方を使う。
+        public int MidpointPct { get; set; }
+        public string BaselineBandLabel { get; set; } = "";
+        public int StepsDown { get; set; }
+        public List<ExposureReason> Reasons { get; set; } = new();
         public string Note { get; set; } = "";
     }
 
@@ -3031,6 +3549,9 @@ class Program
         public decimal? MarketRiskAvailableMaxPoints { get; set; }
         public string? MarketRiskSchema { get; set; }
         public List<MarketRiskMetric>? MarketRiskMetrics { get; set; }
+        // 推奨エクスポージャー。IBDの公表値と並べて後から答え合わせできるよう履歴に残す。
+        public string? ExposureBandLabel { get; set; }
+        public int? ExposureMidpointPct { get; set; }
         public decimal? SpyAdjustedClose { get; set; }
         public decimal? QqqAdjustedClose { get; set; }
         public decimal? SpyReturn1m { get; set; }
@@ -3149,6 +3670,8 @@ class Program
     {
         [JsonPropertyName("close")] public decimal?[]? Close { get; set; }
         [JsonPropertyName("volume")] public long?[]? Volume { get; set; }
+        [JsonPropertyName("high")] public decimal?[]? High { get; set; }
+        [JsonPropertyName("low")] public decimal?[]? Low { get; set; }
     }
     class AdjustedQuote { [JsonPropertyName("adjclose")] public decimal?[]? AdjustedClose { get; set; } }
 

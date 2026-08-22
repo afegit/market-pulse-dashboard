@@ -22,6 +22,13 @@
         <div class="alert" id="stale-banner">データの鮮度を確認しています。</div>
 
       <section class="grid overview" aria-label="Market overview">
+        <article class="panel">
+          <div class="state-value" id="market-status">--</div>
+          <div class="state-meta" id="market-status-jp">--</div>
+          <div class="exposure">推奨エクスポージャー <strong id="exposure-value">--</strong></div>
+          <p class="compact-help" id="market-driven-by">--</p>
+        </article>
+
         <article class="panel score-hero">
           <div class="score-ring" id="risk-ring"><span id="risk-score">--<small>/ 100</small></span></div>
           <div class="score-copy">
@@ -32,17 +39,23 @@
         </article>
 
         <article class="panel">
-          <div class="state-value" id="market-status">--</div>
-          <div class="state-meta" id="market-status-jp">--</div>
-          <div class="exposure">投資比率の目安 <strong id="exposure-value">--</strong></div>
-          <p class="compact-help" id="market-driven-by">--</p>
-        </article>
-
-        <article class="panel">
           <h2 class="panel-heading-spaced">データ状態</h2>
           <div class="health-list" id="data-health"></div>
           <p class="compact-help">取得できない指標は「低リスク」とは扱いません。利用できた指標の割合を、採点カバレッジとして表示します。</p>
         </article>
+      </section>
+
+      <section class="panel section-panel" aria-labelledby="exposure-title">
+        <div class="panel-head"><div><div class="eyebrow">Exposure</div><h2 id="exposure-title">推奨エクスポージャーの根拠</h2><p class="panel-sub">市場ステータスで初期値を決め、そこから引き下げた理由を1段ずつ示します。1段＝20%です。</p></div><span class="pill" id="exposure-status">--</span></div>
+        <div class="ladder" id="exposure-ladder"></div>
+        <div class="change-list" id="exposure-reasons"></div>
+        <p class="compact-help" id="exposure-note">--</p>
+      </section>
+
+      <section class="panel section-panel" aria-labelledby="leaders-title">
+        <div class="panel-head"><div><div class="eyebrow">Leading stocks</div><h2 id="leaders-title">主導株の状態</h2><p class="panel-sub">相場を牽引していた銘柄が、まだ機関に支えられているかを見ます。</p></div><span class="pill" id="leaders-status">--</span></div>
+        <div class="data-grid" id="leaders-data"></div>
+        <p class="compact-help">指数が高値圏でも主導株が50日線を割り始めたら、上昇を牽引していた資金が抜けています。エクスポージャーを落とす最初の理由になる指標です。Nasdaq-100構成銘柄の相対強度上位20%を主導株の代用としているため、IBDが見る中小型グロース株の主導株群とは母集団が異なります。</p>
       </section>
 
       <section class="panel" aria-labelledby="risk-breakdown-title">
@@ -64,15 +77,15 @@
 
       <section class="grid two-col" aria-label="Index trend">
         <article class="panel index-card">
-          <div class="index-title"><div><div class="eyebrow">Broad market</div><h2 id="index-spy-name">SPY</h2></div><span class="pill" id="index-spy-status">--</span></div>
+          <div class="index-title"><div><div class="eyebrow">Broad market</div><h2 id="index-spy-name">S&amp;P 500</h2></div><span class="pill" id="index-spy-status">--</span></div>
           <div class="metric-list" id="index-spy-metrics"></div>
-          <p class="compact-help">米国株全体の基調です。調整後終値と実際のETF出来高から、機関投資家の売り圧力と反発の勢いを確認します。</p>
+          <p class="compact-help">米国株全体の基調です。IBDと同じくS&amp;P 500指数と市場全体の出来高で、機関投資家の売り圧力と反発の勢いを判定します。</p>
           <div class="chart-box"><canvas id="chart-spy"></canvas></div>
         </article>
         <article class="panel index-card">
-          <div class="index-title"><div><div class="eyebrow">Growth leadership</div><h2 id="index-qqq-name">QQQ</h2></div><span class="pill" id="index-qqq-status">--</span></div>
+          <div class="index-title"><div><div class="eyebrow">Growth leadership</div><h2 id="index-qqq-name">Nasdaq総合</h2></div><span class="pill" id="index-qqq-status">--</span></div>
           <div class="metric-list" id="index-qqq-metrics"></div>
-          <p class="compact-help">大型グロース株の基調です。SPYと比べることで、相場の上昇が一部の銘柄に偏っていないかを確認します。</p>
+          <p class="compact-help">グロース株の基調です。IBDが売り抜け日を数えるもう一方の指数で、S&amp;P 500と比べることで上昇の偏りを確認します。</p>
           <div class="chart-box"><canvas id="chart-qqq"></canvas></div>
         </article>
       </section>

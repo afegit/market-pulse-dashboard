@@ -21,7 +21,13 @@ const glossary = {
 
   '市場ステータス': 'SPYとQQQが「上昇トレンド」「上昇トレンドだが警戒」「調整局面」のどれに該当するかの判定です。両方のうち悪い方の判定が採用されます。',
   '50日線': '直近50営業日の株価の平均値（50日移動平均線）です。株価がこの線より上にあると、短中期的に上向きの流れが続いているとされます。',
-  '有効DistributionDay': '「売り抜け日」と呼ばれる、機関投資家が売っていると見られる日のうち、直近25営業日以内でまだ有効な件数です。多いほど下落圧力が強いサインです。',
+  '有効DistributionDay': '「売り抜け日」と呼ばれる、機関投資家が売っていると見られる日のうち、直近25営業日以内でまだ有効な件数です。前日より重い出来高で0.2%以上下げた日に加え、出来高が重いのに値幅が出ず安値圏で引けた「失速日」も含みます。多いほど下落圧力が強いサインです。',
+  '主導株の50日線上比率': '相場を牽引してきた銘柄（相対強度が上位20%の銘柄）のうち、株価が50日移動平均線より上にある割合です。指数が高値圏でもここが下がっていれば、上昇を支えていた資金がすでに抜けています。',
+  'ブレイクアウトの失敗': '主導株が高値圏を維持できているか、直近で50日線を上から下へ抜けていないかを見ます。新しく買える形が成立しなくなっているかどうかの判断に使います。',
+  '主導株の50日線上': '相対強度が上位20%の銘柄のうち、株価が50日移動平均線より上にある割合です。',
+  '高値圏を維持': '主導株のうち、52週高値から10%以内にとどまっている割合です。ブレイクアウトが生きているかを示します。',
+  '新規の50日線割れ': '主導株のうち、直近15営業日で50日移動平均線を上から下へ抜けた割合です。今まさに崩れつつあるかを示します。',
+  '主導株の判定': '上の3つをまとめた、主導株全体の状態です。推奨エクスポージャーを引き下げる最大の理由になります。',
   '売り抜け強度': '売り抜け日それぞれの下落率と出来高の大きさを掛け合わせて合計した値です。件数だけでなく、売りの「本気度」の大きさを測ります。',
   '50日線上比率': '構成銘柄のうち、株価が50日移動平均線より上にある銘柄の割合です。高いほど多くの銘柄が上昇基調にあります。',
   '200日線上比率': '構成銘柄のうち、株価が200日移動平均線（長期トレンドの目安）より上にある銘柄の割合です。',
@@ -170,26 +176,99 @@ function chartOptions(extra = {}) {
   };
 }
 
-function exposureTarget(statusId, marketRiskScore) {
-  const score = Number(marketRiskScore?.score);
-  const risk = Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : 100;
-  // リスクが10点上がるごとに、投資比率を10%下げる。
-  // 市場判定はIBDの市場エクスポージャーの考え方に合わせて上限として使う。
-  const riskBasedExposure = Math.max(0, 100 - Math.ceil(risk / 10) * 10);
-  const statusCap = statusId === 'Correction' ? 20 : statusId === 'Pressure' ? 60 : 100;
-  return Math.min(riskBasedExposure, statusCap);
-}
+// エクスポージャーはIBDと同じ20%刻みのバンドで、Program.cs側が段数と理由まで確定させる。
+// 画面側で数式を持つと、履歴に保存した値と表示が食い違うので、ここでは描画だけを行う。
+const EXPOSURE_BANDS = ['0%', '0-20%', '20-40%', '40-60%', '60-80%', '80-100%'];
+const exposureTone = midpoint => Number(midpoint) <= 10 ? 'risk' : Number(midpoint) <= 50 ? 'warn' : 'good';
 
 function renderOverview(data) {
   const status = statusMeta[data.combinedStatus] || statusMeta.Correction;
-  const exposure = exposureTarget(data.combinedStatus, data.marketRiskScore);
-  const exposureTone = exposure <= 20 ? 'risk' : exposure <= 60 ? 'warn' : 'good';
+  const exposure = data.exposure;
+  const value = byId('exposure-value');
   byId('market-status').textContent = status.en;
   byId('market-status').className = `state-value ${toneClass(status.tone)}`;
   byId('market-status-jp').textContent = status.jp;
-  byId('exposure-value').textContent = `${exposure}%`;
-  byId('exposure-value').className = toneClass(exposureTone);
-  byId('market-driven-by').textContent = `市場判定：${data.combinedDrivenBy || '—'}。投資比率は市場判定とリスクスコアを組み合わせ、10%刻みで示します。`;
+  if (exposure?.bandLabel) {
+    value.textContent = exposure.bandLabel;
+    value.className = toneClass(exposureTone(exposure.midpointPct));
+  } else {
+    value.textContent = '--';
+    value.className = toneClass('muted');
+  }
+  byId('market-driven-by').textContent = `市場判定：${data.combinedDrivenBy || '—'}。IBD『The Big Picture』と同じ20%刻みのバンドで示します。`;
+}
+
+function renderExposure(exposure) {
+  const ladder = byId('exposure-ladder');
+  const reasons = byId('exposure-reasons');
+  const note = byId('exposure-note');
+  if (!exposure?.bandLabel) {
+    setPill('exposure-status', '算出不可', 'muted');
+    ladder.replaceChildren();
+    reasons.replaceChildren(createNode('div', 'empty', 'エクスポージャーを算出できませんでした。'));
+    note.textContent = '市場ステータスを判定できないため、推奨エクスポージャーを表示できません。';
+    return;
+  }
+
+  const currentIndex = EXPOSURE_BANDS.indexOf(exposure.bandLabel);
+  const baselineIndex = EXPOSURE_BANDS.indexOf(exposure.baselineBandLabel);
+  const tone = exposureTone(exposure.midpointPct);
+  setPill('exposure-status', exposure.bandLabel, tone);
+
+  // 初期値から現在値までを1本のバーで見せる。何段下げたかが一目で分かるようにする。
+  const fragment = document.createDocumentFragment();
+  EXPOSURE_BANDS.forEach((label, index) => {
+    const step = createNode('div', 'ladder-step', label);
+    if (index === currentIndex) step.classList.add('is-current', toneClass(tone));
+    else if (baselineIndex >= 0 && index > currentIndex && index <= baselineIndex) step.classList.add('is-removed');
+    fragment.append(step);
+  });
+  ladder.replaceChildren(fragment);
+
+  const items = Array.isArray(exposure.reasons) ? exposure.reasons : [];
+  const reasonFragment = document.createDocumentFragment();
+  const summary = createNode('div', 'change-item');
+  const summaryLabel = document.createElement('strong');
+  summaryLabel.textContent = `${statusMeta[exposure.status]?.en || exposure.status} の初期値 ${exposure.baselineBandLabel}`;
+  summary.append(summaryLabel);
+  summary.append(createNode('span', `change-points ${exposure.stepsDown > 0 ? 'tone-risk' : 'tone-good'}`,
+    exposure.stepsDown > 0 ? `−${exposure.stepsDown}段 → ${exposure.bandLabel}` : `据え置き → ${exposure.bandLabel}`));
+  reasonFragment.append(summary);
+
+  if (!items.length) {
+    reasonFragment.append(createNode('div', 'empty', '引き下げ要因はありません。'));
+  } else {
+    items.forEach(reason => {
+      const item = createNode('div', 'change-item');
+      const label = document.createElement('strong');
+      label.textContent = reason.detail || reason.code;
+      item.append(label);
+      item.append(createNode('span', 'change-points tone-risk', `−${reason.steps}段`));
+      reasonFragment.append(item);
+    });
+  }
+  reasons.replaceChildren(reasonFragment);
+  note.textContent = exposure.note || '';
+}
+
+function renderLeaders(block) {
+  const available = isAvailable(block) && block.rsLeaderAboveSma50Pct != null;
+  if (!available) {
+    setPill('leaders-status', '取得不可', 'muted');
+    replaceDataGrid('leaders-data', [{ label: '主導株', value: '取得不可', sub: block?.note || '構成銘柄データが不足しています。' }]);
+    return;
+  }
+  const above = Number(block.rsLeaderAboveSma50Pct);
+  const nearHigh = Number(block.rsLeaderNearHighPct);
+  const breakdown = Number(block.rsLeaderBreakdownPct);
+  const tone = above >= 75 ? 'good' : above >= 60 ? 'warn' : 'risk';
+  setPill('leaders-status', above >= 75 ? '健全' : above >= 60 ? '揺らぎ' : '崩れ', tone);
+  replaceDataGrid('leaders-data', [
+    { label: '主導株の50日線上', value: pct(above, 1), sub: `RS上位20%・${block.rsLeaderCount}銘柄`, tone },
+    { label: '高値圏を維持', value: pct(nearHigh, 1), sub: '52週高値から10%以内', tone: nearHigh >= 50 ? 'good' : nearHigh >= 30 ? 'warn' : 'risk' },
+    { label: '新規の50日線割れ', value: pct(breakdown, 1), sub: '直近15営業日で上から下へ', tone: breakdown >= 35 ? 'risk' : breakdown >= 20 ? 'warn' : 'good' },
+    { label: '主導株の判定', value: above >= 75 ? '支えられている' : above >= 60 ? '弱含み' : '資金が抜けた', sub: 'エクスポージャーの主因', tone }
+  ]);
 }
 
 function renderRiskScore(score) {
@@ -322,7 +401,7 @@ function renderIndex(key, index) {
     ['50日移動平均', number(index.sma50), index.isAboveSma50 ? 'good' : 'risk'],
     ['52週高値からの下落', pct(index.drawdownFromHighPct), Number(index.drawdownFromHighPct) <= -10 ? 'risk' : Number(index.drawdownFromHighPct) <= -3 ? 'warn' : 'good'],
     ['トレンド', trendLabel[index.trendState] || index.trendState || '—', index.trendState === 'ConfirmedUptrend' ? 'good' : 'warn'],
-    ['有効 Distribution Day', `${index.distributionDaysActive ?? '--'} 日`, Number(index.distributionDaysActive) >= 6 ? 'risk' : Number(index.distributionDaysActive) >= 3 ? 'warn' : 'good'],
+    ['有効 Distribution Day', `${index.distributionDaysActive ?? '--'} 日${Number(index.stallingDaysActive) > 0 ? `（うち失速 ${index.stallingDaysActive}）` : ''}`, Number(index.distributionDaysActive) >= 6 ? 'risk' : Number(index.distributionDaysActive) >= 3 ? 'warn' : 'good'],
     ['最大の売り圧力', index.worstActiveDropPct != null ? `-${Math.abs(Number(index.worstActiveDropPct)).toFixed(2)}%` : 'なし', index.worstActiveDropPct != null ? 'warn' : 'good'],
     ['現行トレンドのFTD', index.lastFollowThroughDate || (index.trendState === 'ConfirmedUptrend' ? '価格回復で確認' : '未発生'), index.lastFollowThroughDate ? 'good' : 'muted']
   ]);
@@ -503,7 +582,19 @@ function renderHistory(history) {
     if (excludedCount) {
       datasets.push({ label: '異なる採点条件（比較対象外）', data: scores.map(item => comparable(item) ? null : item.marketRiskScore), borderColor: '#657791', backgroundColor: '#657791', showLine: false, pointRadius: 3, pointHoverRadius: 5 });
     }
-    chart('chart-history', { type: 'line', data: { labels: scores.map(item => item.date), datasets }, options: chartOptions({ scales: { x: { grid: { display: false }, ticks: { color: '#657791', maxTicksLimit: 7, font: { size: 12 } } }, y: { min: 0, max: 100, grid: { color: 'rgba(158,185,220,.10)' }, ticks: { color: '#657791', font: { size: 12 }, callback: value => `${value}点` } } } }) });
+    // 推奨エクスポージャーを同じ時間軸に重ねる。IBDの公表値と目で突き合わせるための線。
+    // スコアと単位が違うので右軸に分ける。階段状の値なのでstepped表示にする。
+    const hasExposure = scores.some(item => item.exposureMidpointPct != null);
+    if (hasExposure) {
+      datasets.push({ label: '推奨エクスポージャー（バンド中央値）', data: scores.map(item => item.exposureMidpointPct ?? null), borderColor: '#29d6b1', backgroundColor: 'rgba(41,214,177,.10)', stepped: true, spanGaps: false, borderWidth: 2, pointRadius: 0, yAxisID: 'exposure' });
+    }
+    chart('chart-history', { type: 'line', data: { labels: scores.map(item => item.date), datasets }, options: chartOptions({
+      plugins: { legend: { display: hasExposure, labels: { color: '#9aabc1', boxWidth: 12, font: { size: 12 } } }, tooltip: { backgroundColor: '#07111f', titleColor: '#ecf4ff', bodyColor: '#cbd8eb', borderColor: 'rgba(158,185,220,.25)', borderWidth: 1, padding: 10 } },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#657791', maxTicksLimit: 7, font: { size: 12 } } },
+        y: { min: 0, max: 100, grid: { color: 'rgba(158,185,220,.10)' }, ticks: { color: '#657791', font: { size: 12 }, callback: value => `${value}点` } },
+        exposure: { display: hasExposure, position: 'right', min: 0, max: 100, grid: { display: false }, ticks: { color: '#29d6b1', font: { size: 12 }, callback: value => `${value}%` } }
+      } }) });
   }
   const pc = history.filter(item => item.putCallRatio != null);
   if (pc.length) chart('chart-putcall', { type: 'line', data: { labels: pc.map(item => item.date), datasets: [{ data: pc.map(item => item.putCallRatio), borderColor: '#a990ff', backgroundColor: 'rgba(169,144,255,.10)', fill: true, tension: .18, borderWidth: 2, pointRadius: 0 }] }, options: chartOptions() });
@@ -683,7 +774,8 @@ async function loadDashboard() {
     const generatedAt = data.lastUpdated || '—';
     byId('update-time').textContent = sourceAsOf ? `${sourceAsOf} 時点 · 更新 ${generatedAt} JST` : `更新 ${generatedAt} JST`;
     showStaleWarning(data.lastUpdated, sourceAsOf);
-    renderOverview(data); renderRiskScore(data.marketRiskScore); renderRiskChange(data.marketRiskChange); renderHealth(data);
+    renderOverview(data); renderExposure(data.exposure); renderLeaders(data.marketBreadth);
+    renderRiskScore(data.marketRiskScore); renderRiskChange(data.marketRiskChange); renderHealth(data);
     renderIndex('spy', data.sp500); renderIndex('qqq', data.nasdaq);
     renderBreadth(data.marketBreadth); renderVolatility(data.volatilityRegime); renderCredit(data.creditRiskAppetite);
     renderAccumulation(data); renderStructure(data);
