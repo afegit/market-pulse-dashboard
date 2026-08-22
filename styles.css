@@ -26,7 +26,9 @@ body {
   color: var(--text);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 14px;
-  line-height: 1.45;
+  /* 和文は仮名・漢字の字面が大きく、欧文向けの1.45では折り返した2行目が1行目にくっついて見える。
+     既定を1.6に上げ、詰めた方が良い箇所（数値・見出し・ピル）だけ個別に戻す。 */
+  line-height: 1.6;
 }
 button, input, select { font: inherit; }
 .app { max-width: 1440px; margin: 0 auto; padding: 0 22px 48px; }
@@ -37,7 +39,8 @@ button, input, select { font: inherit; }
   background: rgba(7, 17, 31, .82); backdrop-filter: blur(18px);
   border-bottom: 1px solid var(--line);
 }
-.brand { display: flex; align-items: center; gap: 11px; font-size: 18px; font-weight: 750; letter-spacing: -.02em; }
+/* ブランド名は2語で折り返すとロゴとして読みにくいため、狭い幅でも1行に保つ。 */
+.brand { display: flex; align-items: center; gap: 11px; font-size: 18px; font-weight: 750; letter-spacing: -.02em; line-height: 1.25; white-space: nowrap; }
 .brand-mark {
   width: 28px; height: 28px; border-radius: 8px;
   display: grid; place-items: center; color: #06121f;
@@ -75,8 +78,9 @@ h1 { margin: 6px 0 7px; font-size: clamp(28px, 4vw, 42px); letter-spacing: -.045
 .panel h2 { font-size: 20px; }
 .panel h3 { font-size: 18px; }
 .panel-heading-spaced { margin-top: 7px !important; }
-.panel-sub { margin: 5px 0 0; color: var(--muted); font-size: 14px; }
-.compact-help { margin: 12px 0 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
+/* 説明文は最も長く折り返すので、本文の既定よりさらに行間を取る。 */
+.panel-sub { margin: 5px 0 0; color: var(--muted); font-size: 14px; line-height: 1.7; }
+.compact-help { margin: 12px 0 0; color: var(--muted); font-size: 14px; line-height: 1.7; }
 
 .score-hero { display: flex; align-items: center; gap: 20px; min-height: 170px; }
 .score-ring {
@@ -86,21 +90,22 @@ h1 { margin: 6px 0 7px; font-size: clamp(28px, 4vw, 42px); letter-spacing: -.045
   background: conic-gradient(var(--score-color) calc(var(--score) * 1%), rgba(255,255,255,.08) 0);
 }
 .score-ring::before { content: ""; position: absolute; inset: 9px; border-radius: 50%; background: var(--surface); }
-.score-ring span { position: relative; text-align: center; font-size: 30px; font-weight: 800; letter-spacing: -.05em; font-variant-numeric: tabular-nums; }
+.score-ring span { position: relative; text-align: center; font-size: 30px; font-weight: 800; letter-spacing: -.05em; line-height: 1.15; font-variant-numeric: tabular-nums; }
 .score-ring small { display: block; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .08em; }
 .score-copy { min-width: 0; }
-.score-copy .headline { margin: 5px 0 7px; font-size: 22px; font-weight: 750; letter-spacing: -.035em; }
-.score-copy p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
+.score-copy .headline { margin: 5px 0 7px; font-size: 22px; font-weight: 750; letter-spacing: -.035em; line-height: 1.25; }
+.score-copy p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.7; }
 .coverage { margin-top: 10px; color: var(--faint); font-size: 13px; font-variant-numeric: tabular-nums; }
 
-.state-value { margin: 8px 0 5px; font-size: 23px; font-weight: 750; letter-spacing: -.04em; }
+.state-value { margin: 8px 0 5px; font-size: 23px; font-weight: 750; letter-spacing: -.04em; line-height: 1.25; }
 .state-meta { color: var(--muted); font-size: 14px; }
 .exposure { display: inline-flex; align-items: center; gap: 7px; margin-top: 15px; padding: 8px 11px; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--text); font-size: 14px; }
 .exposure strong { font-size: 17px; }
 .health-list { display: grid; gap: 8px; margin-top: 10px; }
 .health-item { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 14px; }
 
-.pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border: 1px solid currentColor; border-radius: 999px; font-size: 13px; font-weight: 750; white-space: nowrap; }
+/* ピルは必ず1行のラベル。行間を広げると上下の余白だけ膨らむので詰めたままにする。 */
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border: 1px solid currentColor; border-radius: 999px; font-size: 13px; font-weight: 750; line-height: 1.35; white-space: nowrap; }
 .tone-good { color: var(--green); }
 .tone-info { color: var(--blue); }
 .tone-warn { color: var(--amber); }
@@ -119,9 +124,10 @@ h1 { margin: 6px 0 7px; font-size: clamp(28px, 4vw, 42px); letter-spacing: -.045
 .chart-unavailable { display: grid; min-height: 100%; place-items: center; margin: 0; color: var(--muted); font-size: 14px; text-align: center; }
 
 .risk-table { width: 100%; border-collapse: collapse; }
-.risk-table th { padding: 0 7px 9px; color: var(--faint); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-align: left; text-transform: uppercase; }
+.risk-table th { padding: 0 7px 10px; color: var(--faint); font-size: 12px; font-weight: 800; letter-spacing: .08em; line-height: 1.6; text-align: left; text-transform: uppercase; }
 .risk-table th:last-child, .risk-table td:last-child { text-align: right; }
-.risk-table td { padding: 11px 7px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; vertical-align: middle; }
+/* 「根拠」列は和文が3行まで折り返す。セル内で行がくっつくと表全体が読めなくなる。 */
+.risk-table td { padding: 12px 7px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; line-height: 1.7; vertical-align: middle; }
 .risk-table td:nth-child(2) { color: var(--text); font-weight: 650; }
 .risk-table .points { font-variant-numeric: tabular-nums; font-weight: 750; white-space: nowrap; }
 .risk-bar { width: 90px; height: 5px; margin-top: 5px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.08); }
@@ -132,7 +138,7 @@ h1 { margin: 6px 0 7px; font-size: clamp(28px, 4vw, 42px); letter-spacing: -.045
 .ladder-step {
   padding: 10px 4px; border: 1px solid var(--line); border-radius: 9px;
   background: rgba(3, 11, 22, .24); color: var(--faint);
-  font-size: 13px; font-weight: 700; text-align: center; white-space: nowrap;
+  font-size: 13px; font-weight: 700; line-height: 1.35; text-align: center; white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 .ladder-step.is-removed { color: var(--muted); border-style: dashed; text-decoration: line-through; opacity: .7; }
@@ -154,9 +160,9 @@ h1 { margin: 6px 0 7px; font-size: clamp(28px, 4vw, 42px); letter-spacing: -.045
 
 .validation-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 14px; }
 .validation-table { width: 100%; min-width: 900px; border-collapse: collapse; }
-.validation-table th { padding: 0 7px 10px; color: var(--faint); font-size: 12px; font-weight: 800; letter-spacing: .05em; text-align: right; }
+.validation-table th { padding: 0 7px 10px; color: var(--faint); font-size: 12px; font-weight: 800; letter-spacing: .05em; line-height: 1.6; text-align: right; }
 .validation-table th:first-child { text-align: left; }
-.validation-table td { padding: 11px 7px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; text-align: right; font-variant-numeric: tabular-nums; vertical-align: middle; }
+.validation-table td { padding: 12px 7px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; line-height: 1.7; text-align: right; font-variant-numeric: tabular-nums; vertical-align: middle; }
 .validation-table td:first-child { color: var(--text); text-align: left; font-size: 15px; font-weight: 750; }
 .validation-table .outcome { color: var(--text); font-weight: 700; white-space: nowrap; }
 .validation-table .subvalue { display: block; margin-top: 3px; color: var(--faint); font-size: 12px; font-weight: 500; white-space: nowrap; }
@@ -169,9 +175,9 @@ h1 { margin: 6px 0 7px; font-size: clamp(28px, 4vw, 42px); letter-spacing: -.045
 
 .table-wrap { overflow-x: auto; }
 .sector-table { width: 100%; min-width: 500px; border-collapse: collapse; }
-.sector-table th { padding: 0 7px 10px; color: var(--faint); font-size: 12px; letter-spacing: .08em; text-align: right; text-transform: uppercase; }
+.sector-table th { padding: 0 7px 10px; color: var(--faint); font-size: 12px; letter-spacing: .08em; line-height: 1.6; text-align: right; text-transform: uppercase; }
 .sector-table th:first-child { text-align: left; }
-.sector-table td { padding: 10px 7px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; text-align: right; font-variant-numeric: tabular-nums; }
+.sector-table td { padding: 11px 7px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; line-height: 1.7; text-align: right; font-variant-numeric: tabular-nums; }
 .sector-table td:first-child { color: var(--text); text-align: left; font-weight: 650; }
 .symbol { margin-left: 4px; color: var(--faint); font-size: 12px; font-weight: 600; }
 
@@ -180,7 +186,7 @@ h1 { margin: 6px 0 7px; font-size: clamp(28px, 4vw, 42px); letter-spacing: -.045
 .md-tooltip {
   position: fixed; z-index: 80; max-width: min(300px, calc(100vw - 24px));
   padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 10px;
-  background: #0a1728; color: var(--text); font-size: 13px; font-weight: 400; line-height: 1.55;
+  background: #0a1728; color: var(--text); font-size: 13px; font-weight: 400; line-height: 1.7;
   box-shadow: var(--shadow); opacity: 0; visibility: hidden; transform: translateY(4px);
   transition: opacity .12s ease, transform .12s ease; pointer-events: none;
 }
