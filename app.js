@@ -181,23 +181,6 @@ function chartOptions(extra = {}) {
 const EXPOSURE_BANDS = ['0%', '0-20%', '20-40%', '40-60%', '60-80%', '80-100%'];
 const exposureTone = midpoint => Number(midpoint) <= 10 ? 'risk' : Number(midpoint) <= 50 ? 'warn' : 'good';
 
-function renderOverview(data) {
-  const status = statusMeta[data.combinedStatus] || statusMeta.Correction;
-  const exposure = data.exposure;
-  const value = byId('exposure-value');
-  byId('market-status').textContent = status.en;
-  byId('market-status').className = `state-value ${toneClass(status.tone)}`;
-  byId('market-status-jp').textContent = status.jp;
-  if (exposure?.bandLabel) {
-    value.textContent = exposure.bandLabel;
-    value.className = toneClass(exposureTone(exposure.midpointPct));
-  } else {
-    value.textContent = '--';
-    value.className = toneClass('muted');
-  }
-  byId('market-driven-by').textContent = `市場判定：${data.combinedDrivenBy || '—'}。IBD『The Big Picture』と同じ20%刻みのバンドで示します。`;
-}
-
 function renderExposure(exposure) {
   const ladder = byId('exposure-ladder');
   const reasons = byId('exposure-reasons');
@@ -774,7 +757,7 @@ async function loadDashboard() {
     const generatedAt = data.lastUpdated || '—';
     byId('update-time').textContent = sourceAsOf ? `${sourceAsOf} 時点 · 更新 ${generatedAt} JST` : `更新 ${generatedAt} JST`;
     showStaleWarning(data.lastUpdated, sourceAsOf);
-    renderOverview(data); renderExposure(data.exposure); renderLeaders(data.marketBreadth);
+    renderExposure(data.exposure); renderLeaders(data.marketBreadth);
     renderRiskScore(data.marketRiskScore); renderRiskChange(data.marketRiskChange); renderHealth(data);
     renderIndex('spy', data.sp500); renderIndex('qqq', data.nasdaq);
     renderBreadth(data.marketBreadth); renderVolatility(data.volatilityRegime); renderCredit(data.creditRiskAppetite);

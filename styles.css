@@ -63,9 +63,9 @@ h1 { margin: 6px 0 7px; font-size: clamp(28px, 4vw, 42px); letter-spacing: -.045
 }
 
 .grid { display: grid; gap: 16px; }
-/* 並びは 市場ステータス → リスクスコア → データ状態。
-   スコアパネルはリングと本文が横並びなので、置かれた2列目を広く取る。 */
-.overview { grid-template-columns: 1fr 1.4fr 1fr; margin-bottom: 16px; }
+/* 最上部の推奨エクスポージャーに続き、リスクスコアとデータ状態を並べる。 */
+.exposure-panel { margin-top: 16px; }
+.overview { grid-template-columns: 1.4fr 1fr; margin-top: 16px; margin-bottom: 16px; }
 .two-col { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 16px; }
 .three-col { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 16px; }
 .panel {
@@ -198,7 +198,7 @@ h1 { margin: 6px 0 7px; font-size: clamp(28px, 4vw, 42px); letter-spacing: -.045
 section[aria-label="History charts"] > article:first-child { grid-column: 1 / -1; }
 section[aria-label="History charts"] > article:last-child { display: none; }
 
-@media (max-width: 1050px) { .overview { grid-template-columns: 1fr 1.25fr; } .overview > :last-child { grid-column: span 2; } .three-col { grid-template-columns: 1fr 1fr; } .three-col > :last-child { grid-column: span 2; } }
+@media (max-width: 1050px) { .overview { grid-template-columns: 1.4fr 1fr; } .three-col { grid-template-columns: 1fr 1fr; } .three-col > :last-child { grid-column: span 2; } }
 @media (max-width: 700px) {
   .app { padding: 0 14px 32px; } .topbar { margin: 0 -14px; padding: 0 14px; }
   .overview, .two-col, .three-col { grid-template-columns: 1fr; } .overview > :last-child, .three-col > :last-child { grid-column: auto; }

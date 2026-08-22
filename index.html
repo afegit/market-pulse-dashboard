@@ -19,16 +19,16 @@
     </header>
 
     <main>
-        <div class="alert" id="stale-banner">データの鮮度を確認しています。</div>
+      <div class="alert" id="stale-banner">データの鮮度を確認しています。</div>
+
+      <section class="panel section-panel exposure-panel" aria-labelledby="exposure-title">
+        <div class="panel-head"><div><div class="eyebrow">Exposure</div><h2 id="exposure-title">推奨エクスポージャー</h2><p class="panel-sub">市場ステータスで初期値を決め、そこから引き下げた理由を1段ずつ示します。1段＝20%です。</p></div><span class="pill" id="exposure-status">--</span></div>
+        <div class="ladder" id="exposure-ladder"></div>
+        <div class="change-list" id="exposure-reasons"></div>
+        <p class="compact-help" id="exposure-note">--</p>
+      </section>
 
       <section class="grid overview" aria-label="Market overview">
-        <article class="panel">
-          <div class="state-value" id="market-status">--</div>
-          <div class="state-meta" id="market-status-jp">--</div>
-          <div class="exposure">推奨エクスポージャー <strong id="exposure-value">--</strong></div>
-          <p class="compact-help" id="market-driven-by">--</p>
-        </article>
-
         <article class="panel score-hero">
           <div class="score-ring" id="risk-ring"><span id="risk-score">--<small>/ 100</small></span></div>
           <div class="score-copy">
@@ -43,13 +43,6 @@
           <div class="health-list" id="data-health"></div>
           <p class="compact-help">取得できない指標は「低リスク」とは扱いません。利用できた指標の割合を、採点カバレッジとして表示します。</p>
         </article>
-      </section>
-
-      <section class="panel section-panel" aria-labelledby="exposure-title">
-        <div class="panel-head"><div><div class="eyebrow">Exposure</div><h2 id="exposure-title">推奨エクスポージャーの根拠</h2><p class="panel-sub">市場ステータスで初期値を決め、そこから引き下げた理由を1段ずつ示します。1段＝20%です。</p></div><span class="pill" id="exposure-status">--</span></div>
-        <div class="ladder" id="exposure-ladder"></div>
-        <div class="change-list" id="exposure-reasons"></div>
-        <p class="compact-help" id="exposure-note">--</p>
       </section>
 
       <section class="panel section-panel" aria-labelledby="leaders-title">
