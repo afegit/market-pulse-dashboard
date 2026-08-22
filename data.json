@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-08-22 08:52:22",
+  "lastUpdated": "2026-08-23 07:31:30",
   "marketDataAsOf": "2026-08-21",
   "combinedStatus": "Uptrend",
   "combinedDrivenBy": "S\u0026P 500\u3068Nasdaq\u7DCF\u5408\u306F\u540C\u3058\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9",
@@ -535,7 +535,7 @@
   "nasdaq": {
     "name": "Nasdaq\u7DCF\u5408",
     "dataAsOf": "2026-08-21",
-    "latestAdjustedClose": 26180.455078125,
+    "latestAdjustedClose": 26180.4609375,
     "sma50": 25950.52,
     "isAboveSma50": true,
     "high52WeekPrice": 27093.900390625,
@@ -751,7 +751,7 @@
         26289.7109375,
         26331.08984375,
         26067.169921875,
-        26180.455078125
+        26180.4609375
       ],
       "sma50": [
         22667.31,
@@ -1064,9 +1064,9 @@
   "putCallRatio": {
     "status": "ok",
     "underlying": "SPY",
-    "callVolume": 3212447,
-    "putVolume": 3545728,
-    "ratio": 1.104,
+    "callVolume": 511543,
+    "putVolume": 593565,
+    "ratio": 1.160,
     "sma10": null,
     "percentileRank": null,
     "historyDays": 2,
@@ -1207,18 +1207,18 @@
     "note": "HYG\u3068\u6295\u8CC7\u9069\u683C\u793E\u50B5ETF(LQD)\u306E\u76F8\u5BFE\u30EA\u30BF\u30FC\u30F3\u306B\u3001ICE BofA US High Yield OAS\u3092\u8FFD\u52A0\u3057\u307E\u3057\u305F\u3002TLT\u6BD4\u8F03\u3088\u308A\u91D1\u5229\u30C7\u30E5\u30EC\u30FC\u30B7\u30E7\u30F3\u5DEE\u306E\u5F71\u97FF\u3092\u6291\u3048\u3001\u4FE1\u7528\u30EA\u30B9\u30AF\u3092\u8AAD\u307F\u53D6\u308A\u3084\u3059\u304F\u3057\u307E\u3059\u3002"
   },
   "volatilityRegime": {
-    "status": "ok",
+    "status": "partial",
     "vix": 15.130000114440918,
     "vixSma20": 16.00,
-    "vix3m": 18.5,
-    "realizedVolShortPct": null,
-    "realizedVolLongPct": null,
+    "vix3m": null,
+    "realizedVolShortPct": 7.85,
+    "realizedVolLongPct": 13.73,
     "realizedVol21Pct": 12.82,
     "varianceRiskPremium": 2.31,
-    "termSlopePct": -18.22,
+    "termSlopePct": -42.83,
     "termStructure": "Contango",
-    "termSource": "VIX3M",
-    "note": "VIX\u3068VIX3M\u306E\u6BD4\u8F03\u306B\u3088\u308B\u671F\u9650\u69CB\u9020\u306E\u8FD1\u4F3C\u3067\u3059\u3002\u9006\u8EE2\uFF08Backwardation\uFF09\u306F\u5E02\u5834\u30B9\u30C8\u30EC\u30B9\u306E\u8B66\u6212\u706F\u3068\u3057\u3066\u6271\u3044\u3001\u5358\u72EC\u306E\u58F2\u8CB7\u30B7\u30B0\u30CA\u30EB\u306B\u306F\u4F7F\u3044\u307E\u305B\u3093\u3002"
+    "termSource": "RealizedVol",
+    "note": "^VIX3M\u306E\u914D\u4FE1\u304C\u505C\u6B62\u3057\u3066\u3044\u308B\u305F\u3081\u3001SPY\u306E10\u65E5\uFF0F63\u65E5\u5B9F\u73FE\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3\u6BD4\u3067\u671F\u9650\u69CB\u9020\u3092\u4EE3\u66FF\u3057\u3066\u3044\u307E\u3059\u3002\u5B9F\u73FE\u30DC\u30E9\u306E\u77ED\u671F\u512A\u52E2\u306F\u672C\u7269\u306EVIX\u9006\u8EE2\u3088\u308A\u9AD8\u983B\u5EA6\u3067\u8D77\u304D\u308B\u305F\u3081\u3001\u4E56\u96E2\u5E45\u306B\u5FDC\u3058\u3066\u6BB5\u968E\u7684\u306B\u8B66\u6212\u5EA6\u3092\u5224\u5B9A\u3057\u307E\u3059\u3002"
   },
   "marketBreadth": {
     "status": "ok",
@@ -1235,14 +1235,14 @@
     "aboveSma200Pct": 67.0,
     "newHighs52Week": 2,
     "newLows52Week": 0,
-    "advances": 66,
-    "declines": 33,
-    "advanceDeclineNet": 33,
-    "adLineChange20d": 157,
+    "advances": 67,
+    "declines": 32,
+    "advanceDeclineNet": 35,
+    "adLineChange20d": 159,
     "avgPairwiseCorrelation": 0.074,
     "accumulationPct": 58.0,
     "stealthDistributionPct": 23.2,
-    "advanceRatioSma10": 0.510,
+    "advanceRatioSma10": 0.511,
     "breadthThrustDetected": false
   },
   "exposure": {
@@ -1329,14 +1329,14 @@
         "name": "20\u65E5A/D\u30E9\u30A4\u30F3",
         "score": 0,
         "maxPoints": 3,
-        "detail": "20\u65E5\u5909\u5316 \u002B157"
+        "detail": "20\u65E5\u5909\u5316 \u002B159"
       },
       {
         "group": "\u5E02\u5834\u30D6\u30EC\u30C3\u30C9\u30B9",
         "name": "10\u65E5\u9A30\u843D\u30EC\u30B7\u30AA",
         "score": 0,
         "maxPoints": 3,
-        "detail": "0.510"
+        "detail": "0.511"
       },
       {
         "group": "\u6A5F\u95A2\u9700\u7D66",
@@ -1385,7 +1385,7 @@
         "name": "VIX\u671F\u9650\u69CB\u9020",
         "score": 0,
         "maxPoints": 5,
-        "detail": "Contango\uFF08VIX\u5BFEVIX3M -18.22%\uFF09"
+        "detail": "Contango\uFF08SPY\u5B9F\u73FE\u30DC\u30E9 \u77ED\u671F\u5BFE\u9577\u671F -42.83%\uFF09"
       },
       {
         "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
