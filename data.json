@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-08-23 07:31:30",
+  "lastUpdated": "2026-08-24 07:31:31",
   "marketDataAsOf": "2026-08-21",
   "combinedStatus": "Uptrend",
   "combinedDrivenBy": "S\u0026P 500\u3068Nasdaq\u7DCF\u5408\u306F\u540C\u3058\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9",
@@ -1064,8 +1064,8 @@
   "putCallRatio": {
     "status": "ok",
     "underlying": "SPY",
-    "callVolume": 511543,
-    "putVolume": 593565,
+    "callVolume": 511836,
+    "putVolume": 593948,
     "ratio": 1.160,
     "sma10": null,
     "percentileRank": null,
