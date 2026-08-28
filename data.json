@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-08-28 07:31:31",
+  "lastUpdated": "2026-08-28 14:37:05",
   "marketDataAsOf": "2026-08-27",
   "combinedStatus": "Uptrend",
   "combinedDrivenBy": "S\u0026P 500\u3068Nasdaq\u7DCF\u5408\u306F\u540C\u3058\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9",
@@ -535,7 +535,7 @@
   "nasdaq": {
     "name": "Nasdaq\u7DCF\u5408",
     "dataAsOf": "2026-08-27",
-    "latestAdjustedClose": 26541.3515625,
+    "latestAdjustedClose": 26541.349609375,
     "sma50": 25951.40,
     "isAboveSma50": true,
     "high52WeekPrice": 27093.900390625,
@@ -751,7 +751,7 @@
         25980.189453125,
         26151.30078125,
         26130.19921875,
-        26541.3515625
+        26541.349609375
       ],
       "sma50": [
         22559.67,
@@ -1064,9 +1064,9 @@
   "putCallRatio": {
     "status": "ok",
     "underlying": "SPY",
-    "callVolume": 3802163,
-    "putVolume": 3484144,
-    "ratio": 0.916,
+    "callVolume": 698809,
+    "putVolume": 757690,
+    "ratio": 1.084,
     "sma10": null,
     "percentileRank": null,
     "historyDays": 6,
