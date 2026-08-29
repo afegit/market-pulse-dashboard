@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-08-29 12:43:56",
+  "lastUpdated": "2026-08-30 07:31:30",
   "marketDataAsOf": "2026-08-28",
   "combinedStatus": "Uptrend",
   "combinedDrivenBy": "S\u0026P 500\u3068Nasdaq\u7DCF\u5408\u306F\u540C\u3058\u5E02\u5834\u30B9\u30C6\u30FC\u30BF\u30B9",
@@ -535,14 +535,14 @@
   "nasdaq": {
     "name": "Nasdaq\u7DCF\u5408",
     "dataAsOf": "2026-08-28",
-    "latestAdjustedClose": 26402.423828125,
+    "latestAdjustedClose": 26402.419921875,
     "sma50": 25959.02,
     "isAboveSma50": true,
     "high52WeekPrice": 27093.900390625,
     "drawdownFromHighPct": -2.55,
     "distributionDaysActive": 4,
     "stallingDaysActive": 0,
-    "distributionIntensity": 2.06,
+    "distributionIntensity": 2.11,
     "worstActiveDropPct": 1.00,
     "worstActiveDropDate": "2026-08-20",
     "trendState": "ConfirmedUptrend",
@@ -751,7 +751,7 @@
         26151.30078125,
         26130.19921875,
         26541.349609375,
-        26402.423828125
+        26402.419921875
       ],
       "sma50": [
         22540.34,
@@ -955,7 +955,7 @@
         null,
         null,
         null,
-        26402.423828125
+        26402.419921875
       ],
       "distMarksExpired": [
         null,
@@ -1239,7 +1239,7 @@
     "declines": 54,
     "advanceDeclineNet": -8,
     "adLineChange20d": 104,
-    "avgPairwiseCorrelation": 0.084,
+    "avgPairwiseCorrelation": 0.083,
     "accumulationPct": 51.0,
     "stealthDistributionPct": 25.5,
     "advanceRatioSma10": 0.481,
@@ -1376,7 +1376,7 @@
         "name": "\u9298\u67C4\u9593\u76F8\u95A2",
         "score": 0,
         "maxPoints": 7,
-        "detail": "\u5E73\u5747\u30DA\u30A2\u76F8\u95A2 0.084\uFF0821\u65E5\uFF09"
+        "detail": "\u5E73\u5747\u30DA\u30A2\u76F8\u95A2 0.083\uFF0821\u65E5\uFF09"
       },
       {
         "group": "\u30DC\u30E9\u30C6\u30A3\u30EA\u30C6\u30A3",
