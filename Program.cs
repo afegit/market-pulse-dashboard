@@ -179,6 +179,9 @@ class Program
     const int MAX_FRED_RESPONSE_BYTES = 2 * 1024 * 1024;
     // Do not publish a dashboard from a quote feed that is more than one normal weekend behind.
     const int MAX_MARKET_DATA_AGE_CALENDAR_DAYS = 3;
+    // 指数とETFで最新バーの日付がずれたとき、そろえてよい上限。
+    // 週末をまたぐ1セッション差（金→火）まで許し、それ以上離れていたら取得異常として止める。
+    const int MAX_SERIES_ALIGNMENT_GAP_CALENDAR_DAYS = 4;
     const int MAX_AUXILIARY_DATA_AGE_CALENDAR_DAYS = 7;
     const int OPTIONAL_YAHOO_MAX_ATTEMPTS = 1;
     const int OPTIONAL_YAHOO_CONCURRENCY = 5;
@@ -371,16 +374,24 @@ class Program
                 Spy = indexFetches[2],
                 Qqq = indexFetches[3]
             };
-            // 4系列の基準日がそろっていないと、別々の日の合成でステータスと検証価格を作ってしまう。
+            // 4系列の基準日がそろわない日は、そろっている最新日まで切り詰めてから使う（詳細は ResolveAlignedLatestDate）。
             var seriesByLabel = new (string Label, List<DailyData> Data)[]
             {
                 (SP500_INDEX_SYMBOL, bundle.Sp500), (NASDAQ_INDEX_SYMBOL, bundle.Nasdaq),
                 (SP500_PROXY_SYMBOL, bundle.Spy), (NASDAQ_PROXY_SYMBOL, bundle.Qqq)
             };
-            if (seriesByLabel.Select(item => item.Data[^1].Date.Date).Distinct().Count() != 1)
-                throw new InvalidDataException(
-                    "指数とETFの基準日が一致しません（" +
+            DateTime alignedDate = ResolveAlignedLatestDate(seriesByLabel);
+            if (seriesByLabel.Any(item => item.Data[^1].Date.Date != alignedDate))
+            {
+                Console.WriteLine($"[Align] 基準日が不揃いのため {alignedDate:yyyy-MM-dd} へそろえます（" +
                     string.Join(", ", seriesByLabel.Select(item => $"{item.Label}: {item.Data[^1].Date:yyyy-MM-dd}")) + "）。");
+                List<DailyData> Align(string label, List<DailyData> data) =>
+                    TruncateTo(data, alignedDate) ?? throw new InvalidDataException($"{label} に {alignedDate:yyyy-MM-dd} のバーがありません。");
+                bundle.Sp500 = Align(SP500_INDEX_SYMBOL, bundle.Sp500);
+                bundle.Nasdaq = Align(NASDAQ_INDEX_SYMBOL, bundle.Nasdaq);
+                bundle.Spy = Align(SP500_PROXY_SYMBOL, bundle.Spy);
+                bundle.Qqq = Align(NASDAQ_PROXY_SYMBOL, bundle.Qqq);
+            }
 
             // Put/Call Ratio（自前算出）。失敗しても既存のExposure機能全体を止めないよう内部で例外を握りつぶす設計
             var putCall = await FetchPutCallRatio();
@@ -946,6 +957,22 @@ class Program
         int index = data.FindLastIndex(day => day.Date.Date <= asOf.Date);
         if (index < 0 || data[index].Date.Date != asOf.Date) return null;
         return index == data.Count - 1 ? data : data.GetRange(0, index + 1);
+    }
+
+    // 4系列の基準日がそろっていないと、別々の日の合成でステータスと検証価格を作ってしまう。
+    // ただしYahooは引け後しばらく、ETFの最新バーだけ close/adjclose をnullで返すことがある
+    // （open/high/low/volumeは入っているのに終値だけ無い）。終値の無いバーは取り込めないため、
+    // その日はSPY/QQQだけ1本手前で止まる。meta.regularMarketPrice から終値を拾って埋めると
+    // バーごとに出所が変わるので、そろっている最新日まで全系列を切り詰めて1日遅れで公開する。
+    static DateTime ResolveAlignedLatestDate(IReadOnlyList<(string Label, List<DailyData> Data)> series)
+    {
+        DateTime newest = series.Max(item => item.Data[^1].Date.Date);
+        DateTime aligned = series.Min(item => item.Data[^1].Date.Date);
+        if ((newest - aligned).TotalDays > MAX_SERIES_ALIGNMENT_GAP_CALENDAR_DAYS)
+            throw new InvalidDataException(
+                "指数とETFの基準日が離れすぎています（" +
+                string.Join(", ", series.Select(item => $"{item.Label}: {item.Data[^1].Date:yyyy-MM-dd}")) + "）。");
+        return aligned;
     }
 
     static decimal ComputeReturnPct(List<DailyData> data, int lookbackDays)
@@ -3129,6 +3156,21 @@ class Program
         var noLeaders = TestBreadth(leaderAbove: null, nearHigh: null, breakdown: null);
         Assert(CalculateExposure("Uptrend", healthyIndex, healthyNasdaq, noLeaders, calmVol, calmCredit).BandLabel == "80-100%",
             "missing leader data never cuts exposure on its own");
+
+        // --- 指数とETFで最新バーの日付がずれた日 ---
+        // Yahooは引け後しばらく、ETFの最新バーだけ close/adjclose をnullで返すことがある。
+        // 終値の無いバーは取り込めないので、SPY/QQQだけ1本手前で止まり基準日が食い違う。
+        var alignedIndexBars = TestIndexSeries(Enumerable.Repeat((100m, 1_000L), 10));
+        var laggingEtfBars = alignedIndexBars.GetRange(0, alignedIndexBars.Count - 1);
+        Assert(ResolveAlignedLatestDate(new[] { (SP500_INDEX_SYMBOL, alignedIndexBars), (SP500_PROXY_SYMBOL, laggingEtfBars) })
+            == laggingEtfBars[^1].Date.Date, "a lagging ETF series pulls the reference date back instead of failing the update");
+        Assert(ResolveAlignedLatestDate(new[] { (SP500_INDEX_SYMBOL, alignedIndexBars), (SP500_PROXY_SYMBOL, alignedIndexBars) })
+            == alignedIndexBars[^1].Date.Date, "aligned series keep the newest reference date");
+        // 1セッション程度のずれは許すが、離れすぎたら取得異常として止める。
+        bool farBehindRejected = false;
+        try { ResolveAlignedLatestDate(new[] { (SP500_INDEX_SYMBOL, alignedIndexBars), (SP500_PROXY_SYMBOL, alignedIndexBars.GetRange(0, 1)) }); }
+        catch (InvalidDataException) { farBehindRejected = true; }
+        Assert(farBehindRejected, "a far-behind ETF series still fails the update");
 
         // --- 権利落ち日の売り抜け日を取りこぼさない ---
         // 調整後終値の前日比は「価格リターン＋配当利回り」なので、権利落ち日は当日のリターンが
